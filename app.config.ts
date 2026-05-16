@@ -52,6 +52,22 @@ const config: ExpoConfig = {
         defaultChannel: 'default',
       },
     ],
+    [
+      'expo-camera',
+      {
+        cameraPermission: 'Permitir que $(PRODUCT_NAME) acceda a la cámara para capturar fotos.',
+        microphonePermission:
+          'Permitir que $(PRODUCT_NAME) acceda al micrófono para grabar audio en videos.',
+        recordAudioAndroid: true,
+      },
+    ],
+    [
+      'expo-image-picker',
+      {
+        photosPermission: 'Permitir que $(PRODUCT_NAME) acceda a tus fotos para subir contenido.',
+        cameraPermission: 'Permitir que $(PRODUCT_NAME) acceda a la cámara.',
+      },
+    ],
   ],
   experiments: {
     typedRoutes: true,

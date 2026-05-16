@@ -48,6 +48,38 @@ alter table public.device_tokens enable row level security;
 create policy "Users manage own tokens" on public.device_tokens for all using (auth.uid() = user_id);
 ```
 
+## Storage
+
+The Camera tab uploads media files to Supabase Storage.
+
+**Default bucket:** `media`
+
+**Setup:**
+
+1. Go to your Supabase Dashboard → **Storage** → **New bucket**.
+2. Name it `media`. Enable **Public bucket** if you want public URLs to resolve without authentication.
+3. Apply the following RLS policies so authenticated users can only access their own folder:
+
+```sql
+create policy "Users upload to own folder"
+on storage.objects for insert
+to authenticated
+with check (
+  bucket_id = 'media'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+create policy "Users read own folder"
+on storage.objects for select
+to authenticated
+using (
+  bucket_id = 'media'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+```
+
+> If the `media` bucket does not exist the app will log a warning and gracefully return without crashing.
+
 ## Get started
 
 1. Install dependencies
