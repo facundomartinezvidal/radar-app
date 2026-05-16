@@ -27,6 +27,7 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
 
 > **Regenerating TypeScript types from your DB schema:**
 > After updating your database schema, regenerate `types/supabase.ts`:
+>
 > ```bash
 > pnpm dlx supabase gen types typescript --project-id YOUR_PROJECT_REF > types/supabase.ts
 > ```
