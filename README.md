@@ -32,6 +32,22 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
 > pnpm dlx supabase gen types typescript --project-id YOUR_PROJECT_REF > types/supabase.ts
 > ```
 
+## Push Notifications
+
+Push tokens only work on real physical devices — the iOS Simulator cannot receive remote notifications. Registration requires an EAS project: run `eas init` to create or link one, then set `EAS_PROJECT_ID` in `.env.local` to the resulting UUID. Without this value the registration helper will return `null` silently. The token upload step also requires a `device_tokens` table in your Supabase database; until it is created the app will log a warning and continue operating normally. Create the table with the following SQL in your Supabase SQL editor:
+
+```sql
+create table public.device_tokens (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users(id) on delete cascade not null,
+  token text not null unique,
+  platform text not null,
+  updated_at timestamptz default now()
+);
+alter table public.device_tokens enable row level security;
+create policy "Users manage own tokens" on public.device_tokens for all using (auth.uid() = user_id);
+```
+
 ## Get started
 
 1. Install dependencies

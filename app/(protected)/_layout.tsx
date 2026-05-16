@@ -1,9 +1,14 @@
 import { Redirect, Stack } from 'expo-router';
 
+import { useNotificationObserver } from '@/lib/notifications';
+import { useRegisterPush } from '@/hooks/use-register-push';
 import { useSession } from '@/hooks/use-session';
 
 export default function ProtectedLayout() {
   const { isAuthenticated, isLoading } = useSession();
+
+  useRegisterPush();
+  useNotificationObserver();
 
   if (isLoading) {
     return null;

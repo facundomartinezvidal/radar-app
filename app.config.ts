@@ -11,6 +11,9 @@ const config: ExpoConfig = {
   newArchEnabled: true,
   ios: {
     supportsTablet: true,
+    infoPlist: {
+      UIBackgroundModes: ['remote-notification'],
+    },
   },
   android: {
     adaptiveIcon: {
@@ -41,6 +44,14 @@ const config: ExpoConfig = {
       },
     ],
     'expo-secure-store',
+    [
+      'expo-notifications',
+      {
+        icon: './assets/images/icon.png',
+        color: '#ffffff',
+        defaultChannel: 'default',
+      },
+    ],
   ],
   experiments: {
     typedRoutes: true,
