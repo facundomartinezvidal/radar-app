@@ -1,0 +1,10 @@
+node_modules
+.expo
+dist
+web-build
+.git
+.env
+.env.local
+.env.*.local
+.DS_Store
+.claude-dev-flow

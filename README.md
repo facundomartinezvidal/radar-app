@@ -80,6 +80,86 @@ using (
 
 > If the `media` bucket does not exist the app will log a warning and gracefully return without crashing.
 
+## EAS Build
+
+EAS (Expo Application Services) is used to build and submit iOS and Android binaries in the cloud. Three profiles are configured in `eas.json`: `development`, `preview`, and `production`.
+
+> **Apple Developer ($99/yr) required for iOS App Store. Google Play ($25 one-time) required for Android.**
+
+### Prerequisites
+
+- An Expo account — sign up at [https://expo.dev](https://expo.dev)
+- Log in with the EAS CLI (installed locally as a dev dep):
+  ```bash
+  pnpm exec eas login
+  ```
+  Or use the globally-installed CLI if you prefer:
+  ```bash
+  pnpm dlx eas-cli login
+  ```
+
+### Initialize the EAS project
+
+Link this local project to an EAS project (only needs to be done once per project):
+
+```bash
+pnpm exec eas init
+```
+
+This writes the `EAS_PROJECT_ID` to your Expo account and may update `app.config.ts`. Copy the resulting project ID into `.env.local`:
+
+```
+EAS_PROJECT_ID=your-eas-project-uuid
+```
+
+### Set environment secrets for cloud builds
+
+EAS cloud builds do not read `.env.local`. Register secrets in the EAS dashboard:
+
+```bash
+pnpm exec eas secret:create --scope project --name EXPO_PUBLIC_SUPABASE_URL --value 'https://your-project.supabase.co'
+pnpm exec eas secret:create --scope project --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value 'your_anon_key'
+```
+
+### Development builds (first-time setup)
+
+Development builds include the custom dev-client which supports config plugins (e.g. `expo-notifications`). You cannot use Expo Go for this project.
+
+```bash
+# iOS Simulator
+pnpm run build:dev:ios
+
+# Android real device
+pnpm run build:dev:android
+```
+
+Install the resulting build on your device/simulator, then start the local bundler and scan the QR code with the **dev build** (not Expo Go):
+
+```bash
+pnpm start
+```
+
+### Preview build (internal distribution, real device)
+
+Produces an IPA (Ad Hoc) and APK sharable internally without going through the stores:
+
+```bash
+pnpm run build:preview
+```
+
+### Production build (store-ready)
+
+```bash
+pnpm run build:prod
+```
+
+Submit to the stores after a successful production build:
+
+```bash
+pnpm exec eas submit -p ios
+pnpm exec eas submit -p android
+```
+
 ## Get started
 
 1. Install dependencies

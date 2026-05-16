@@ -9,13 +9,20 @@ const config: ExpoConfig = {
   scheme: 'radarapp',
   userInterfaceStyle: 'automatic',
   newArchEnabled: true,
+  runtimeVersion: {
+    policy: 'appVersion',
+  },
   ios: {
+    bundleIdentifier: 'com.radarapp.app',
+    buildNumber: '1',
     supportsTablet: true,
     infoPlist: {
       UIBackgroundModes: ['remote-notification'],
     },
   },
   android: {
+    package: 'com.radarapp.app',
+    versionCode: 1,
     adaptiveIcon: {
       backgroundColor: '#E6F4FE',
       foregroundImage: './assets/images/android-icon-foreground.png',

@@ -14,7 +14,11 @@
     "format:check": "prettier --check .",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "build:dev:ios": "pnpm exec eas build --profile development --platform ios",
+    "build:dev:android": "pnpm exec eas build --profile development --platform android",
+    "build:preview": "pnpm exec eas build --profile preview --platform all",
+    "build:prod": "pnpm exec eas build --profile production --platform all"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -62,6 +66,7 @@
     "@testing-library/react-native": "^13.3.3",
     "@types/jest": "^29.5.14",
     "@types/react": "~19.1.0",
+    "eas-cli": "^18.13.0",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
     "eslint-config-prettier": "^10.1.8",
