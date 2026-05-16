@@ -39,13 +39,13 @@ See the [Scripts table in README.md](../../README.md#scripts) for all `pnpm` com
 
 These items were not completed during the scaffold session and require manual action:
 
-- [ ] **Create Supabase project** at https://supabase.com and populate `.env.local` (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`)
+- [ ] **Create Supabase project** at https://supabase.com and populate `.env.local` (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_KEY`)
 - [ ] **Run `pnpm exec eas init`** to link to an EAS project, then set `EAS_PROJECT_ID` in `.env.local`
 - [ ] **Create `device_tokens` table** in Supabase — SQL in the [Push Notifications section of README.md](../../README.md#push-notifications)
 - [ ] **Create `media` bucket + RLS policies** in Supabase Storage — SQL in the [Storage section of README.md](../../README.md#storage)
 - [ ] **Apple Developer account** ($99/yr) if targeting iOS App Store distribution
 - [ ] **Google Play account** ($25 one-time) if targeting Android Play Store distribution
-- [ ] **Set EAS secrets** for cloud builds (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`) — see [EAS Build section of README.md](../../README.md#eas-build)
+- [ ] **Set EAS secrets** for cloud builds (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_KEY`) — see [EAS Build section of README.md](../../README.md#eas-build)
 - [ ] **Push remote + create GitHub repo** then wire up CI (Phase 13 — GitHub Actions workflow not yet created)
 - [ ] **Regenerate Supabase TypeScript types** after finalizing DB schema: `pnpm dlx supabase gen types typescript --project-id YOUR_PROJECT_REF > types/supabase.ts`
 - [ ] **Evaluate Expo SDK 55** — SDK 54 was installed as the stable release; 55 is available for upgrade after MVP

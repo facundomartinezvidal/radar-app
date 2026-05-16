@@ -43,7 +43,7 @@ Optional (for running on simulators):
 
    ```
    EXPO_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
-   EXPO_PUBLIC_SUPABASE_ANON_KEY=your_anon_public_key_here
+   EXPO_PUBLIC_SUPABASE_KEY=your_publishable_key_here
    ```
 
 4. Install dependencies:
@@ -222,7 +222,7 @@ EAS cloud builds do not read `.env.local`. Register secrets in the EAS dashboard
 
 ```bash
 pnpm exec eas secret:create --scope project --name EXPO_PUBLIC_SUPABASE_URL --value 'https://your-project.supabase.co'
-pnpm exec eas secret:create --scope project --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value 'your_anon_key'
+pnpm exec eas secret:create --scope project --name EXPO_PUBLIC_SUPABASE_KEY --value 'your_publishable_key'
 ```
 
 ### Development builds (first-time setup)

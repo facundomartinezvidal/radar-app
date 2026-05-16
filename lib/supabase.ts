@@ -9,12 +9,12 @@ import { Platform } from 'react-native';
 import type { Database } from '@/types/supabase';
 
 const supabaseUrl = Constants.expoConfig?.extra?.supabaseUrl as string | undefined;
-const supabaseAnonKey = Constants.expoConfig?.extra?.supabaseAnonKey as string | undefined;
+const supabaseKey = Constants.expoConfig?.extra?.supabaseKey as string | undefined;
 
-if (!supabaseUrl || !supabaseAnonKey) {
+if (!supabaseUrl || !supabaseKey) {
   throw new Error(
     '[supabase] Missing environment variables.\n' +
-      'Ensure EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY are set in your .env.local file ' +
+      'Ensure EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_KEY are set in your .env.local file ' +
       'and that app.config.ts injects them into the `extra` block.',
   );
 }
@@ -33,7 +33,7 @@ const storageAdapter =
         removeItem: (key: string): Promise<void> => SecureStore.deleteItemAsync(key),
       };
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient<Database>(supabaseUrl, supabaseKey, {
   auth: {
     storage: storageAdapter,
     autoRefreshToken: true,
