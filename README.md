@@ -1,6 +1,35 @@
-# Welcome to your Expo app 👋
+# Welcome to your Expo app
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+
+## Setup
+
+1. Copy the example env file:
+
+   ```bash
+   cp .env.example .env.local
+   ```
+
+2. Create a Supabase project at [https://supabase.com](https://supabase.com) (free tier available).
+
+3. Go to **Settings → API** in your Supabase dashboard. Copy the **Project URL** and **anon public** key into `.env.local`:
+
+   ```
+   EXPO_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+   EXPO_PUBLIC_SUPABASE_ANON_KEY=your_anon_public_key_here
+   ```
+
+4. Start the app:
+
+   ```bash
+   pnpm start
+   ```
+
+> **Regenerating TypeScript types from your DB schema:**
+> After updating your database schema, regenerate `types/supabase.ts`:
+> ```bash
+> pnpm dlx supabase gen types typescript --project-id YOUR_PROJECT_REF > types/supabase.ts
+> ```
 
 ## Get started
 
