@@ -14,15 +14,15 @@ PR back to `main` after CI passes. Direct commits to `main` are only for trivial
 
 Use [Conventional Commits](https://www.conventionalcommits.org/):
 
-| Prefix | Use for |
-|---|---|
-| `feat:` | New feature or screen |
-| `fix:` | Bug fix |
-| `chore:` | Tooling, deps, config |
-| `docs:` | Documentation only |
-| `test:` | Adding or fixing tests |
+| Prefix   | Use for                  |
+| -------- | ------------------------ |
+| `feat:`  | New feature or screen    |
+| `fix:`   | Bug fix                  |
+| `chore:` | Tooling, deps, config    |
+| `docs:`  | Documentation only       |
+| `test:`  | Adding or fixing tests   |
 | `build:` | Build system, EAS config |
-| `ci:` | CI/CD pipeline changes |
+| `ci:`    | CI/CD pipeline changes   |
 
 Example: `feat: add sign-out button to profile tab`
 

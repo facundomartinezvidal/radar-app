@@ -5,3 +5,5 @@ ios
 android
 *.lock
 pnpm-lock.yaml
+.claude-dev-flow
+coverage

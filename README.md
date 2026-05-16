@@ -23,6 +23,7 @@ See [docs/decisions/2026-05-16-stack-choices.md](docs/decisions/2026-05-16-stack
 - **Expo Go** app on a physical device for the quickest dev loop
 
 Optional (for running on simulators):
+
 - Xcode 16+ (iOS Simulator)
 - Android Studio + Android SDK (Android Emulator)
 
@@ -76,24 +77,24 @@ pnpm web       # Open in browser (web is opt-in / non-priority)
 
 ## Scripts
 
-| Script | What it does |
-|---|---|
-| `pnpm start` | Start the Expo dev server |
-| `pnpm ios` | Start dev server and open iOS Simulator |
-| `pnpm android` | Start dev server and open Android Emulator |
-| `pnpm web` | Start dev server and open browser |
-| `pnpm lint` | Run ESLint (expo + prettier rules) |
-| `pnpm typecheck` | Run `tsc --noEmit` |
-| `pnpm format` | Format all files with Prettier |
-| `pnpm format:check` | Check formatting without writing |
-| `pnpm test` | Run all tests once |
-| `pnpm test:watch` | Run tests in watch mode |
-| `pnpm test:coverage` | Run tests with coverage report |
-| `pnpm build:dev:ios` | EAS development build for iOS Simulator |
-| `pnpm build:dev:android` | EAS development build for Android device |
-| `pnpm build:preview` | EAS preview build (internal distribution, all platforms) |
-| `pnpm build:prod` | EAS production build (store-ready, all platforms) |
-| `pnpm reset-project` | Move starter code to `app-example/`, reset `app/` to blank |
+| Script                   | What it does                                               |
+| ------------------------ | ---------------------------------------------------------- |
+| `pnpm start`             | Start the Expo dev server                                  |
+| `pnpm ios`               | Start dev server and open iOS Simulator                    |
+| `pnpm android`           | Start dev server and open Android Emulator                 |
+| `pnpm web`               | Start dev server and open browser                          |
+| `pnpm lint`              | Run ESLint (expo + prettier rules)                         |
+| `pnpm typecheck`         | Run `tsc --noEmit`                                         |
+| `pnpm format`            | Format all files with Prettier                             |
+| `pnpm format:check`      | Check formatting without writing                           |
+| `pnpm test`              | Run all tests once                                         |
+| `pnpm test:watch`        | Run tests in watch mode                                    |
+| `pnpm test:coverage`     | Run tests with coverage report                             |
+| `pnpm build:dev:ios`     | EAS development build for iOS Simulator                    |
+| `pnpm build:dev:android` | EAS development build for Android device                   |
+| `pnpm build:preview`     | EAS preview build (internal distribution, all platforms)   |
+| `pnpm build:prod`        | EAS production build (store-ready, all platforms)          |
+| `pnpm reset-project`     | Move starter code to `app-example/`, reset `app/` to blank |
 
 ## Project Structure
 
@@ -285,12 +286,12 @@ pnpm test:coverage
 
 Coverage thresholds enforced in `jest.config.js`:
 
-| Metric | Threshold |
-|---|---|
-| Branches | 50% |
-| Functions | 50% |
-| Lines | 60% |
-| Statements | 60% |
+| Metric     | Threshold |
+| ---------- | --------- |
+| Branches   | 50%       |
+| Functions  | 50%       |
+| Lines      | 60%       |
+| Statements | 60%       |
 
 Tests live next to their subjects in `__tests__/` sibling directories (e.g. `lib/__tests__/storage.test.ts`).
 

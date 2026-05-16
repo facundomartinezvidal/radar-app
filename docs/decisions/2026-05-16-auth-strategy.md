@@ -32,22 +32,24 @@ Schemas are co-located with their forms today; they can be extracted to a shared
 
 ## Alternatives Considered
 
-| Alternative | Reason not chosen |
-|---|---|
-| Clerk / Auth0 | Extra vendor + monthly cost; Supabase Auth is built-in and covers all planned auth flows |
-| Custom JWT backend | More control but more ops burden; Supabase RLS handles per-row authorization out of the box |
-| Per-screen auth guards | Scales poorly — easy to forget one screen; route group layout is a single enforcement point |
-| AsyncStorage for tokens | Unencrypted; fails secure-storage requirements |
+| Alternative             | Reason not chosen                                                                           |
+| ----------------------- | ------------------------------------------------------------------------------------------- |
+| Clerk / Auth0           | Extra vendor + monthly cost; Supabase Auth is built-in and covers all planned auth flows    |
+| Custom JWT backend      | More control but more ops burden; Supabase RLS handles per-row authorization out of the box |
+| Per-screen auth guards  | Scales poorly — easy to forget one screen; route group layout is a single enforcement point |
+| AsyncStorage for tokens | Unencrypted; fails secure-storage requirements                                              |
 
 ## Consequences
 
 **Benefits:**
+
 - Zero per-screen auth boilerplate — a single layout component enforces each boundary
 - Clean client-state split: `session/user` in Zustand, server data in TanStack Query
 - expo-secure-store keeps tokens out of JS-accessible storage on both platforms
 - Adding OAuth providers requires only a new button + `signInWithOAuth` call
 
 **Tradeoffs:**
+
 - `expo-secure-store` has a ~2 KB soft limit per item (sessions fit comfortably; be mindful if storing large JWTs)
 - Web target requires an AsyncStorage fallback (already wired in `lib/supabase.ts` via the `LargeSecureStore` adapter), which degrades the security posture for web users
 - Supabase free tier pauses projects after 7 days of inactivity — cold-start will briefly see a loading state while the DB wakes

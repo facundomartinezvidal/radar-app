@@ -9,22 +9,22 @@ radar-app is a cross-platform mobile application (iOS + Android primary, web opt
 
 ## Initial Scaffold — 14 Phases
 
-| # | Phase | Summary |
-|---|---|---|
-| 1 | Pre-flight | Verified Node 24, pnpm 10.28, git 2.50. Chose Expo Go as initial dev loop (no local Xcode/Android Studio required). |
-| 2 | Scaffold Expo + TS | `pnpm create expo-app@latest radar-app --template default`. Renamed `master` → `main`. Initial commit. |
-| 3 | Config base | TypeScript strict mode + 4 extra flags, Prettier, `.editorconfig`, ESLint with expo + prettier plugins. |
-| 4 | Core deps | Added Supabase JS client, Zustand, TanStack Query, react-hook-form, zod, expo-secure-store, expo-notifications, expo-camera, expo-image-picker. |
-| 5 | Supabase client + env | `lib/supabase.ts` with `LargeSecureStore` adapter (SecureStore on native, AsyncStorage on web). `.env.example` and `.env.local` pattern. |
-| 6 | Providers | `components/providers.tsx` wrapping `QueryClientProvider` + Zustand store. `lib/query-client.ts` with configured defaults. |
-| 7 | Auth flow + protected routes | `stores/auth-store.ts` (Zustand). `hooks/use-auth-listener.ts`. Route groups: `app/(auth)/` and `app/(protected)/`. Sign-in and sign-up screens with zod validation. |
-| 8 | Tab layout | `app/(protected)/(tabs)/` with Home, Explore, Camera tabs. Tab bar with SF Symbols (iOS) / Material icons (Android). |
-| 9 | Push notifications | `lib/notifications.ts` (token registration, permission request). `hooks/use-register-push.ts`. `device_tokens` Supabase table + RLS. |
-| 10 | Camera + media | `app/(protected)/(tabs)/camera.tsx`. `lib/storage.ts` (upload to `media` bucket). expo-image-picker and expo-camera integration. |
-| 11 | Testing setup | jest-expo preset, RNTL, `jest.config.js` with coverage thresholds. Tests for `lib/storage.ts`, `stores/auth-store.ts`, `hooks/use-session.ts`. 29/29 passing. |
-| 12 | EAS Build config | `eas.json` with `development`, `preview`, `production` profiles. `app.config.ts` typed. Build scripts in `package.json`. |
-| 13 | CI workflow | (Placeholder — GitHub Actions workflow not yet created; repo has no remote.) |
-| 14 | Docs + ADRs | This document; `docs/decisions/`; refined `README.md`; `CONTRIBUTING.md`. |
+| #   | Phase                        | Summary                                                                                                                                                              |
+| --- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Pre-flight                   | Verified Node 24, pnpm 10.28, git 2.50. Chose Expo Go as initial dev loop (no local Xcode/Android Studio required).                                                  |
+| 2   | Scaffold Expo + TS           | `pnpm create expo-app@latest radar-app --template default`. Renamed `master` → `main`. Initial commit.                                                               |
+| 3   | Config base                  | TypeScript strict mode + 4 extra flags, Prettier, `.editorconfig`, ESLint with expo + prettier plugins.                                                              |
+| 4   | Core deps                    | Added Supabase JS client, Zustand, TanStack Query, react-hook-form, zod, expo-secure-store, expo-notifications, expo-camera, expo-image-picker.                      |
+| 5   | Supabase client + env        | `lib/supabase.ts` with `LargeSecureStore` adapter (SecureStore on native, AsyncStorage on web). `.env.example` and `.env.local` pattern.                             |
+| 6   | Providers                    | `components/providers.tsx` wrapping `QueryClientProvider` + Zustand store. `lib/query-client.ts` with configured defaults.                                           |
+| 7   | Auth flow + protected routes | `stores/auth-store.ts` (Zustand). `hooks/use-auth-listener.ts`. Route groups: `app/(auth)/` and `app/(protected)/`. Sign-in and sign-up screens with zod validation. |
+| 8   | Tab layout                   | `app/(protected)/(tabs)/` with Home, Explore, Camera tabs. Tab bar with SF Symbols (iOS) / Material icons (Android).                                                 |
+| 9   | Push notifications           | `lib/notifications.ts` (token registration, permission request). `hooks/use-register-push.ts`. `device_tokens` Supabase table + RLS.                                 |
+| 10  | Camera + media               | `app/(protected)/(tabs)/camera.tsx`. `lib/storage.ts` (upload to `media` bucket). expo-image-picker and expo-camera integration.                                     |
+| 11  | Testing setup                | jest-expo preset, RNTL, `jest.config.js` with coverage thresholds. Tests for `lib/storage.ts`, `stores/auth-store.ts`, `hooks/use-session.ts`. 29/29 passing.        |
+| 12  | EAS Build config             | `eas.json` with `development`, `preview`, `production` profiles. `app.config.ts` typed. Build scripts in `package.json`.                                             |
+| 13  | CI workflow                  | (Placeholder — GitHub Actions workflow not yet created; repo has no remote.)                                                                                         |
+| 14  | Docs + ADRs                  | This document; `docs/decisions/`; refined `README.md`; `CONTRIBUTING.md`.                                                                                            |
 
 ## Architecture Decisions
 

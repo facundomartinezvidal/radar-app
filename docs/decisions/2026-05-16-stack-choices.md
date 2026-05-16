@@ -36,22 +36,24 @@ Official Expo test preset; RNTL v13 targets React 19. Coverage thresholds enforc
 
 ## Alternatives Considered
 
-| Alternative | Reason not chosen |
-|---|---|
-| Flutter | Dart ramp-up; less React/JS ecosystem leverage |
+| Alternative                  | Reason not chosen                                                                     |
+| ---------------------------- | ------------------------------------------------------------------------------------- |
+| Flutter                      | Dart ramp-up; less React/JS ecosystem leverage                                        |
 | Bare React Native + Firebase | More native control but heavier ops; no free EAS cloud tier; NoSQL fits domain poorly |
-| Redux Toolkit | More boilerplate than MVP scope requires |
-| Clerk / Auth0 | Extra vendor + cost; Supabase Auth is built-in and free |
+| Redux Toolkit                | More boilerplate than MVP scope requires                                              |
+| Clerk / Auth0                | Extra vendor + cost; Supabase Auth is built-in and free                               |
 
 ## Consequences
 
 **Benefits:**
+
 - Fast iteration loop via Expo Go or dev client
 - Cloud builds (EAS) — no local Xcode/Android Studio required for CI
 - OTA updates via expo-updates without a full App Store re-submission
 - Supabase RLS enforces authorization at DB layer — less custom middleware
 
 **Tradeoffs:**
+
 - Bound to Expo's release cadence; some native modules require config plugins or dev builds (Expo Go will not work for this project)
 - Supabase free tier pauses inactive projects after 7 days (upgrade to Pro when active)
 - `noUncheckedIndexedAccess` increases type verbosity for array access patterns
