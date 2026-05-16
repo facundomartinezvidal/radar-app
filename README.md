@@ -1,6 +1,32 @@
-# Welcome to your Expo app
+# radar-app
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Cross-platform mobile app built with Expo, React Native, TypeScript, and Supabase.
+
+## Tech Stack
+
+- **Expo SDK 54** (managed workflow) + **React Native 0.81**
+- **TypeScript 5.9** strict mode
+- **Expo Router 6** — file-based routing with typed routes
+- **Supabase** — Auth, Postgres (with RLS), Storage, Edge Functions
+- **Zustand** — client state
+- **TanStack Query** — server state, caching, retries
+- **react-hook-form + zod** — form handling and validation
+- **jest-expo + RNTL** — testing
+- **EAS Build + EAS Submit** — cloud builds and store submission
+
+See [docs/decisions/2026-05-16-stack-choices.md](docs/decisions/2026-05-16-stack-choices.md) for rationale.
+
+## Prerequisites
+
+- **Node 24** (use [nvm](https://github.com/nvm-sh/nvm) with `.nvmrc` if you manage multiple versions)
+- **pnpm 10+** (`npm install -g pnpm`)
+- **Expo Go** app on a physical device for the quickest dev loop
+
+Optional (for running on simulators):
+- Xcode 16+ (iOS Simulator)
+- Android Studio + Android SDK (Android Emulator)
+
+> This project uses config plugins (`expo-notifications`, `expo-camera`, etc.) and **cannot run in Expo Go** — you need a [development build](#eas-build). Use a real device with Expo Go only for initial exploration without those plugins.
 
 ## Setup
 
@@ -19,10 +45,10 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    EXPO_PUBLIC_SUPABASE_ANON_KEY=your_anon_public_key_here
    ```
 
-4. Start the app:
+4. Install dependencies:
 
    ```bash
-   pnpm start
+   pnpm install
    ```
 
 > **Regenerating TypeScript types from your DB schema:**
@@ -31,6 +57,83 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
 > ```bash
 > pnpm dlx supabase gen types typescript --project-id YOUR_PROJECT_REF > types/supabase.ts
 > ```
+
+## Run the App
+
+```bash
+pnpm start
+```
+
+Scan the QR code with **Expo Go** on your device (for basic exploration), or open your development build and scan with that.
+
+Platform shortcuts:
+
+```bash
+pnpm ios       # Open in iOS Simulator (requires Xcode)
+pnpm android   # Open in Android Emulator (requires Android Studio)
+pnpm web       # Open in browser (web is opt-in / non-priority)
+```
+
+## Scripts
+
+| Script | What it does |
+|---|---|
+| `pnpm start` | Start the Expo dev server |
+| `pnpm ios` | Start dev server and open iOS Simulator |
+| `pnpm android` | Start dev server and open Android Emulator |
+| `pnpm web` | Start dev server and open browser |
+| `pnpm lint` | Run ESLint (expo + prettier rules) |
+| `pnpm typecheck` | Run `tsc --noEmit` |
+| `pnpm format` | Format all files with Prettier |
+| `pnpm format:check` | Check formatting without writing |
+| `pnpm test` | Run all tests once |
+| `pnpm test:watch` | Run tests in watch mode |
+| `pnpm test:coverage` | Run tests with coverage report |
+| `pnpm build:dev:ios` | EAS development build for iOS Simulator |
+| `pnpm build:dev:android` | EAS development build for Android device |
+| `pnpm build:preview` | EAS preview build (internal distribution, all platforms) |
+| `pnpm build:prod` | EAS production build (store-ready, all platforms) |
+| `pnpm reset-project` | Move starter code to `app-example/`, reset `app/` to blank |
+
+## Project Structure
+
+```
+radar-app/
+├── app/
+│   ├── _layout.tsx              # Root layout — mounts <Providers> + <AuthBootstrap>
+│   ├── (auth)/
+│   │   ├── _layout.tsx          # Redirects to (protected) if already authenticated
+│   │   ├── sign-in.tsx
+│   │   └── sign-up.tsx
+│   └── (protected)/
+│       ├── _layout.tsx          # Redirects to /sign-in if unauthenticated
+│       ├── modal.tsx
+│       └── (tabs)/
+│           ├── _layout.tsx      # Tab bar config
+│           ├── index.tsx        # Home tab
+│           ├── explore.tsx      # Explore tab
+│           └── camera.tsx       # Camera / media upload tab
+├── components/
+│   ├── providers.tsx            # QueryClientProvider + Zustand root
+│   └── ui/                      # Shared UI primitives
+├── hooks/
+│   ├── use-auth-listener.ts     # Supabase onAuthStateChange → Zustand
+│   ├── use-register-push.ts     # Push token registration (protected only)
+│   └── use-session.ts           # Read session from Zustand
+├── lib/
+│   ├── supabase.ts              # Supabase client (SecureStore adapter)
+│   ├── notifications.ts         # Push token registration helper
+│   ├── storage.ts               # Supabase Storage upload helper
+│   └── query-client.ts          # TanStack QueryClient config
+├── stores/
+│   ├── auth-store.ts            # Zustand auth store (session, user, isLoading)
+│   └── index.ts
+├── types/
+│   └── supabase.ts              # Generated Supabase TypeScript types
+├── app.config.ts                # Expo config (typed)
+├── eas.json                     # EAS Build profiles
+└── jest.config.js               # Test config + coverage thresholds
+```
 
 ## Push Notifications
 
@@ -160,49 +263,46 @@ pnpm exec eas submit -p ios
 pnpm exec eas submit -p android
 ```
 
-## Get started
+## Testing
 
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+Run the full test suite:
 
 ```bash
-npm run reset-project
+pnpm test
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Watch mode (re-runs on file change):
 
-## Learn more
+```bash
+pnpm test:watch
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+Coverage report:
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+pnpm test:coverage
+```
 
-## Join the community
+Coverage thresholds enforced in `jest.config.js`:
 
-Join our community of developers creating universal apps.
+| Metric | Threshold |
+|---|---|
+| Branches | 50% |
+| Functions | 50% |
+| Lines | 60% |
+| Statements | 60% |
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Tests live next to their subjects in `__tests__/` sibling directories (e.g. `lib/__tests__/storage.test.ts`).
+
+## Architecture Decisions
+
+Key decisions are documented in [`docs/decisions/`](docs/decisions/):
+
+- [ADR-001: Mobile stack choices](docs/decisions/2026-05-16-stack-choices.md)
+- [ADR-002: Authentication and route protection strategy](docs/decisions/2026-05-16-auth-strategy.md)
+
+Feature history: [docs/features/radar-app.md](docs/features/radar-app.md)
+
+## License
+
+TBD
