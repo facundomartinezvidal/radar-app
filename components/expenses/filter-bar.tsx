@@ -92,7 +92,7 @@ export function FilterBar({ categories, value, onChange }: FilterBarProps): Reac
       <View style={{ flexDirection: 'row', gap: spacing[2] }}>
         {CURRENCIES.map((c) => {
           const active = value.currencies.includes(c);
-          const color = c === 'USD' ? colors.amber[500] : colors.brand[400];
+          const color = c === 'USD' ? colors.money.in : colors.brand[400];
           return (
             <Pressable
               key={c}

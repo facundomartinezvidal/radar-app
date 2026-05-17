@@ -16,7 +16,7 @@ interface CurrencyToggleProps {
 
 const OPTIONS: { value: Currency; label: string; color: string }[] = [
   { value: 'ARS', label: 'ARS', color: colors.brand[400] },
-  { value: 'USD', label: 'USD', color: colors.amber[500] },
+  { value: 'USD', label: 'USD', color: colors.money.in },
 ];
 
 export function CurrencyToggle({

@@ -44,6 +44,7 @@ interface QuickAction {
 }
 
 interface ExpenseRow {
+  id: string;
   iconName: IconName;
   name: string;
   meta: string;
@@ -137,7 +138,15 @@ function QuickActionButton({ action }: { action: QuickAction }): React.JSX.Eleme
   );
 }
 
-function ExpenseRowItem({ row, isLast }: { row: ExpenseRow; isLast: boolean }): React.JSX.Element {
+function ExpenseRowItem({
+  row,
+  isLast,
+  onPress,
+}: {
+  row: ExpenseRow;
+  isLast: boolean;
+  onPress?: (id: string) => void;
+}): React.JSX.Element {
   const iconBgColor =
     row.tone === 'in'
       ? 'rgba(16,185,129,0.15)'
@@ -149,26 +158,29 @@ function ExpenseRowItem({ row, isLast }: { row: ExpenseRow; isLast: boolean }): 
     row.tone === 'in' ? colors.money.in : row.tone === 'out' ? colors.money.out : colors.fg[3];
 
   return (
-    <View>
+    <Pressable
+      onPress={() => onPress?.(row.id)}
+      accessibilityRole="button"
+      accessibilityLabel={`Editar ${row.name}`}
+    >
       <View style={styles.expenseRow}>
-        {/* Category icon */}
         <View style={[styles.expenseIconCircle, { backgroundColor: iconBgColor }]}>
           <Icon name={row.iconName} size={18} color={iconColor} strokeWidth={1.5} />
         </View>
-
-        {/* Name + meta */}
         <View style={styles.expenseDetails}>
-          <Body style={styles.expenseName}>{row.name}</Body>
-          <Caption color={colors.fg[3]}>{row.meta}</Caption>
+          <Body style={styles.expenseName} numberOfLines={1}>
+            {row.name}
+          </Body>
+          <Caption color={colors.fg[3]} numberOfLines={1}>
+            {row.meta}
+          </Caption>
         </View>
-
-        {/* Amount */}
         <Text variant="money" tone={row.tone} style={styles.expenseAmount}>
           {row.amount}
         </Text>
       </View>
       {!isLast && <View style={styles.divider} />}
-    </View>
+    </Pressable>
   );
 }
 
@@ -185,6 +197,7 @@ export default function HomeScreen(): React.JSX.Element {
   const usdTotal = totalsQuery.data?.find((t) => t.currency === 'USD')?.total ?? 0;
 
   const recentRows: ExpenseRow[] = (recentQuery.data ?? []).map((e) => ({
+    id: e.id,
     iconName: (e.category?.icon as IconName | undefined) ?? 'CircleDashed',
     name: e.description?.trim().length ? e.description : (e.category?.name ?? 'Gasto'),
     meta: `${e.category?.name ?? 'Sin categoría'} · ${relativeTime(e.occurred_at)}`,
@@ -285,7 +298,7 @@ export default function HomeScreen(): React.JSX.Element {
               Ver todos
             </Button>
           </View>
-          <Card variant="base" padding={4}>
+          <Card variant="base" padding={4} style={styles.recentCard}>
             {recentRows.length === 0 ? (
               <View style={{ paddingVertical: spacing[4], alignItems: 'center' }}>
                 <Body color={colors.fg[3]} style={{ textAlign: 'center' }}>
@@ -295,9 +308,14 @@ export default function HomeScreen(): React.JSX.Element {
             ) : (
               recentRows.map((row, index) => (
                 <ExpenseRowItem
-                  key={row.name + row.meta + index}
+                  key={row.id}
                   row={row}
                   isLast={index === recentRows.length - 1}
+                  onPress={(id) =>
+                    router.push(
+                      `/(protected)/expense/${id}` as Parameters<typeof router.push>[0],
+                    )
+                  }
                 />
               ))
             )}
@@ -382,6 +400,9 @@ const styles = StyleSheet.create({
   balanceCard: {
     marginHorizontal: spacing[5],
     marginBottom: spacing[4],
+  },
+  recentCard: {
+    marginHorizontal: spacing[5],
   },
   balanceAmount: {
     fontVariant: ['tabular-nums'] as const,
