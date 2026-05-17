@@ -46,6 +46,8 @@ interface QuickAction {
 interface ExpenseRow {
   id: string;
   iconName: IconName;
+  /** Category color (hex). Drives icon + icon background tint. */
+  categoryColor: string;
   name: string;
   meta: string;
   amount: string;
@@ -147,15 +149,9 @@ function ExpenseRowItem({
   isLast: boolean;
   onPress?: (id: string) => void;
 }): React.JSX.Element {
-  const iconBgColor =
-    row.tone === 'in'
-      ? 'rgba(16,185,129,0.15)'
-      : row.tone === 'out'
-        ? 'rgba(239,68,68,0.10)'
-        : 'rgba(255,255,255,0.06)';
-
-  const iconColor =
-    row.tone === 'in' ? colors.money.in : row.tone === 'out' ? colors.money.out : colors.fg[3];
+  // Use category color for icon + tinted background. `1F` ≈ 12% alpha.
+  const iconBgColor = `${row.categoryColor}1F`;
+  const iconColor = row.categoryColor;
 
   return (
     <Pressable
@@ -199,6 +195,7 @@ export default function HomeScreen(): React.JSX.Element {
   const recentRows: ExpenseRow[] = (recentQuery.data ?? []).map((e) => ({
     id: e.id,
     iconName: (e.category?.icon as IconName | undefined) ?? 'CircleDashed',
+    categoryColor: e.category?.color ?? colors.fg[3],
     name: e.description?.trim().length ? e.description : (e.category?.name ?? 'Gasto'),
     meta: `${e.category?.name ?? 'Sin categoría'} · ${relativeTime(e.occurred_at)}`,
     amount: formatMoney(Number(e.amount), e.currency as 'ARS' | 'USD'),
