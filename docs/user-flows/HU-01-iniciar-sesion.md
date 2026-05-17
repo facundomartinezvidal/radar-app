@@ -119,7 +119,20 @@ sequenceDiagram
 | `/(auth)/_layout.tsx` | `app/(auth)/_layout.tsx`           | Gate de rutas no autenticadas    |
 | `/(protected)/(tabs)` | `app/(protected)/(tabs)/index.tsx` | Destino post-login (HU-04)       |
 
-## 9. Criterios de aceptación
+## 9. State matrix
+
+Cada estado describe el render que tester / diseñador debería ver.
+
+| Estado               | Trigger                              | Visual                                                                                |
+| -------------------- | ------------------------------------ | ------------------------------------------------------------------------------------- |
+| **Default**          | Abrir `/(auth)/sign-in`              | Form vacío. Botón "Iniciar sesión" habilitado. Inputs `editable={true}`.              |
+| **Validation error** | Submit con campos vacíos o inválidos | Mensaje inline en `colors.money.out` por campo. Form se mantiene. Botón sigue activo. |
+| **Loading**          | Submit válido en vuelo               | Botón con `ActivityIndicator`. Inputs `editable={false}`. Sin overlay.                |
+| **Auth error**       | Supabase rechaza credenciales / mail | Mensaje rojo centrado bajo el form. Form se mantiene. Botón vuelve a habilitarse.     |
+| **Network error**    | Promesa rechaza por red              | Mensaje genérico `"No pudimos iniciar sesión. Probá de nuevo."`                       |
+| **Success**          | Session válida creada                | No hay render propio — redirect a `/(protected)/(tabs)` vía route group.              |
+
+## 10. Criterios de aceptación
 
 - [ ] Tocar "Ya tengo cuenta" en el Splash abre `/(auth)/sign-in`.
 - [ ] Campos vacíos disparan validación con mensajes en español.
@@ -134,7 +147,7 @@ sequenceDiagram
 - [ ] Mientras la request está en vuelo, el botón muestra
       `ActivityIndicator` y los inputs quedan `editable={false}`.
 
-## 10. Notas técnicas
+## 11. Notas técnicas
 
 - **Lógica de form**: `react-hook-form` + `@hookform/resolvers/zod`.
 - **Token storage**: `expo-secure-store` (Keychain / Keystore). NO se

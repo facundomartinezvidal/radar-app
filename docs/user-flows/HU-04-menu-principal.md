@@ -110,7 +110,18 @@ flowchart TD
 | `/(protected)/expense/new`     | `app/(protected)/expense/new.tsx`     | Nuevo gasto (HU-13) |
 | `/(protected)/expense/[id]`    | `app/(protected)/expense/[id].tsx`    | Editar (HU-12)      |
 
-## 9. Criterios de aceptación
+## 9. State matrix
+
+| Estado              | Trigger                        | Visual                                                                                              |
+| ------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------- |
+| **Loading**         | Primera carga, queries pending | Saludo + tab bar visibles. Balance hero `$ 0,00`. Card "Últimos gastos" vacía sin spinner.          |
+| **Empty**           | 0 gastos del mes               | Balance `$ 0,00` + `+ US$ 0,00`. Card con copy `"Todavía no cargaste nada este mes."`.              |
+| **Data**            | ≥ 1 gasto cargado              | Totales reales con `tabular-nums`. 4 últimas filas con icono color de categoría.                    |
+| **Pill recuento**   | Hay gastos                     | Pill expense `"N gastos"` / `"1 gasto"` en hero.                                                    |
+| **Error de fetch**  | Query falla / red caída        | Totales en `$ 0,00`. Card vacía sin mensaje bloqueante. (Toast de error: Release 2.)                |
+| **Sesión expirada** | `autoRefreshToken` falla       | Listener emite `SIGNED_OUT`. `(protected)/_layout` redirige a `/(auth)/sign-in`. Sin render propio. |
+
+## 10. Criterios de aceptación
 
 - [ ] Al iniciar sesión, el usuario aterriza directamente en el Home.
 - [ ] El Home muestra el saludo personalizado con el nombre derivado del
@@ -126,7 +137,7 @@ flowchart TD
 - [ ] La tab bar inferior contiene: Inicio, Gastos, Cámara, Insights
       con iconos Lucide stroke 1.5 y color brand[400] al estar activo.
 
-## 10. Notas técnicas
+## 11. Notas técnicas
 
 - **Hooks**: `useSession`, `useExpenses`, `useExpenseTotals`.
 - **Cache invalidation**: cualquier mutación (HU-12 / HU-13) invalida

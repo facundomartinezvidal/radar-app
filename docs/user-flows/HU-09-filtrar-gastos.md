@@ -112,7 +112,20 @@ flowchart LR
 | `useExpenses(filter)`  | `hooks/use-expenses.ts`               | Query reactiva      |
 | `listExpenses(filter)` | `lib/repositories/expenses.ts`        | Capa Supabase       |
 
-## 9. Criterios de aceptación
+## 9. State matrix
+
+| Estado                | Trigger               | Visual                                                                                                     |
+| --------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Default**           | Sin filtros activos   | Search vacío con borde 1px `line[2]`. Chips ARS / USD inactivos. Chips categoría con borde 1px y `bg[2]`.  |
+| **Search focused**    | Tap sobre el input    | Borde 2px `brand[400]`. Sin texto, sin botón X.                                                            |
+| **Search typing**     | Usuario tipea         | Texto visible. Botón X (`Icon X` 16px) aparece a la derecha. Query se diferencia con `useDeferredValue`.   |
+| **Currency selected** | Tap chip ARS o USD    | Chip con borde 2px. ARS = `brand[400]`. USD = `money.in` (verde). Background tint 10% del color.           |
+| **Category selected** | Tap chip de categoría | Borde 2px en `cat.color`. Background tint 10% del color. Icono Lucide + nombre permanecen.                 |
+| **Multiple filters**  | Varios chips activos  | Filtros operan en `AND`. La lista se recalcula al combinar. Cada filtro aporta su WHERE en `listExpenses`. |
+| **No results**        | Filtros sin matches   | `<ListEmptyComponent>` compartido con HU-07. Copy "Sin gastos por acá". (Diferenciación en Release 2.)     |
+| **Clear search**      | Tap botón X           | Texto del input → `''`. Botón X desaparece. Lista se restaura sin filtros de descripción.                  |
+
+## 10. Criterios de aceptación
 
 - [ ] El input de búsqueda muestra el icono lupa y placeholder
       `"Buscar por descripción"`.
@@ -127,7 +140,7 @@ flowchart LR
 - [ ] La combinación de filtros opera en `AND` (todos deben cumplirse).
 - [ ] Empty state aparece cuando no hay coincidencias.
 
-## 10. Notas técnicas
+## 11. Notas técnicas
 
 - **Debounce de búsqueda**: usamos `useDeferredValue` (React 19+) en
   lugar de `setTimeout`. Es declarativo y se cancela solo cuando el

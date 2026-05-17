@@ -35,8 +35,11 @@ and present to stakeholders:
 5. **Flujos alternativos / de error**
 6. **Diagrama** — Mermaid sequence o flowchart cuando aporta
 7. **Pantallas involucradas**
-8. **Criterios de aceptación** — checklist verificable
-9. **Notas técnicas** — archivos, hooks, tablas Supabase, tests
+8. **State matrix** — cada estado del UI (default, loading, empty, error,
+   success, etc.) con su trigger y descripción visual. Necesario para que
+   un agente de diseño pueda reproducir cada pantalla sin ambigüedades.
+9. **Criterios de aceptación** — checklist verificable
+10. **Notas técnicas** — archivos, hooks, tablas Supabase, tests
 
 ---
 

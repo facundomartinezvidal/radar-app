@@ -122,7 +122,22 @@ flowchart TD
 | `createExpenseSchema`     | `lib/schemas/expense.ts`                  | Validación zod        |
 | `formatMoney/parseAmount` | `lib/format/money.ts`                     | Helpers de moneda     |
 
-## 9. Criterios de aceptación
+## 9. State matrix
+
+| Estado                  | Trigger                        | Visual                                                                                                                    |
+| ----------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| **Loading categories**  | Primera carga                  | Header con `ChevronLeft` + `"Nuevo gasto"`. Body con `"Cargando categorías…"` en `colors.fg[3]`.                          |
+| **Categories error**    | `useCategories` rechaza        | Body con `"No pudimos cargar las categorías. Probá de nuevo."` en `colors.money.out`.                                     |
+| **Default ARS**         | Categorías cargadas            | Form completo. Prefijo `$`. Chip ARS seleccionado (azul `brand[400]`). USD inactivo. Categoría sin seleccionar.           |
+| **Currency USD active** | Tap chip USD                   | Prefijo del monto cambia a `US$`. Chip USD activo (verde `money.in`). ARS pasa a inactivo. Monto y descripción persisten. |
+| **Category selected**   | Tap chip de categoría          | Chip con borde 2px en `cat.color`. Sólo un chip seleccionado a la vez (single-select).                                    |
+| **Validation error**    | Submit con datos inválidos     | Errores inline por campo. Botón `"Registrar gasto"` permanece habilitado.                                                 |
+| **Saving**              | `useCreateExpense.mutateAsync` | Botón con `ActivityIndicator`. Inputs `editable={false}`. AmountInput también deshabilitado.                              |
+| **Submit error**        | Repo devuelve error            | `submitError` rojo centrado bajo el form. Form se mantiene con los datos.                                                 |
+| **Success**             | Row creado                     | `router.back()`. Sin render propio. Home + Historial muestran el nuevo gasto al refrescarse.                              |
+| **Cancel**              | Tap `ChevronLeft` del header   | `router.back()` inmediato. Datos del form se descartan (sin confirmación).                                                |
+
+## 10. Criterios de aceptación
 
 - [ ] La pantalla se abre desde tres puntos: quick action del Home,
       botón "Nuevo" del Historial, empty state CTA.
@@ -140,7 +155,7 @@ flowchart TD
 - [ ] Tras éxito, el Home y el Historial se actualizan sin reload
       manual.
 
-## 10. Notas técnicas
+## 11. Notas técnicas
 
 - **occurred_at** queda implícito (`new Date().toISOString()` server-side
   default). Date picker pendiente para Release 2.

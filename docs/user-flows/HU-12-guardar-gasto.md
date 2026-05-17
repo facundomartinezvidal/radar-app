@@ -170,7 +170,23 @@ sequenceDiagram
 | `/(protected)/expense/[id]` | `app/(protected)/expense/[id].tsx`     | Editar / borrar |
 | `<ExpenseForm>`             | `components/expenses/expense-form.tsx` | Form compartido |
 
-## 11. Criterios de aceptación
+## 11. State matrix
+
+Tres operaciones (Create / Update / Delete) comparten estados; cada fila aclara cuándo aplica.
+
+| Estado               | Operación | Trigger                              | Visual                                                                                                            |
+| -------------------- | --------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| **Default create**   | Create    | Abrir `/(protected)/expense/new`     | Form vacío. Botón primario `"Registrar gasto"` habilitado.                                                        |
+| **Default edit**     | Update    | Abrir `/(protected)/expense/{id}`    | Form hidratado con `useExpense(id)`. Botón `"Guardar cambios"`. Icono trash en header + botón destructive al pie. |
+| **Validation error** | Both      | Submit con datos inválidos           | Errores inline por campo en `colors.money.out` (`Mínimo > 0`, `Categoría inválida.`, etc.). Form se mantiene.     |
+| **Mutation pending** | Both      | `mutateAsync` en vuelo               | Botón primario con `ActivityIndicator`. Inputs `editable={false}`.                                                |
+| **Mutation error**   | Both      | Repo / RLS / red devuelven error     | `submitError` rojo centrado bajo el form. Botón vuelve a habilitarse.                                             |
+| **Mutation success** | Both      | Row creado / actualizado             | No hay render propio. `router.back()` retorna al origen. Home + Historial se refrescan vía invalidate.            |
+| **Delete confirm**   | Delete    | Tap trash header o botón destructive | Alert nativo iOS / Android: `"¿Seguro que querés borrar este gasto?"` con `Cancelar` / `Borrar` (destructivo).    |
+| **Delete pending**   | Delete    | Usuario confirma                     | Botón destructive con spinner. Trash header sin spinner (sólo el botón al pie).                                   |
+| **Delete success**   | Delete    | Row eliminado                        | `router.back()`. Fila desaparece de listas sin refetch manual.                                                    |
+
+## 12. Criterios de aceptación
 
 - [ ] Crear un gasto con datos válidos lo persiste en Supabase y vuelve
       a la pantalla anterior.
@@ -187,7 +203,7 @@ sequenceDiagram
 - [ ] Mensajes de error son empáticos
       (`"No pudimos guardar el gasto. Probá de nuevo."`), no técnicos.
 
-## 12. Notas técnicas
+## 13. Notas técnicas
 
 - **Hooks**: `useCreateExpense`, `useUpdateExpense`, `useDeleteExpense`.
 - **Cache strategy**:

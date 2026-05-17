@@ -114,7 +114,18 @@ sequenceDiagram
 | `/(protected)/expense/new`     | `app/(protected)/expense/new.tsx`     | Botón "Nuevo"     |
 | `/(protected)/expense/[id]`    | `app/(protected)/expense/[id].tsx`    | Detalle / edición |
 
-## 9. Criterios de aceptación
+## 9. State matrix
+
+| Estado               | Trigger                      | Visual                                                                                                     |
+| -------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Loading**          | Primera carga                | Header con totales `$ 0,00` + `0 gastos`. FilterBar renderizada. FlatList vacía.                           |
+| **Empty (sin data)** | Usuario nunca cargó gastos   | `<ListEmptyComponent>` con icono `Inbox`, título `"Sin gastos por acá"`, CTA primario `"Registrar gasto"`. |
+| **Empty filtered**   | Filtros activos sin matches  | Mismo empty state (compartido en Release 1). Diferenciación pendiente para Release 2.                      |
+| **Data**             | ≥ 1 gasto cargado            | Header con totales reales. FlatList con secciones por día `"Hoy"` / `"Ayer"` / `"DD de mes de YYYY"`.      |
+| **Refreshing**       | Pull-to-refresh              | `RefreshControl` con `tintColor = colors.brand[400]` sobre la lista.                                       |
+| **Error**            | Query falla persistentemente | Misma vista vacía que Empty. Sin mensaje bloqueante. (Toast en Release 2.)                                 |
+
+## 10. Criterios de aceptación
 
 - [ ] El tab "Gastos" está visible en la tab bar inferior con icono
       Receipt.
@@ -132,7 +143,7 @@ sequenceDiagram
 - [ ] La lista paginal con `limit: 100` por defecto; los filtros se
       aplican server-side vía `listExpenses(filter)`.
 
-## 10. Notas técnicas
+## 11. Notas técnicas
 
 - **Archivo**: `app/(protected)/(tabs)/expenses.tsx`.
 - **Helpers**: `isoDay`, `formatDayLabel`, `groupByDay`.
