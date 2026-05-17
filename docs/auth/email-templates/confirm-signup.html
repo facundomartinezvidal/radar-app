@@ -1,0 +1,472 @@
+<!--
+  RADAR — Confirm signup email template
+
+  WHERE TO PASTE:
+    Supabase Dashboard → Authentication → Email Templates → "Confirm signup"
+    Paste the full <html>…</html> below into the "Message (HTML)" field.
+
+  SUPABASE VARS:
+    {{ .ConfirmationURL }}  — single-use signup confirmation link
+    {{ .Email }}            — user email
+    {{ .SiteURL }}          — site URL (optional, currently unused)
+
+  EMAIL-CLIENT COMPAT:
+    - Inline CSS only (Gmail strips <head><style>)
+    - Tables for layout (Outlook desktop)
+    - 600 px max width, dark background
+    - System font stack — most clients block @font-face
+    - No remote images (logo built with CSS shapes) → no broken-image icons
+      and no privacy prompts
+
+  WHEN PRESENTATION MATTERS MORE THAN VOICE: it does not. Keep Spanish
+  rioplatense voseo. Sentence case. No emoji.
+-->
+<!doctype html>
+<html lang="es-AR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="x-apple-disable-message-reformatting" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="supported-color-schemes" content="dark light" />
+    <title>Confirmá tu cuenta · RADAR</title>
+    <!--[if mso]>
+      <style>
+        * { font-family: 'Segoe UI', Arial, sans-serif !important; }
+      </style>
+    <![endif]-->
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      background-color: #0a0f1a;
+      color: #f4f7fb;
+      -webkit-font-smoothing: antialiased;
+      -webkit-text-size-adjust: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter,
+        Roboto, Helvetica, Arial, sans-serif;
+    "
+  >
+    <!-- Preheader (hidden inbox preview) -->
+    <div
+      style="
+        display: none;
+        max-height: 0;
+        overflow: hidden;
+        mso-hide: all;
+        font-size: 1px;
+        line-height: 1px;
+        color: #0a0f1a;
+        opacity: 0;
+      "
+    >
+      Confirmá tu cuenta para empezar a usar RADAR. El link vence en 24 hs.
+    </div>
+
+    <!-- Outer wrapper -->
+    <table
+      role="presentation"
+      width="100%"
+      cellpadding="0"
+      cellspacing="0"
+      border="0"
+      style="background-color: #0a0f1a;"
+    >
+      <tr>
+        <td align="center" style="padding: 32px 16px;">
+          <!-- Card -->
+          <table
+            role="presentation"
+            width="600"
+            cellpadding="0"
+            cellspacing="0"
+            border="0"
+            style="
+              width: 100%;
+              max-width: 600px;
+              background-color: #0f1724;
+              border: 1px solid rgba(255, 255, 255, 0.06);
+              border-radius: 20px;
+              overflow: hidden;
+            "
+          >
+            <!-- Header band with subtle brand glow -->
+            <tr>
+              <td
+                style="
+                  background: linear-gradient(
+                    180deg,
+                    rgba(0, 119, 182, 0.18) 0%,
+                    rgba(0, 119, 182, 0) 100%
+                  );
+                  padding: 40px 32px 24px 32px;
+                  text-align: center;
+                "
+              >
+                <!-- CSS-only RADAR logomark -->
+                <table
+                  role="presentation"
+                  cellpadding="0"
+                  cellspacing="0"
+                  border="0"
+                  align="center"
+                  style="margin: 0 auto;"
+                >
+                  <tr>
+                    <td
+                      align="center"
+                      style="
+                        width: 72px;
+                        height: 72px;
+                        background-color: rgba(0, 119, 182, 0.16);
+                        border: 1px solid rgba(0, 119, 182, 0.32);
+                        border-radius: 999px;
+                        line-height: 1;
+                      "
+                    >
+                      <table
+                        role="presentation"
+                        cellpadding="0"
+                        cellspacing="0"
+                        border="0"
+                        style="margin: 0 auto;"
+                      >
+                        <tr>
+                          <td
+                            align="center"
+                            style="
+                              width: 44px;
+                              height: 44px;
+                              background-color: #0077b6;
+                              border-radius: 999px;
+                              color: #ffffff;
+                              font-family: -apple-system, BlinkMacSystemFont,
+                                'Segoe UI', Inter, Roboto, Helvetica, Arial,
+                                sans-serif;
+                              font-size: 20px;
+                              font-weight: 800;
+                              letter-spacing: -0.5px;
+                              line-height: 44px;
+                              text-align: center;
+                            "
+                          >
+                            R
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- Wordmark -->
+                <div
+                  style="
+                    margin-top: 20px;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI',
+                      Inter, Roboto, Helvetica, Arial, sans-serif;
+                    font-size: 22px;
+                    font-weight: 800;
+                    letter-spacing: -0.5px;
+                    color: #f4f7fb;
+                    text-transform: none;
+                  "
+                >
+                  RADAR
+                </div>
+
+                <!-- Tagline -->
+                <div
+                  style="
+                    margin-top: 6px;
+                    font-size: 13px;
+                    color: #7e8aa0;
+                    letter-spacing: 0.2px;
+                  "
+                >
+                  Sabé a dónde va tu plata.
+                </div>
+              </td>
+            </tr>
+
+            <!-- Divider -->
+            <tr>
+              <td
+                style="
+                  height: 1px;
+                  background-color: rgba(255, 255, 255, 0.06);
+                  line-height: 1px;
+                  font-size: 1px;
+                "
+              >
+                &nbsp;
+              </td>
+            </tr>
+
+            <!-- Headline + body -->
+            <tr>
+              <td style="padding: 32px 32px 8px 32px;">
+                <h1
+                  style="
+                    margin: 0;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI',
+                      Inter, Roboto, Helvetica, Arial, sans-serif;
+                    font-size: 28px;
+                    line-height: 1.2;
+                    font-weight: 700;
+                    color: #f4f7fb;
+                    letter-spacing: -0.5px;
+                  "
+                >
+                  Confirmá tu cuenta
+                </h1>
+                <p
+                  style="
+                    margin: 16px 0 0 0;
+                    font-size: 16px;
+                    line-height: 1.55;
+                    color: #b8c3d4;
+                  "
+                >
+                  Estás a un click de empezar a controlar tu plata. Tocá el
+                  botón de abajo para activar tu cuenta y entrar a RADAR.
+                </p>
+              </td>
+            </tr>
+
+            <!-- CTA -->
+            <tr>
+              <td style="padding: 24px 32px 8px 32px;" align="center">
+                <!--[if mso]>
+                  <v:roundrect
+                    xmlns:v="urn:schemas-microsoft-com:vml"
+                    xmlns:w="urn:schemas-microsoft-com:office:word"
+                    href="{{ .ConfirmationURL }}"
+                    style="height:52px;v-text-anchor:middle;width:280px;"
+                    arcsize="27%"
+                    stroke="f"
+                    fillcolor="#0077B6"
+                  >
+                    <w:anchorlock />
+                    <center
+                      style="color:#ffffff;font-family:Segoe UI,Arial,sans-serif;font-size:16px;font-weight:600;"
+                    >
+                      Confirmar mi cuenta
+                    </center>
+                  </v:roundrect>
+                <![endif]-->
+                <!--[if !mso]><!-- -->
+                <a
+                  href="{{ .ConfirmationURL }}"
+                  target="_blank"
+                  style="
+                    display: inline-block;
+                    background-color: #0077b6;
+                    color: #ffffff;
+                    text-decoration: none;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI',
+                      Inter, Roboto, Helvetica, Arial, sans-serif;
+                    font-size: 16px;
+                    font-weight: 600;
+                    line-height: 52px;
+                    padding: 0 32px;
+                    border-radius: 14px;
+                    border-top: 1px solid rgba(255, 255, 255, 0.12);
+                    box-shadow: 0 6px 20px rgba(0, 119, 182, 0.35);
+                    mso-padding-alt: 0;
+                  "
+                >
+                  Confirmar mi cuenta
+                </a>
+                <!--<![endif]-->
+              </td>
+            </tr>
+
+            <!-- Fallback link -->
+            <tr>
+              <td style="padding: 16px 32px 0 32px;">
+                <p
+                  style="
+                    margin: 0;
+                    font-size: 13px;
+                    line-height: 1.5;
+                    color: #7e8aa0;
+                    text-align: center;
+                  "
+                >
+                  ¿No anda el botón? Copiá y pegá este link en tu navegador:
+                </p>
+                <p
+                  style="
+                    margin: 8px 0 0 0;
+                    font-size: 12px;
+                    line-height: 1.45;
+                    color: #4fb3dc;
+                    word-break: break-all;
+                    text-align: center;
+                  "
+                >
+                  <a
+                    href="{{ .ConfirmationURL }}"
+                    target="_blank"
+                    style="color: #4fb3dc; text-decoration: underline;"
+                  >
+                    {{ .ConfirmationURL }}
+                  </a>
+                </p>
+              </td>
+            </tr>
+
+            <!-- Spacer -->
+            <tr>
+              <td style="padding: 24px 32px 0 32px;">
+                <div
+                  style="
+                    height: 1px;
+                    background-color: rgba(255, 255, 255, 0.06);
+                    line-height: 1px;
+                    font-size: 1px;
+                  "
+                >
+                  &nbsp;
+                </div>
+              </td>
+            </tr>
+
+            <!-- Trust / value pillars -->
+            <tr>
+              <td style="padding: 20px 32px 8px 32px;">
+                <p
+                  style="
+                    margin: 0;
+                    font-size: 11px;
+                    line-height: 1.5;
+                    color: #7e8aa0;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                    font-weight: 600;
+                  "
+                >
+                  Lo que vas a hacer con RADAR
+                </p>
+                <table
+                  role="presentation"
+                  width="100%"
+                  cellpadding="0"
+                  cellspacing="0"
+                  border="0"
+                  style="margin-top: 14px;"
+                >
+                  <tr>
+                    <td
+                      style="
+                        padding: 10px 12px;
+                        background-color: rgba(0, 119, 182, 0.08);
+                        border: 1px solid rgba(0, 119, 182, 0.2);
+                        border-radius: 12px;
+                        font-size: 13px;
+                        line-height: 1.4;
+                        color: #b8c3d4;
+                      "
+                    >
+                      <strong style="color: #f4f7fb;">Personal.</strong>
+                      Registrá gastos en segundos.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td height="8" style="line-height: 8px; font-size: 8px;">
+                      &nbsp;
+                    </td>
+                  </tr>
+                  <tr>
+                    <td
+                      style="
+                        padding: 10px 12px;
+                        background-color: rgba(0, 119, 182, 0.08);
+                        border: 1px solid rgba(0, 119, 182, 0.2);
+                        border-radius: 12px;
+                        font-size: 13px;
+                        line-height: 1.4;
+                        color: #b8c3d4;
+                      "
+                    >
+                      <strong style="color: #f4f7fb;">Compartido.</strong>
+                      Dividí cuentas con tu grupo, sin papelitos.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td height="8" style="line-height: 8px; font-size: 8px;">
+                      &nbsp;
+                    </td>
+                  </tr>
+                  <tr>
+                    <td
+                      style="
+                        padding: 10px 12px;
+                        background-color: rgba(245, 158, 11, 0.08);
+                        border: 1px solid rgba(245, 158, 11, 0.22);
+                        border-radius: 12px;
+                        font-size: 13px;
+                        line-height: 1.4;
+                        color: #b8c3d4;
+                      "
+                    >
+                      <strong style="color: #f4f7fb;">ARS + USD.</strong>
+                      Tu plata en pesos y dólares, en un solo lugar.
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Security note -->
+            <tr>
+              <td style="padding: 24px 32px 32px 32px;">
+                <p
+                  style="
+                    margin: 0;
+                    font-size: 12px;
+                    line-height: 1.5;
+                    color: #7e8aa0;
+                    text-align: center;
+                  "
+                >
+                  Si vos no creaste esta cuenta, ignorá este mail. El link
+                  vence en 24 horas y solo sirve una vez.
+                </p>
+              </td>
+            </tr>
+          </table>
+
+          <!-- Footer outside the card -->
+          <table
+            role="presentation"
+            width="600"
+            cellpadding="0"
+            cellspacing="0"
+            border="0"
+            style="width: 100%; max-width: 600px; margin-top: 24px;"
+          >
+            <tr>
+              <td
+                align="center"
+                style="
+                  font-size: 11px;
+                  line-height: 1.5;
+                  color: #4b566b;
+                  padding: 0 32px;
+                "
+              >
+                RADAR · Hecho en Argentina<br />
+                Recibiste este mail porque alguien (¿vos?) usó
+                <span style="color: #7e8aa0;">{{ .Email }}</span> para
+                registrarse.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
