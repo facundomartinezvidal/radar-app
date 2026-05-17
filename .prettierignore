@@ -7,3 +7,5 @@ android
 pnpm-lock.yaml
 .claude-dev-flow
 coverage
+desing-system
+.agents

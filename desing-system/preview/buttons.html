@@ -1,0 +1,38 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .preview { padding: 22px 24px; gap: 12px; justify-content: center; }
+  .hdr { display: flex; align-items: baseline; justify-content: space-between; }
+  .hdr .ttl { font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-2); }
+  .hdr .sub { font-size: 12px; color: var(--fg-3); font-family: var(--font-mono); }
+  .btns { display: flex; flex-wrap: wrap; gap: 10px; }
+  .btn { font-family: var(--font-sans); font-size: 14px; font-weight: 600; border-radius: 14px; padding: 12px 18px; border: 1px solid transparent; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+  .btn.primary { background: #0077B6; color: white; box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), 0 6px 18px rgba(0,119,182,0.35); }
+  .btn.secondary { background: var(--bg-2); color: var(--fg-1); border-color: var(--line-2); }
+  .btn.ghost { background: transparent; color: var(--radar-300); }
+  .btn.destructive { background: rgba(239,68,68,0.12); color: #F87171; border-color: rgba(239,68,68,0.35); }
+  .btn.pill { border-radius: 999px; padding: 10px 16px; }
+  .btn.disabled { opacity: 0.4; pointer-events: none; }
+  .btn.sm { font-size: 13px; padding: 8px 12px; border-radius: 10px; }
+  .row { display: flex; gap: 10px; align-items: center; }
+  .note { font-size: 11px; color: var(--fg-3); font-family: var(--font-mono); }
+</style>
+</head><body>
+<div class="preview">
+  <div class="hdr"><div class="ttl">Buttons</div><div class="sub">primary · secondary · ghost · destructive</div></div>
+  <div class="btns">
+    <button class="btn primary">Registrar gasto</button>
+    <button class="btn secondary">Cancelar</button>
+    <button class="btn ghost">Ver todos</button>
+    <button class="btn destructive">Borrar gasto</button>
+  </div>
+  <div class="btns">
+    <button class="btn primary pill">Saldar deuda</button>
+    <button class="btn secondary pill">Compartir</button>
+    <button class="btn primary sm">+ Nuevo</button>
+    <button class="btn secondary sm">Filtros</button>
+    <button class="btn primary disabled">Guardando…</button>
+  </div>
+  <div class="note">radius md (14) / pill (999) · press: scale(0.97) · focus: ring radar-400</div>
+</div>
+</body></html>

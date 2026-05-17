@@ -1,3 +1,432 @@
-# Expo HAS CHANGED
+# AGENTS.md — radar-app
 
-Read the exact versioned docs at https://docs.expo.dev/versions/v54.0.0/ before writing any code.
+Guidance for AI coding agents working in this repository.
+
+---
+
+## 1. Project — what RADAR is
+
+**RADAR** is a mobile + web platform that centralizes personal and shared expense tracking for digitally-active young adults (18–35) in Argentina.
+
+**Tagline:** _Sabé a dónde va tu plata._
+
+This repository implements the **mobile app** (iOS + Android via Expo). The web app lives elsewhere; this repo is mobile-only for now.
+
+### The problem RADAR solves
+
+Young adults in Argentina manage money across multiple wallets (Mercado Pago, Ualá, banks, USD platforms) and split costs informally via WhatsApp. The result: **no visibility, no traceability, untracked debts**. Existing apps are either too complex (Excel-style) or single-purpose (Splitwise = only shared, Fintonic = only personal).
+
+### Three solution pillars
+
+1. **Personal tracking unified** — fast capture + categorization + monthly view, regardless of payment source
+2. **Shared expenses** — groups, automatic "who-owes-whom" math, simple settlement (replaces WhatsApp chaos)
+3. **Multi-currency + AI** — ARS/USD support with auto FX conversion; AI insights on spending patterns; WhatsApp conversational capture
+
+### User personas
+
+- **El estudiante** (21): shares apartment, divides rent + groceries with roommates via WhatsApp, accumulates pending debts
+- **El joven profesional** (28): stable income, frequent social spending, multiple payment methods, tried Excel and abandoned it
+- **El independiente multi-moneda** (32): freelancer with USD + ARS income, needs to track spend per currency
+
+---
+
+## 2. Business context — where it lives
+
+**Business logic, requirements, BMC, market research, user research, deliverables** all live in the Obsidian vault:
+
+```
+/Users/fmartinezvidal/Documents/github/obsidian-vaults/uade/seminario/
+```
+
+Key files:
+
+| File                        | What's in it                                                            |
+| --------------------------- | ----------------------------------------------------------------------- |
+| `CLAUDE.md`                 | Project overview, team, problem framing, hypotheses                     |
+| `business-model-canvas.md`  | BMC: segments, value props, channels, revenue, cost structure, partners |
+| `elevator-pitch.md`         | 1-min pitch + storytelling structure                                    |
+| `prototipo-app-brief.md`    | UI design brief — 8 screens, design system, dark-first                  |
+| `segmentacion-usuarios.md`  | Detailed user segmentation                                              |
+| `presentacion-parcial-1.md` | Class deliverable content                                               |
+| `content/`                  | Class PDFs (SIPI curriculum)                                            |
+
+**Before adding a feature or changing UX:**
+
+1. Read `prototipo-app-brief.md` (design system + screen specs)
+2. Read `business-model-canvas.md` (what value pillars to honor)
+3. Verify against user personas
+
+---
+
+## 3. Academic context
+
+This project is the SIPI (Seminario de Integración Profesional) deliverable at UADE — but the goal is to build a production-grade app, not just a class artifact.
+
+- **Team — Grupo 02:** Facundo Martinez Vidal (this repo owner), Jonathan Mayán, Iñaki Moreno
+- **Course:** 565668 · Year 2026
+
+Key delivery dates (from `seminario/CLAUDE.md`):
+
+| Date       | Deliverable                                                     |
+| ---------- | --------------------------------------------------------------- |
+| 2026-04-20 | First Parcial — Problem, Research, Pitch                        |
+| 2026-06-01 | Second Delivery — **Prototype v1**, documentation, release plan |
+| 2026-06-22 | Second Parcial — Storytelling presentation                      |
+| 2026-07-13 | Final Regular — The Pitch                                       |
+| 2026-07-20 | Final Desdoblado — The Pitch                                    |
+
+The mobile app scaffolded in this repo targets the **2026-06-01 Second Delivery (Prototype v1)**.
+
+---
+
+## 4. Tech stack
+
+| Layer          | Tech                            | Version                                            | Why                                                     |
+| -------------- | ------------------------------- | -------------------------------------------------- | ------------------------------------------------------- |
+| Runtime        | Expo (managed)                  | SDK 54                                             | EAS Build cloud → no local Xcode/Android Studio for dev |
+| Lang           | TypeScript                      | 5.9, strict + 4 extra flags                        | type safety from day 0                                  |
+| Routing        | Expo Router                     | 6.x (file-based)                                   | deep linking, web-compat free                           |
+| UI             | React Native                    | 0.81                                               | New Architecture enabled                                |
+| State (client) | Zustand                         | 5.x                                                | tiny, no boilerplate                                    |
+| State (server) | TanStack Query                  | 5.x                                                | cache, retries, optimistic updates                      |
+| Forms          | react-hook-form + zod           | latest                                             | schema sharing with Supabase Edge Functions             |
+| Backend        | Supabase                        | 2.x                                                | Postgres + Auth + Storage + RLS + Edge Functions        |
+| Token storage  | expo-secure-store               | 15.x                                               | Keychain (iOS) / Keystore (Android)                     |
+| Push           | expo-notifications              | 0.32                                               | Expo Push Service initially; FCM/APNs direct if needed  |
+| Media          | expo-camera + expo-image-picker | 17.x                                               | CameraView v17 API (not deprecated Camera)              |
+| Tests          | jest-expo + RNTL                | jest@29 pinned (jest@30 incompatible with RN 0.81) |                                                         |
+| Lint/Format    | ESLint flat config + Prettier   |                                                    | integrated, pre-commit not enforced (yet)               |
+| Build/Submit   | EAS Build + EAS Submit          | CLI 18.x                                           | 3 profiles: development, preview, production            |
+| CI             | GitHub Actions                  |                                                    | runs on push/PR to main+develop                         |
+
+See `docs/decisions/2026-05-16-stack-choices.md` for rationale + alternatives considered.
+
+---
+
+## 5. Infrastructure
+
+### Hosting / SaaS
+
+| Service         | Purpose                                              | Free tier?                     |
+| --------------- | ---------------------------------------------------- | ------------------------------ |
+| Supabase        | Postgres DB, Auth, Storage, Realtime, Edge Functions | yes (pauses after 7d inactive) |
+| Expo / EAS      | Build cloud, Submit, OTA Updates                     | yes (30 builds/mo)             |
+| GitHub          | Repo + Actions CI                                    | yes (public repo, 2000 min/mo) |
+| Apple Developer | iOS App Store                                        | $99/yr                         |
+| Google Play     | Android Play Store                                   | $25 one-time                   |
+
+### Project IDs / Refs
+
+- **GitHub:** https://github.com/facundomartinezvidal/radar-app (public)
+- **Supabase project ref:** `miiorhmqxdqsowqxnpii` → https://miiorhmqxdqsowqxnpii.supabase.co
+- **EAS project ID:** not yet initialized (run `pnpm exec eas init`)
+- **iOS bundle ID:** `com.radarapp.app`
+- **Android package:** `com.radarapp.app`
+
+### Environment variables
+
+`.env.local` (gitignored):
+
+```
+EXPO_PUBLIC_SUPABASE_URL=https://miiorhmqxdqsowqxnpii.supabase.co
+EXPO_PUBLIC_SUPABASE_KEY=<sb_publishable_...>
+EAS_PROJECT_ID=<uuid after eas init>
+```
+
+Read via `Constants.expoConfig.extra` — see `lib/supabase.ts`. Naming follows the Supabase Connect dialog convention (`_KEY` not `_ANON_KEY`).
+
+---
+
+## 6. Architecture
+
+### Routing (Expo Router file-based)
+
+```
+app/
+├── _layout.tsx              Root: Providers > ThemeProvider > Stack
+├── (auth)/                  Group: redirects to (protected) if authenticated
+│   ├── _layout.tsx
+│   ├── sign-in.tsx
+│   └── sign-up.tsx
+└── (protected)/             Group: redirects to /sign-in if unauthenticated
+    ├── _layout.tsx          Mounts useRegisterPush + useNotificationObserver
+    ├── modal.tsx
+    └── (tabs)/
+        ├── _layout.tsx      Tabs: Home, Camera, Explore
+        ├── index.tsx
+        ├── camera.tsx
+        └── explore.tsx
+```
+
+Route gating happens **in one place per group** — do NOT add per-screen guards.
+
+### State split
+
+- **Client state** (UI toggles, draft forms, current route data) → Zustand stores in `stores/`
+- **Server state** (everything from Supabase) → TanStack Query in components/hooks
+- **Auth session** → `useAuthStore` (Zustand), hydrated by `useAuthListener()` mounted in `<AuthBootstrap />` at root
+
+Don't mix the two. Don't put server data in Zustand. Don't put pure UI flags in TanStack Query.
+
+### Auth flow
+
+1. `AuthBootstrap` (in `app/_layout.tsx`) runs `useAuthListener`
+2. `useAuthListener` calls `supabase.auth.getSession()` → flips `isLoading: false` in `useAuthStore`
+3. Subscribes to `supabase.auth.onAuthStateChange` → syncs store
+4. Route group `_layout.tsx` files check `useSession()` and redirect
+
+See `docs/decisions/2026-05-16-auth-strategy.md`.
+
+### Storage
+
+- **Tokens** → expo-secure-store (Keychain/Keystore)
+- **Media uploads** → Supabase Storage bucket `media`, path `{userId}/{timestamp}-{rand}.{ext}`, ArrayBuffer (not base64)
+- **DB schema** → not yet created; types stub in `types/supabase.ts`. Regenerate after schema work: `pnpm dlx supabase gen types typescript --project-id miiorhmqxdqsowqxnpii > types/supabase.ts`
+
+### Push notifications
+
+- Registration happens **only after auth** (mounted in `(protected)/_layout.tsx`)
+- Token saved to `device_tokens` table (table doesn't exist yet — uploader is no-op until table is created; SQL in README)
+- Use Expo Push API initially; migrate to FCM/APNs direct only if needed
+
+---
+
+## 7. Conventions
+
+### File naming
+
+- TS/TSX files: kebab-case (e.g., `use-session.ts`, `auth-store.ts`)
+- Components: default export named in PascalCase (`Providers`, `AuthBootstrap`)
+- Route files: lowercase (`sign-in.tsx`, `index.tsx`) — Expo Router rule
+- Test files: `__tests__/<name>.test.ts(x)` sibling to source
+
+### Imports
+
+- Always use `@/` alias for in-repo imports: `import { supabase } from '@/lib/supabase'`
+- Group order: react/RN, third-party, `@/` internal, relative
+
+### Commits
+
+Conventional Commits + Skater Elephant signature. See `CONTRIBUTING.md`.
+
+**Types:** `feat`, `fix`, `chore`, `docs`, `test`, `build`, `ci`, `refactor`, `style`, `perf`
+
+### Branching
+
+- `main` is integration; CI runs on push
+- Feature work: `feat/<topic>` branches → PR to `main` after CI passes
+- No `develop` tier yet (single-dev project)
+- Branch protection NOT enabled yet (planned)
+
+### Permissions strings (iOS / Android)
+
+Always in **Spanish** (target market is Argentina). See `app.config.ts` for camera, photos, microphone, notifications.
+
+### Currency / amounts
+
+- Format with `font-variant-numeric: tabular-nums` style
+- Default currency: ARS
+- Multi-currency: ARS + USD with FX rate from BCRA or Bluelytics (TBD)
+- Red for expenses, green for income or "te deben"
+
+### Design system
+
+Canonical source for visual + content rules is the **`desing-system/`** folder at repo root (sic — folder name has a typo, don't rename without coordination). Always consult before building any UI.
+
+See section 8 for full details.
+
+---
+
+## 8. Design system (`desing-system/`)
+
+**Folder structure:**
+
+```
+desing-system/
+├── README.md                  fundamentals (visual + content)
+├── SKILL.md                   Claude Skill metadata for design generation
+├── colors_and_type.css        CSS tokens — drop-in
+├── assets/                    logos (mark + wordmark) + brand SVGs
+├── preview/                   token specimen cards (HTML)
+└── ui_kits/app/               mobile UI Kit (JSX primitives + screens + live demo)
+```
+
+When building screens, **start by reading `desing-system/README.md`**, then `colors_and_type.css` for the exact CSS token names. The `ui_kits/app/` folder contains JSX primitives that should be translated to React Native components.
+
+### Non-negotiables (from `SKILL.md`)
+
+- **Dark-first** (`#0A0F1A` base). Light mode is a fallback only.
+- **Primary `#0077B6`** (ocean blue). Green `#10B981` = ingreso/te deben · Red `#EF4444` = gasto/debés · Amber `#F59E0B` = USD/alerta.
+- **Inter** font everywhere. **Tabular-nums on every currency figure** — the numbers ARE the UI.
+- **Spanish rioplatense** (voseo OK): _Registrá · Dividí · Saldá · Sumá · Agregá_. Sentence case. No emoji in UI base.
+- **Lucide** icons only — stroke `1.5`, `currentColor`. No hand-rolled SVG icons.
+- **Tagline:** _RADAR. Sabé a dónde va tu plata._
+
+### Color tokens
+
+| Token            | Hex                      | Use                            |
+| ---------------- | ------------------------ | ------------------------------ |
+| Background       | `#0A0F1A`                | App base                       |
+| Surface (card)   | `#0F1724`                | Cards, sheets                  |
+| Surface (raised) | `#17202F`                | Elevated rows, secondary cards |
+| Surface (hover)  | `#1F2A3D`                | Pressed/hover states           |
+| Brand primary    | `#0077B6`                | Primary actions, active tab    |
+| Brand accent     | `#4FB3DC`                | Links, insights, secondary     |
+| Brand mid        | `#1E99CC`                | In-between                     |
+| Income/credit    | `#10B981`                | Ingresos, "te deben"           |
+| Expense/debt     | `#EF4444`                | Gastos, "debés"                |
+| Alert/USD        | `#F59E0B`                | Warnings, dólares              |
+| Text high        | `#F4F7FB`                | Titles, amounts                |
+| Text secondary   | `#B8C3D4`                | Subtitles, captions            |
+| Text tertiary    | `#7E8AA0`                | Helpers, labels                |
+| Text disabled    | `#4B566B`                | Disabled state                 |
+| Border subtle    | `rgba(255,255,255,0.06)` | Default card border            |
+| Border visible   | `rgba(255,255,255,0.10)` | Inputs, dividers               |
+
+**Forbidden:** purple, pink, gradient "fintech-slop", left-border accent colors. Just blue + neutrals + two semantics.
+
+### Typography
+
+- **Inter** 400/500/600/700/800 (Google Fonts CDN — local in `fonts/` if needed)
+- **JetBrains Mono** only for amount inputs (numeric keypad) and CBU/CVU alias
+- Scale: `display 44 / h1 32 / h2 24 / h3 20 / body 16 / body-sm 14 / caption 12`
+- Hero balance = `display` (44px, weight 700, letter-spacing `-0.02em`)
+- **All amounts** use `font-variant-numeric: tabular-nums` — non-negotiable
+
+### Spacing / layout
+
+- Mobile-first, safe areas respected (44px top, 34px bottom)
+- Default padding: `16px` (screens), `20px` (hero pantallas)
+- Tap targets ≥ `44px` height
+- 4px grid base → `--s-1` ... `--s-10`
+- Lists use 1px dividers (`--line-1`), not card-per-row
+
+### Radii / shadows / motion
+
+- Radii: cards `20px` · inputs/buttons `14px` · pills/avatars `999px`
+- Shadows: subtle, prefer 1px borders with alpha tint; modals/sheets use `--shadow-3`
+- Inner-highlight: `inset 0 1px 0 rgba(255,255,255,0.05)` on elevated buttons/cards
+- Easing default: `cubic-bezier(0.2, 0.8, 0.2, 1)` · spring `cubic-bezier(0.34, 1.56, 0.64, 1)` (micro-celebrations only)
+- Durations: 120 / 200 / 320ms · no slower
+- Press (mobile): `transform: scale(0.97)` 120ms + opacity 0.85 · NO Material ripple
+- Focus visible: `2px solid var(--radar-400)` offset `2px`
+
+### Content fundamentals (copy rules)
+
+- **Idioma:** español rioplatense, voseo permitido no obligatorio. Tono cercano, directo, sin ser informal de más.
+- **Persona del producto:** un amigo que entiende de plata pero no te habla como un banco.
+- **Verbs:** active + short. "Registrá un gasto", NOT "Proceder al registro de un gasto".
+- **CTAs principales:** voseo — _Registrá · Dividí · Saldá · Sumá · Agregá_.
+- **Navigation labels:** infinitivo — _Gastos · Grupos · Perfil_.
+- **Title/button casing:** sentence case. `Nuevo gasto`, NOT `Nuevo Gasto`.
+- **Numbers:** local format — `$ 12.500,00` (punto miles, coma decimal).
+- **Currency:** always explicit — `$ 12.500 ARS`, `US$ 85,00`. Never mix without indicating.
+- **No financial jargon:** "Plata que te deben", NOT "Cuentas por cobrar".
+- **Empty states:** moderate humor, never condescending. "Sin gastos por acá. Por ahora."
+- **Errors:** empathetic. "No pudimos guardar el gasto. Probá de nuevo." NOT "Error 500".
+- **No emoji in UI base.** Emoji OK in push notifs when emotional context adds (rarely).
+
+### Microcopy reference (use these verbatim)
+
+| Context                   | Copy                                                      |
+| ------------------------- | --------------------------------------------------------- |
+| CTA primary "new expense" | `Registrar gasto`                                         |
+| Empty state home          | `Todavía no cargaste nada este mes.`                      |
+| Debt settled confirmation | `Listo. Deuda saldada.`                                   |
+| Push notification         | `Juan te marcó un gasto de $ 4.200 en Pizza del viernes.` |
+| Generic error             | `No pudimos conectar. Reintentamos en 5s.`                |
+| Onboarding hook           | `¿Sabés en qué se te fue la plata este mes?`              |
+| Amount input placeholder  | `0,00`                                                    |
+| Destructive confirm       | `Seguro que querés borrar este gasto?`                    |
+
+### Iconography
+
+- **Lucide** library only (https://lucide.dev). ~1500 icons including all fintech essentials.
+- Stroke `1.5`, base size `20px` (`24px` tab bar, `16px` inline with text).
+- `stroke="currentColor"` — never hardcode color.
+- Never fill Lucide icons (except `star` for favorites + `check-circle` for confirmations).
+- Wallet brand logos (MP, Ualá, etc.) in `desing-system/assets/brands/` if available — never redraw.
+- For RN: use `lucide-react-native` package when implementing.
+
+### Imagery rules
+
+- **No photos** in app — utility fintech, not lifestyle
+- Empty-state illustrations: monochrome line-art in `--radar-300`, no fills
+- Avatars: initials on hash-derived color circle (8-hue approved palette)
+- Backgrounds: flat. Gradients only for the radar sweep on empty hero.
+
+### Caveats (from `desing-system/README.md`)
+
+- DS is a proposal, not recreation — pre-product, expect iteration
+- Original brief had `#10B981` (esmerald) as primary; was overridden to `#0077B6` (ocean blue). Green is now semantic only ("ingreso/te deben").
+- Folder name typo (`desing-system` instead of `design-system`) — preserved to avoid breaking references. Rename only as a coordinated atomic change.
+
+---
+
+## 9. Working effectively in this repo
+
+### Before writing code
+
+1. Read `prototipo-app-brief.md` for UX context
+2. Read `docs/decisions/*` for architecture rationale
+3. Read `README.md` for setup + scripts
+4. Check `pnpm run` to see available scripts (don't assume `test:unit`, `test:e2e` exist — they don't)
+
+### Expo SDK 54 specifics — IMPORTANT
+
+> **Expo HAS CHANGED.** Read the exact versioned docs at https://docs.expo.dev/versions/v54.0.0/ before writing any Expo-related code.
+
+Gotchas in SDK 54:
+
+- `Notifications.setNotificationHandler` uses `shouldShowBanner` + `shouldShowList`, NOT the deprecated `shouldShowAlert`
+- `ImagePicker.launchImageLibraryAsync` uses array syntax `mediaTypes: ['images']`, NOT `MediaTypeOptions.Images`
+- `expo-camera` v17 exposes `CameraView` (functional component), NOT the deprecated `Camera` class
+- `app.config.ts` is the source of truth (no `app.json`) — dynamic env via `process.env`
+
+### When in doubt
+
+- For Supabase RLS / schema: invoke `/supabase-postgres-best-practices` skill
+- For Supabase Auth / client: invoke `/supabase` skill
+- For RN perf / patterns: invoke `/react-native-expert` skill
+- For form work: invoke `/react-hook-form-zod` skill
+- For UI / mobile design: invoke `/sleek-design-mobile-apps` skill
+- For EAS CI: invoke `/expo-cicd-workflows` skill
+
+### Quality gates (all must pass before merge)
+
+```bash
+pnpm format:check   # Prettier
+pnpm lint           # ESLint flat config
+pnpm typecheck      # tsc --noEmit strict
+pnpm test           # jest-expo + RNTL (29 tests baseline)
+```
+
+CI enforces these on every push/PR via `.github/workflows/ci.yml`.
+
+### Things to NOT do
+
+- ❌ Don't downgrade TS strictness or remove the 4 extra strict flags
+- ❌ Don't use `app.json` — it was migrated to `app.config.ts`
+- ❌ Don't use AsyncStorage for tokens — use SecureStore (web is the only allowed AsyncStorage path)
+- ❌ Don't add per-screen auth guards — gating is in `(auth)`/`(protected)` `_layout.tsx`
+- ❌ Don't bypass Prettier or ESLint
+- ❌ Don't commit `.env.local`, `.env`, or any secret
+- ❌ Don't put server data in Zustand
+- ❌ Don't write English permission strings — the market is Argentina
+- ❌ Don't add native modules without checking Expo SDK 54 compatibility (Expo Go vs dev build)
+
+---
+
+## 10. Pending / next steps for the human
+
+See `docs/features/radar-app.md` "Next steps" checklist. Highlights:
+
+1. Create Supabase tables (`profiles`, `device_tokens`, `expenses`, `groups`, `group_members`, `splits`) with RLS
+2. Create Supabase Storage bucket `media` with RLS for per-user folders
+3. Run `pnpm exec eas init` → set `EAS_PROJECT_ID` in `.env.local`
+4. Decide ARS/USD FX source (BCRA vs Bluelytics)
+5. Decide WhatsApp Business API integration scope
+6. Build screens 1–8 from `prototipo-app-brief.md`
+7. Wire AI/insights pipeline (model choice + edge function)
+
+The current scaffold is **stack-ready** but contains zero RADAR-specific business logic yet. The default Expo Router tabs (Home / Camera / Explore) are placeholders until the real screens land.

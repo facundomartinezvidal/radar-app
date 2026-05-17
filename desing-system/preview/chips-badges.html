@@ -1,0 +1,39 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .preview { padding: 22px 24px; gap: 14px; justify-content: center; }
+  .hdr { display: flex; align-items: baseline; justify-content: space-between; }
+  .hdr .ttl { font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-2); }
+  .hdr .sub { font-size: 12px; color: var(--fg-3); font-family: var(--font-mono); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { background: var(--bg-2); color: var(--fg-2); border: 1px solid var(--line-2); padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; }
+  .chip.active { background: rgba(0,119,182,0.18); color: #9DD5F0; border-color: rgba(0,119,182,0.45); }
+  .chip.usd { color: #F59E0B; border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.12); font-family: 'JetBrains Mono'; font-weight: 600; }
+  .chip.ars { color: #4FB3DC; border-color: rgba(79,179,220,0.4); background: rgba(79,179,220,0.12); font-family: 'JetBrains Mono'; font-weight: 600; }
+  .chip .dot { width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
+  .badge { padding: 2px 7px; border-radius: 6px; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+  .badge.success { background: rgba(16,185,129,0.18); color: #34D399; }
+  .badge.warn { background: rgba(245,158,11,0.18); color: #F59E0B; }
+  .badge.danger { background: rgba(239,68,68,0.18); color: #F87171; }
+  .badge.neutral { background: var(--bg-3); color: var(--fg-2); }
+</style>
+</head><body>
+<div class="preview">
+  <div class="hdr"><div class="ttl">Chips &amp; badges</div><div class="sub">filters · currencies · status</div></div>
+  <div class="row">
+    <span class="chip active"><span class="dot"></span>Todos</span>
+    <span class="chip">Comida</span>
+    <span class="chip">Transporte</span>
+    <span class="chip">Salidas</span>
+    <span class="chip">Alquiler</span>
+    <span class="chip ars">ARS</span>
+    <span class="chip usd">US$</span>
+  </div>
+  <div class="row">
+    <span class="badge success">Saldada</span>
+    <span class="badge warn">Pendiente</span>
+    <span class="badge danger">Vencida</span>
+    <span class="badge neutral">Recurrente</span>
+  </div>
+</div>
+</body></html>

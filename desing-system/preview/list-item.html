@@ -1,0 +1,49 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .preview { padding: 22px 24px; gap: 10px; justify-content: center; }
+  .hdr { display: flex; align-items: baseline; justify-content: space-between; }
+  .hdr .ttl { font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-2); }
+  .hdr .sub { font-size: 12px; color: var(--fg-3); font-family: var(--font-mono); }
+  .list { background: var(--bg-1); border: 1px solid var(--line-1); border-radius: 16px; overflow: hidden; }
+  .item { display: grid; grid-template-columns: 36px 1fr auto; gap: 12px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--line-1); }
+  .item:last-child { border-bottom: none; }
+  .ico { width: 36px; height: 36px; border-radius: 10px; background: var(--bg-3); display: flex; align-items: center; justify-content: center; color: #4FB3DC; font-size: 14px; font-weight: 700; }
+  .ico.f { background: rgba(0,119,182,0.15); }
+  .ico.t { background: rgba(16,185,129,0.15); color: #34D399; }
+  .ico.s { background: rgba(245,158,11,0.15); color: #F59E0B; }
+  .ico.g { background: rgba(239,68,68,0.15); color: #F87171; }
+  .meta .t { font-size: 14px; font-weight: 600; color: var(--fg-1); }
+  .meta .s { font-size: 11px; color: var(--fg-3); margin-top: 1px; }
+  .amt { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 14px; text-align: right; }
+  .amt .sub { font-size: 10px; color: var(--fg-3); font-weight: 500; display: block; }
+  .neg { color: #F87171; }
+  .pos { color: #34D399; }
+</style>
+</head><body>
+<div class="preview">
+  <div class="hdr"><div class="ttl">Expense list item</div><div class="sub">core repeating unit</div></div>
+  <div class="list">
+    <div class="item">
+      <div class="ico f">🍕</div>
+      <div class="meta"><div class="t">Pizza del viernes</div><div class="s">Mercado Pago · Hace 2h</div></div>
+      <div class="amt neg">− $ 4.200<span class="sub">ARS</span></div>
+    </div>
+    <div class="item">
+      <div class="ico s">US</div>
+      <div class="meta"><div class="t">Suscripción Spotify</div><div class="s">Visa · 3 abr</div></div>
+      <div class="amt neg">− US$ 9,99<span class="sub">≈ $ 11.188</span></div>
+    </div>
+    <div class="item">
+      <div class="ico t">↓</div>
+      <div class="meta"><div class="t">Sueldo abril</div><div class="s">Transferencia · 2 abr</div></div>
+      <div class="amt pos">+ $ 820.000<span class="sub">ARS</span></div>
+    </div>
+    <div class="item">
+      <div class="ico g">G</div>
+      <div class="meta"><div class="t">Supermercado · Depto</div><div class="s">Grupo "Roommates" · Hace 4h</div></div>
+      <div class="amt neg">− $ 18.600<span class="sub">tu parte $ 6.200</span></div>
+    </div>
+  </div>
+</div>
+</body></html>

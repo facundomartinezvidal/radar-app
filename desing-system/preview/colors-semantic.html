@@ -1,0 +1,51 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .preview { padding: 20px 24px; gap: 0; justify-content: center; }
+  .hdr { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; }
+  .hdr .ttl { font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-2); }
+  .hdr .sub { font-size: 12px; color: var(--fg-3); font-family: var(--font-mono); }
+  table { width: 100%; border-collapse: collapse; font-family: var(--font-sans); }
+  th { text-align: left; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-3); padding: 0 0 10px; border-bottom: 1px solid var(--line-2); }
+  td { padding: 11px 0; border-bottom: 1px solid var(--line-1); font-size: 13px; color: var(--fg-2); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 10px; vertical-align: -1px; }
+  .tok { font-family: var(--font-mono); font-size: 12px; color: var(--fg-1); }
+  .hex { font-family: var(--font-mono); font-size: 11px; color: var(--fg-3); }
+  .use { color: var(--fg-2); }
+  .sample { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 13px; text-align: right; }
+</style>
+</head><body>
+<div class="preview">
+  <div class="hdr"><div class="ttl">Semantic — money &amp; signals</div><div class="sub">token · hex · usage</div></div>
+  <table>
+    <thead><tr><th style="width:36%">Token</th><th style="width:14%">Hex</th><th>Uso</th><th style="width:22%; text-align:right">Ejemplo</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span class="dot" style="background:#10B981"></span><span class="tok">--money-in</span></td>
+        <td class="hex">#10B981</td>
+        <td class="use">Ingresos · "te deben"</td>
+        <td class="sample" style="color:#34D399">+ $ 48.200</td>
+      </tr>
+      <tr>
+        <td><span class="dot" style="background:#EF4444"></span><span class="tok">--money-out</span></td>
+        <td class="hex">#EF4444</td>
+        <td class="use">Gastos · "debés"</td>
+        <td class="sample" style="color:#F87171">− $ 12.500</td>
+      </tr>
+      <tr>
+        <td><span class="dot" style="background:#F59E0B"></span><span class="tok">--warn</span></td>
+        <td class="hex">#F59E0B</td>
+        <td class="use">Dólares · alertas · vencidos</td>
+        <td class="sample" style="color:#F59E0B">US$ 85,00</td>
+      </tr>
+      <tr>
+        <td><span class="dot" style="background:#0077B6"></span><span class="tok">--info</span></td>
+        <td class="hex">#0077B6</td>
+        <td class="use">Marca · links · acciones</td>
+        <td class="sample" style="color:#4FB3DC">Ver detalle →</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+</body></html>

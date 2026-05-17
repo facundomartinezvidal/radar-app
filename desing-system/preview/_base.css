@@ -1,0 +1,42 @@
+/* Shared card preview base — each preview is full-bleed inside its registered viewport */
+@import url('../colors_and_type.css');
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg-0);
+  color: var(--fg-1);
+  font-family: var(--font-sans);
+  min-height: 100%;
+  overflow: hidden;
+}
+
+.preview {
+  padding: 20px 24px;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.preview-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.swatch {
+  border-radius: 10px;
+  border: 1px solid var(--line-1);
+  overflow: hidden;
+  position: relative;
+}
+
+.mini-label {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  font-weight: 600;
+}

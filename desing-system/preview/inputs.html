@@ -1,0 +1,47 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .preview { padding: 22px 24px; gap: 14px; justify-content: center; }
+  .hdr { display: flex; align-items: baseline; justify-content: space-between; }
+  .hdr .ttl { font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-2); }
+  .hdr .sub { font-size: 12px; color: var(--fg-3); font-family: var(--font-mono); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .lbl { font-size: 11px; letter-spacing: 0.06em; font-weight: 600; color: var(--fg-3); text-transform: uppercase; }
+  .input { background: var(--bg-1); border: 1px solid var(--line-2); border-radius: 14px; padding: 12px 14px; color: var(--fg-1); font-size: 15px; font-family: inherit; }
+  .input.focus { border-color: var(--radar-400); box-shadow: 0 0 0 3px rgba(30,153,204,0.25); }
+  .input.error { border-color: #EF4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.2); }
+  .input::placeholder { color: var(--fg-4); }
+  .amt { font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .prefix { color: var(--fg-3); font-family: 'Inter'; font-weight: 500; margin-right: 6px; }
+  .amount-field { display: flex; align-items: center; padding: 14px; }
+  .hint { font-size: 11px; color: var(--fg-3); }
+  .err { font-size: 11px; color: #F87171; }
+</style>
+</head><body>
+<div class="preview">
+  <div class="hdr"><div class="ttl">Form inputs</div><div class="sub">default · focus · amount · error</div></div>
+  <div class="grid">
+    <div class="field">
+      <div class="lbl">Descripción</div>
+      <input class="input" placeholder="Pizza del viernes" value="Alquiler abril">
+      <div class="hint">Hasta 40 caracteres</div>
+    </div>
+    <div class="field">
+      <div class="lbl">Categoría</div>
+      <input class="input focus" value="Comida · Salidas" readonly>
+      <div class="hint">Opcional</div>
+    </div>
+    <div class="field">
+      <div class="lbl">Monto</div>
+      <div class="input amount-field"><span class="prefix">$</span><span class="amt">12.500,00</span></div>
+      <div class="hint">ARS · tipo de cambio 1.120</div>
+    </div>
+    <div class="field">
+      <div class="lbl">Alias CBU</div>
+      <input class="input error" value="juan.pizza.uala">
+      <div class="err">Alias no válido. Revisá los puntos.</div>
+    </div>
+  </div>
+</div>
+</body></html>

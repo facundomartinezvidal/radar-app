@@ -1,0 +1,26 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .preview { padding: 22px 24px; gap: 14px; justify-content: center; }
+  .hdr { display: flex; align-items: baseline; justify-content: space-between; }
+  .hdr .ttl { font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-2); }
+  .hdr .sub { font-size: 12px; color: var(--fg-3); font-family: var(--font-mono); }
+  .row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+  .r { background: var(--bg-1); border: 1px solid var(--line-2); padding: 12px 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .box { width: 56px; height: 44px; background: #0077B6; box-shadow: inset 0 1px 0 rgba(255,255,255,0.2); }
+  .n { font-family: var(--font-mono); font-size: 10px; color: var(--fg-3); }
+  .lbl { font-size: 11px; color: var(--fg-2); font-weight: 600; }
+</style>
+</head><body>
+<div class="preview">
+  <div class="hdr"><div class="ttl">Corner radii</div><div class="sub">xs sm md lg xl pill</div></div>
+  <div class="row">
+    <div class="r" style="border-radius:6px"><div class="box" style="border-radius:6px"></div><div class="lbl">xs</div><div class="n">6px</div></div>
+    <div class="r" style="border-radius:10px"><div class="box" style="border-radius:10px"></div><div class="lbl">sm</div><div class="n">10px</div></div>
+    <div class="r" style="border-radius:14px"><div class="box" style="border-radius:14px"></div><div class="lbl">md · input</div><div class="n">14px</div></div>
+    <div class="r" style="border-radius:20px"><div class="box" style="border-radius:20px"></div><div class="lbl">lg · card</div><div class="n">20px</div></div>
+    <div class="r" style="border-radius:28px"><div class="box" style="border-radius:28px"></div><div class="lbl">xl · sheet</div><div class="n">28px</div></div>
+    <div class="r" style="border-radius:999px"><div class="box" style="border-radius:999px; width:44px"></div><div class="lbl">pill</div><div class="n">999</div></div>
+  </div>
+</div>
+</body></html>

@@ -1,0 +1,21 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_base.css">
+<style>
+  .preview { padding: 22px 24px; gap: 14px; justify-content: center; }
+  .hdr { display: flex; align-items: baseline; justify-content: space-between; }
+  .hdr .ttl { font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-2); }
+  .hdr .sub { font-size: 12px; color: var(--fg-3); font-family: var(--font-mono); }
+  .row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; align-items: center; }
+  .card { background: var(--bg-2); height: 90px; border-radius: 16px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 10px; font-family: var(--font-mono); font-size: 10px; color: var(--fg-3); border: 1px solid var(--line-2); }
+</style>
+</head><body>
+<div class="preview">
+  <div class="hdr"><div class="ttl">Elevation — subtle, dark-friendly</div><div class="sub">inner highlight + outer soft</div></div>
+  <div class="row">
+    <div class="card" style="box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 1px 2px rgba(0,0,0,0.4)">shadow-1</div>
+    <div class="card" style="box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset, 0 6px 20px rgba(0,0,0,0.35)">shadow-2</div>
+    <div class="card" style="box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 18px 40px rgba(0,0,0,0.55)">shadow-3</div>
+    <div class="card" style="box-shadow: 0 0 0 1px rgba(0,119,182,0.5), 0 8px 28px rgba(0,119,182,0.35); background: var(--radar-500); color: white; font-weight: 600">glow-brand</div>
+  </div>
+</div>
+</body></html>
