@@ -18,4 +18,14 @@ module.exports = defineConfig([
       'prettier/prettier': 'error',
     },
   },
+  // Test files: relax rules that conflict with jest.mock() factory patterns.
+  // jest.mock() factories run in a special babel context where `require()` is
+  // the only valid way to import modules; ES import syntax is not available.
+  {
+    files: ['**/__tests__/**/*.{ts,tsx}', '**/*.test.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
 ]);
