@@ -19,7 +19,7 @@ export const createExpenseSchema = z.object({
     .positive('El monto tiene que ser mayor a cero.')
     .max(1_000_000_000, 'Monto demasiado grande.'),
   currency: z.enum(CURRENCIES, { message: 'Elegí ARS o USD.' }),
-  category_id: z.string().uuid('Categoría inválida.').nullable(),
+  category_id: z.string().min(1, 'Categoría inválida.').nullable(),
   description: z
     .string()
     .max(240, 'Máximo 240 caracteres.')
@@ -44,7 +44,7 @@ export type UpdateExpenseInput = z.infer<typeof updateExpenseSchema>;
 
 export const expenseFilterSchema = z.object({
   search: z.string().trim().optional(),
-  categoryIds: z.array(z.string().uuid()).optional(),
+  categoryIds: z.array(z.string().min(1)).optional(),
   currencies: z.array(z.enum(CURRENCIES)).optional(),
   /** ISO timestamps. Inclusive lower bound, inclusive upper bound. */
   from: z.string().datetime({ offset: true }).optional(),
