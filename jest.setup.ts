@@ -2,12 +2,24 @@
 // This replaces the deprecated @testing-library/jest-native package.
 import '@testing-library/jest-native/extend-expect';
 
+// Mock expo-router — prevents errors when importing screens that call router.push() / useRouter()
+jest.mock('expo-router', () => ({
+  Link: ({ children }: { children: React.ReactNode }) => children,
+  Redirect: () => null,
+  router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() },
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+  Stack: {
+    Screen: () => null,
+  },
+}));
+
 // Silence specific noisy warnings during tests
 const originalWarn = console.warn;
 console.warn = (...args: unknown[]) => {
   const msg = typeof args[0] === 'string' ? args[0] : '';
   // Skip known harmless warnings from RN/Expo libs in test environment
   if (msg.includes('useNativeDriver')) return;
+  if (msg.includes('SafeAreaView has been deprecated')) return;
   originalWarn(...args);
 };
 

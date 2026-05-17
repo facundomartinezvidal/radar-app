@@ -1,35 +1,96 @@
+/**
+ * RADAR — Sign-up screen (C3)
+ *
+ * Full rewrite using DS primitives. All copy is Spanish rioplatense.
+ * Form validation via react-hook-form + zod. Supabase auth on submit.
+ * Shows a success state after email confirmation is sent.
+ */
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Link } from 'expo-router';
-import { useState } from 'react';
+import { router } from 'expo-router';
+import React, { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { z } from 'zod';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import { Body, Button, H1, Input } from '@/components/ui';
+import { LogoMark } from '@/components/ui/logo';
 import { supabase } from '@/lib/supabase';
+import { colors, spacing } from '@/lib/theme';
+
+// ---------------------------------------------------------------------------
+// Schema
+// ---------------------------------------------------------------------------
 
 const schema = z
   .object({
-    email: z.string().email('Please enter a valid email address'),
-    password: z.string().min(8, 'Password must be at least 8 characters'),
-    confirmPassword: z.string().min(8, 'Please confirm your password'),
+    email: z.string().email('Ingresá un email válido.'),
+    password: z.string().min(8, 'Mínimo 8 caracteres.'),
+    confirmPassword: z.string().min(8, 'Confirmá tu contraseña.'),
   })
   .refine((data) => data.password === data.confirmPassword, {
-    message: 'Passwords do not match',
+    message: 'Las contraseñas no coinciden.',
     path: ['confirmPassword'],
   });
 
 type FormData = z.infer<typeof schema>;
 
-export default function SignUpScreen() {
+// ---------------------------------------------------------------------------
+// Error mapping
+// ---------------------------------------------------------------------------
+
+function mapAuthError(message: string): string {
+  if (message.toLowerCase().includes('user already registered')) {
+    return 'Ya hay una cuenta con ese email.';
+  }
+  return 'No pudimos crear la cuenta. Probá de nuevo.';
+}
+
+// ---------------------------------------------------------------------------
+// Email sent state
+// ---------------------------------------------------------------------------
+
+interface EmailSentViewProps {
+  onBack: () => void;
+}
+
+function EmailSentView({ onBack }: EmailSentViewProps): React.JSX.Element {
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg[0] }}>
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingHorizontal: spacing[5],
+        }}
+      >
+        <LogoMark size={96} color={colors.brand[300]} />
+        <H1 style={{ marginTop: spacing[5], textAlign: 'center' }}>Revisá tu mail</H1>
+        <Body
+          style={{
+            marginTop: spacing[3],
+            textAlign: 'center',
+            color: colors.fg[2],
+          }}
+        >
+          Te mandamos un link para activar tu cuenta. Abrí el mail y volvé.
+        </Body>
+        <View style={{ marginTop: spacing[6], width: '100%' }}>
+          <Button variant="secondary" fullWidth onPress={onBack}>
+            Volver a iniciar sesión
+          </Button>
+        </View>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+export default function SignUpScreen(): React.JSX.Element {
   const [authError, setAuthError] = useState<string | null>(null);
   const [emailSent, setEmailSent] = useState(false);
 
@@ -49,179 +110,128 @@ export default function SignUpScreen() {
       password: data.password,
     });
     if (error) {
-      setAuthError(error.message);
+      setAuthError(mapAuthError(error.message));
     } else {
       setEmailSent(true);
     }
   };
 
   if (emailSent) {
-    return (
-      <ThemedView style={styles.container}>
-        <ThemedView style={styles.inner}>
-          <ThemedText type="title" style={styles.title}>
-            Check your email
-          </ThemedText>
-          <ThemedText style={styles.confirmText}>
-            {
-              "We've sent a confirmation link to your email address. Please check your inbox to activate your account."
-            }
-          </ThemedText>
-          <Link href="/(auth)/sign-in" style={styles.link}>
-            <ThemedText type="link">Back to Sign In</ThemedText>
-          </Link>
-        </ThemedView>
-      </ThemedView>
-    );
+    return <EmailSentView onBack={() => router.push('/(auth)/sign-in')} />;
   }
 
   return (
-    <ThemedView style={styles.container}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg[0] }}>
       <KeyboardAvoidingView
-        style={styles.inner}
+        style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ThemedText type="title" style={styles.title}>
-          Create Account
-        </ThemedText>
-
-        <Controller
-          control={control}
-          name="email"
-          render={({ field: { onChange, onBlur, value } }) => (
-            <TextInput
-              style={styles.input}
-              placeholder="Email"
-              autoCapitalize="none"
-              keyboardType="email-address"
-              autoComplete="email"
-              onBlur={onBlur}
-              onChangeText={onChange}
-              value={value}
-              editable={!isSubmitting}
-            />
-          )}
-        />
-        {errors.email ? (
-          <ThemedText style={styles.fieldError}>{errors.email.message}</ThemedText>
-        ) : null}
-
-        <Controller
-          control={control}
-          name="password"
-          render={({ field: { onChange, onBlur, value } }) => (
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              secureTextEntry
-              autoComplete="new-password"
-              onBlur={onBlur}
-              onChangeText={onChange}
-              value={value}
-              editable={!isSubmitting}
-            />
-          )}
-        />
-        {errors.password ? (
-          <ThemedText style={styles.fieldError}>{errors.password.message}</ThemedText>
-        ) : null}
-
-        <Controller
-          control={control}
-          name="confirmPassword"
-          render={({ field: { onChange, onBlur, value } }) => (
-            <TextInput
-              style={styles.input}
-              placeholder="Confirm Password"
-              secureTextEntry
-              autoComplete="new-password"
-              onBlur={onBlur}
-              onChangeText={onChange}
-              value={value}
-              editable={!isSubmitting}
-            />
-          )}
-        />
-        {errors.confirmPassword ? (
-          <ThemedText style={styles.fieldError}>{errors.confirmPassword.message}</ThemedText>
-        ) : null}
-
-        {authError ? <ThemedText style={styles.authError}>{authError}</ThemedText> : null}
-
-        <TouchableOpacity
-          style={[styles.button, isSubmitting && styles.buttonDisabled]}
-          onPress={handleSubmit(onSubmit)}
-          disabled={isSubmitting}
-          accessibilityRole="button"
-          accessibilityLabel="Create account"
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, paddingHorizontal: spacing[5] }}
+          keyboardShouldPersistTaps="handled"
         >
-          {isSubmitting ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <ThemedText style={styles.buttonText}>Create Account</ThemedText>
-          )}
-        </TouchableOpacity>
+          {/* Header */}
+          <View style={{ paddingTop: spacing[6], paddingBottom: spacing[6] }}>
+            <LogoMark size={48} />
+            <H1 style={{ marginTop: spacing[4] }}>Creá tu cuenta</H1>
+            <Body style={{ marginTop: spacing[2], color: colors.fg[2] }}>
+              Empezá a controlar tu plata.
+            </Body>
+          </View>
 
-        <Link href="/(auth)/sign-in" style={styles.link}>
-          <ThemedText type="link">Already have an account? Sign in</ThemedText>
-        </Link>
+          {/* Form */}
+          <View style={{ gap: spacing[4] }}>
+            <Controller
+              control={control}
+              name="email"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input
+                  label="Email"
+                  placeholder="vos@ejemplo.com"
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  autoComplete="email"
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                  editable={!isSubmitting}
+                  error={errors.email?.message}
+                />
+              )}
+            />
+
+            <Controller
+              control={control}
+              name="password"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input
+                  label="Contraseña"
+                  secureTextEntry
+                  autoComplete="new-password"
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                  editable={!isSubmitting}
+                  error={errors.password?.message}
+                />
+              )}
+            />
+
+            <Controller
+              control={control}
+              name="confirmPassword"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input
+                  label="Confirmar contraseña"
+                  secureTextEntry
+                  autoComplete="new-password"
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                  editable={!isSubmitting}
+                  error={errors.confirmPassword?.message}
+                />
+              )}
+            />
+
+            {/* Auth error */}
+            {authError != null && (
+              <Body style={{ color: colors.money.out, textAlign: 'center' }}>{authError}</Body>
+            )}
+
+            {/* Submit */}
+            <View style={{ marginTop: spacing[5] }}>
+              <Button
+                variant="primary"
+                size="lg"
+                fullWidth
+                loading={isSubmitting}
+                onPress={handleSubmit(onSubmit)}
+                accessibilityLabel="Crear cuenta"
+              >
+                Crear cuenta
+              </Button>
+            </View>
+
+            {/* Sign-in link */}
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexWrap: 'wrap',
+                marginTop: spacing[2],
+                marginBottom: spacing[6],
+              }}
+            >
+              <Body>¿Ya tenés cuenta?</Body>
+              <Button variant="ghost" size="sm" onPress={() => router.push('/(auth)/sign-in')}>
+                Iniciá sesión
+              </Button>
+            </View>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
-    </ThemedView>
+    </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  inner: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    gap: 12,
-  },
-  title: {
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  confirmText: {
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-  },
-  fieldError: {
-    color: '#e53e3e',
-    fontSize: 13,
-    marginTop: -6,
-  },
-  authError: {
-    color: '#e53e3e',
-    textAlign: 'center',
-  },
-  button: {
-    backgroundColor: '#0a7ea4',
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  link: {
-    marginTop: 8,
-    alignSelf: 'center',
-  },
-});

@@ -1,29 +1,52 @@
+/**
+ * RADAR — Sign-in screen (C2)
+ *
+ * Full rewrite using DS primitives. All copy is Spanish rioplatense.
+ * Form validation via react-hook-form + zod. Supabase auth on submit.
+ */
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Link } from 'expo-router';
-import { useState } from 'react';
+import { router } from 'expo-router';
+import React, { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { z } from 'zod';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import { Body, Button, H1, Input } from '@/components/ui';
+import { LogoMark } from '@/components/ui/logo';
 import { supabase } from '@/lib/supabase';
+import { colors, spacing } from '@/lib/theme';
+
+// ---------------------------------------------------------------------------
+// Schema
+// ---------------------------------------------------------------------------
 
 const schema = z.object({
-  email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  email: z.string().email('Ingresá un email válido.'),
+  password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres.'),
 });
 
 type FormData = z.infer<typeof schema>;
 
-export default function SignInScreen() {
+// ---------------------------------------------------------------------------
+// Error mapping
+// ---------------------------------------------------------------------------
+
+function mapAuthError(message: string): string {
+  if (message.toLowerCase().includes('invalid login credentials')) {
+    return 'Email o contraseña incorrectos.';
+  }
+  if (message.toLowerCase().includes('email not confirmed')) {
+    return 'Confirmá tu mail antes de iniciar sesión.';
+  }
+  return 'No pudimos iniciar sesión. Probá de nuevo.';
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+export default function SignInScreen(): React.JSX.Element {
   const [authError, setAuthError] = useState<string | null>(null);
 
   const {
@@ -42,133 +65,118 @@ export default function SignInScreen() {
       password: data.password,
     });
     if (error) {
-      setAuthError(error.message);
+      setAuthError(mapAuthError(error.message));
     }
   };
 
   return (
-    <ThemedView style={styles.container}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg[0] }}>
       <KeyboardAvoidingView
-        style={styles.inner}
+        style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ThemedText type="title" style={styles.title}>
-          Sign In
-        </ThemedText>
-
-        <Controller
-          control={control}
-          name="email"
-          render={({ field: { onChange, onBlur, value } }) => (
-            <TextInput
-              style={styles.input}
-              placeholder="Email"
-              autoCapitalize="none"
-              keyboardType="email-address"
-              autoComplete="email"
-              onBlur={onBlur}
-              onChangeText={onChange}
-              value={value}
-              editable={!isSubmitting}
-            />
-          )}
-        />
-        {errors.email ? (
-          <ThemedText style={styles.fieldError}>{errors.email.message}</ThemedText>
-        ) : null}
-
-        <Controller
-          control={control}
-          name="password"
-          render={({ field: { onChange, onBlur, value } }) => (
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              secureTextEntry
-              autoComplete="password"
-              onBlur={onBlur}
-              onChangeText={onChange}
-              value={value}
-              editable={!isSubmitting}
-            />
-          )}
-        />
-        {errors.password ? (
-          <ThemedText style={styles.fieldError}>{errors.password.message}</ThemedText>
-        ) : null}
-
-        {authError ? <ThemedText style={styles.authError}>{authError}</ThemedText> : null}
-
-        <TouchableOpacity
-          style={[styles.button, isSubmitting && styles.buttonDisabled]}
-          onPress={handleSubmit(onSubmit)}
-          disabled={isSubmitting}
-          accessibilityRole="button"
-          accessibilityLabel="Sign in"
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, paddingHorizontal: spacing[5] }}
+          keyboardShouldPersistTaps="handled"
         >
-          {isSubmitting ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <ThemedText style={styles.buttonText}>Sign In</ThemedText>
-          )}
-        </TouchableOpacity>
+          {/* Header */}
+          <View style={{ paddingTop: spacing[6], paddingBottom: spacing[6] }}>
+            <LogoMark size={48} />
+            <H1 style={{ marginTop: spacing[4] }}>Iniciá sesión</H1>
+            <Body style={{ marginTop: spacing[2], color: colors.fg[2] }}>
+              Bienvenido de vuelta a RADAR.
+            </Body>
+          </View>
 
-        <Link href="/(auth)/sign-up" style={styles.link}>
-          <ThemedText type="link">{"Don't have an account? Sign up"}</ThemedText>
-        </Link>
+          {/* Form */}
+          <View style={{ gap: spacing[4] }}>
+            <Controller
+              control={control}
+              name="email"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input
+                  label="Email"
+                  placeholder="vos@ejemplo.com"
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  autoComplete="email"
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                  editable={!isSubmitting}
+                  error={errors.email?.message}
+                />
+              )}
+            />
+
+            <View>
+              <Controller
+                control={control}
+                name="password"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <Input
+                    label="Contraseña"
+                    secureTextEntry
+                    autoComplete="password"
+                    onBlur={onBlur}
+                    onChangeText={onChange}
+                    value={value}
+                    editable={!isSubmitting}
+                    error={errors.password?.message}
+                  />
+                )}
+              />
+              <View style={{ alignItems: 'flex-end', marginTop: spacing[1] }}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onPress={() => {
+                    console.log('Olvidaste tu contraseña — feature pendiente');
+                  }}
+                >
+                  ¿Olvidaste tu contraseña?
+                </Button>
+              </View>
+            </View>
+
+            {/* Auth error */}
+            {authError != null && (
+              <Body style={{ color: colors.money.out, textAlign: 'center' }}>{authError}</Body>
+            )}
+
+            {/* Submit */}
+            <View style={{ marginTop: spacing[5] }}>
+              <Button
+                variant="primary"
+                size="lg"
+                fullWidth
+                loading={isSubmitting}
+                onPress={handleSubmit(onSubmit)}
+                accessibilityLabel="Iniciar sesión"
+              >
+                Iniciar sesión
+              </Button>
+            </View>
+
+            {/* Sign-up link */}
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexWrap: 'wrap',
+                marginTop: spacing[2],
+                marginBottom: spacing[6],
+              }}
+            >
+              <Body>¿No tenés cuenta?</Body>
+              <Button variant="ghost" size="sm" onPress={() => router.push('/(auth)/sign-up')}>
+                Sumate
+              </Button>
+            </View>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
-    </ThemedView>
+    </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  inner: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    gap: 12,
-  },
-  title: {
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-  },
-  fieldError: {
-    color: '#e53e3e',
-    fontSize: 13,
-    marginTop: -6,
-  },
-  authError: {
-    color: '#e53e3e',
-    textAlign: 'center',
-  },
-  button: {
-    backgroundColor: '#0a7ea4',
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  link: {
-    marginTop: 8,
-    alignSelf: 'center',
-  },
-});
