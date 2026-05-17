@@ -9,11 +9,35 @@
  *   - Sign-out calls supabase.auth.signOut() and useAuthStore.getState().reset()
  */
 import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores';
 import HomeScreen from '../index';
+
+// Mock the expenses repo so home's TanStack Query hooks resolve without DB
+jest.mock('@/lib/repositories/expenses', () => ({
+  listExpenses: jest.fn().mockResolvedValue({ data: [], error: null }),
+  listCategories: jest.fn().mockResolvedValue({ data: [], error: null }),
+  getExpense: jest.fn().mockResolvedValue({ data: null, error: null }),
+  createExpense: jest.fn(),
+  updateExpense: jest.fn(),
+  deleteExpense: jest.fn(),
+  sumExpensesByCurrency: jest.fn().mockResolvedValue({ data: [], error: null }),
+}));
+
+function renderWithClient(): { client: QueryClient } {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <HomeScreen />
+    </QueryClientProvider>,
+  );
+  return { client };
+}
 
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
 
@@ -52,13 +76,13 @@ describe('HomeScreen', () => {
   });
 
   it('renders without crashing', () => {
-    expect(() => render(<HomeScreen />)).not.toThrow();
+    expect(() => renderWithClient()).not.toThrow();
   });
 
   describe('greeting', () => {
     it('shows fallback "Hola" when no user session', () => {
       useSession.mockReturnValue({ user: null, session: null, isLoading: false });
-      render(<HomeScreen />);
+      renderWithClient();
       expect(screen.getByText('Hola')).toBeTruthy();
     });
 
@@ -68,14 +92,14 @@ describe('HomeScreen', () => {
         session: {},
         isLoading: false,
       });
-      render(<HomeScreen />);
+      renderWithClient();
       // Name is derived from email prefix with first char capitalised
       expect(screen.getByText('Hola, Facundo')).toBeTruthy();
     });
   });
 
   it('shows "ESTE MES" section label', () => {
-    render(<HomeScreen />);
+    renderWithClient();
     // Label primitive renders "Este mes" (uppercased via textTransform in CSS).
     // Use getAllByText since the text may appear in multiple RN nodes in the tree.
     const labels = screen.getAllByText(/este mes/i);
@@ -83,7 +107,7 @@ describe('HomeScreen', () => {
   });
 
   it('shows "Cerrar sesión" button', () => {
-    render(<HomeScreen />);
+    renderWithClient();
     expect(screen.getByText('Cerrar sesión')).toBeTruthy();
   });
 
@@ -92,7 +116,7 @@ describe('HomeScreen', () => {
       const signOutMock = supabase.auth.signOut as jest.Mock;
       signOutMock.mockResolvedValueOnce({ error: null });
 
-      render(<HomeScreen />);
+      renderWithClient();
       fireEvent.press(screen.getByText('Cerrar sesión'));
 
       await waitFor(() => {
@@ -105,7 +129,7 @@ describe('HomeScreen', () => {
       (useAuthStore.getState as jest.Mock).mockReturnValue({ reset: resetMock });
       (supabase.auth.signOut as jest.Mock).mockResolvedValueOnce({ error: null });
 
-      render(<HomeScreen />);
+      renderWithClient();
       fireEvent.press(screen.getByText('Cerrar sesión'));
 
       await waitFor(() => {

@@ -55,13 +55,13 @@ directly — paste manually:
 The templates use these Go-template placeholders (Supabase resolves them
 server-side before sending):
 
-| Variable                 | Meaning                          |
-| ------------------------ | -------------------------------- |
-| `{{ .ConfirmationURL }}` | Single-use action link           |
-| `{{ .Email }}`           | The recipient's email            |
-| `{{ .SiteURL }}`         | Site URL configured in Auth      |
-| `{{ .Token }}`           | OTP token (alternative to URL)   |
-| `{{ .TokenHash }}`       | Hashed OTP token                 |
+| Variable                 | Meaning                        |
+| ------------------------ | ------------------------------ |
+| `{{ .ConfirmationURL }}` | Single-use action link         |
+| `{{ .Email }}`           | The recipient's email          |
+| `{{ .SiteURL }}`         | Site URL configured in Auth    |
+| `{{ .Token }}`           | OTP token (alternative to URL) |
+| `{{ .TokenHash }}`       | Hashed OTP token               |
 
 Reference: https://supabase.com/docs/guides/auth/auth-email-templates
 

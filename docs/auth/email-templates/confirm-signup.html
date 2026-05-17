@@ -39,7 +39,9 @@
     <title>Tu código RADAR · {{ .Token }}</title>
     <!--[if mso]>
       <style>
-        * { font-family: 'Segoe UI', Arial, sans-serif !important; }
+        * {
+          font-family: 'Segoe UI', Arial, sans-serif !important;
+        }
       </style>
     <![endif]-->
   </head>
@@ -52,8 +54,8 @@
       color: #f4f7fb;
       -webkit-font-smoothing: antialiased;
       -webkit-text-size-adjust: 100%;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter,
-        Roboto, Helvetica, Arial, sans-serif;
+      font-family:
+        -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, Helvetica, Arial, sans-serif;
     "
   >
     <!-- Preheader (hidden inbox preview) -->
@@ -79,10 +81,10 @@
       cellpadding="0"
       cellspacing="0"
       border="0"
-      style="background-color: #0a0f1a;"
+      style="background-color: #0a0f1a"
     >
       <tr>
-        <td align="center" style="padding: 32px 16px;">
+        <td align="center" style="padding: 32px 16px">
           <!-- Card -->
           <table
             role="presentation"
@@ -119,7 +121,7 @@
                   cellspacing="0"
                   border="0"
                   align="center"
-                  style="margin: 0 auto;"
+                  style="margin: 0 auto"
                 >
                   <tr>
                     <td
@@ -138,7 +140,7 @@
                         cellpadding="0"
                         cellspacing="0"
                         border="0"
-                        style="margin: 0 auto;"
+                        style="margin: 0 auto"
                       >
                         <tr>
                           <td
@@ -149,9 +151,9 @@
                               background-color: #0077b6;
                               border-radius: 999px;
                               color: #ffffff;
-                              font-family: -apple-system, BlinkMacSystemFont,
-                                'Segoe UI', Inter, Roboto, Helvetica, Arial,
-                                sans-serif;
+                              font-family:
+                                -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto,
+                                Helvetica, Arial, sans-serif;
                               font-size: 20px;
                               font-weight: 800;
                               letter-spacing: -0.5px;
@@ -171,8 +173,9 @@
                 <div
                   style="
                     margin-top: 20px;
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI',
-                      Inter, Roboto, Helvetica, Arial, sans-serif;
+                    font-family:
+                      -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, Helvetica,
+                      Arial, sans-serif;
                     font-size: 22px;
                     font-weight: 800;
                     letter-spacing: -0.5px;
@@ -184,12 +187,7 @@
 
                 <!-- Tagline -->
                 <div
-                  style="
-                    margin-top: 6px;
-                    font-size: 13px;
-                    color: #7e8aa0;
-                    letter-spacing: 0.2px;
-                  "
+                  style="margin-top: 6px; font-size: 13px; color: #7e8aa0; letter-spacing: 0.2px"
                 >
                   Sabé a dónde va tu plata.
                 </div>
@@ -212,12 +210,13 @@
 
             <!-- Headline + body -->
             <tr>
-              <td style="padding: 32px 32px 8px 32px;">
+              <td style="padding: 32px 32px 8px 32px">
                 <h1
                   style="
                     margin: 0;
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI',
-                      Inter, Roboto, Helvetica, Arial, sans-serif;
+                    font-family:
+                      -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, Helvetica,
+                      Arial, sans-serif;
                     font-size: 28px;
                     line-height: 1.2;
                     font-weight: 700;
@@ -227,14 +226,7 @@
                 >
                   Tu código de confirmación
                 </h1>
-                <p
-                  style="
-                    margin: 16px 0 0 0;
-                    font-size: 16px;
-                    line-height: 1.55;
-                    color: #b8c3d4;
-                  "
-                >
+                <p style="margin: 16px 0 0 0; font-size: 16px; line-height: 1.55; color: #b8c3d4">
                   Ingresá este código en la app para activar tu cuenta.
                 </p>
               </td>
@@ -242,14 +234,14 @@
 
             <!-- OTP code block — the hero element -->
             <tr>
-              <td style="padding: 24px 32px 8px 32px;" align="center">
+              <td style="padding: 24px 32px 8px 32px" align="center">
                 <table
                   role="presentation"
                   cellpadding="0"
                   cellspacing="0"
                   border="0"
                   align="center"
-                  style="margin: 0 auto;"
+                  style="margin: 0 auto"
                 >
                   <tr>
                     <td
@@ -263,8 +255,8 @@
                     >
                       <div
                         style="
-                          font-family: 'JetBrains Mono', 'SF Mono', Menlo,
-                            Consolas, 'Courier New', monospace;
+                          font-family:
+                            'JetBrains Mono', 'SF Mono', Menlo, Consolas, 'Courier New', monospace;
                           font-size: 40px;
                           font-weight: 600;
                           letter-spacing: 12px;
@@ -295,7 +287,7 @@
 
             <!-- Optional link fallback -->
             <tr>
-              <td style="padding: 16px 32px 0 32px;">
+              <td style="padding: 16px 32px 0 32px">
                 <p
                   style="
                     margin: 0;
@@ -307,15 +299,11 @@
                 >
                   ¿Preferís confirmar desde el navegador? Tocá acá:
                 </p>
-                <p style="margin: 8px 0 0 0; text-align: center;">
+                <p style="margin: 8px 0 0 0; text-align: center">
                   <a
                     href="{{ .ConfirmationURL }}"
                     target="_blank"
-                    style="
-                      color: #4fb3dc;
-                      text-decoration: underline;
-                      font-size: 13px;
-                    "
+                    style="color: #4fb3dc; text-decoration: underline; font-size: 13px"
                   >
                     Confirmar en el navegador
                   </a>
@@ -325,7 +313,7 @@
 
             <!-- Spacer + divider -->
             <tr>
-              <td style="padding: 24px 32px 0 32px;">
+              <td style="padding: 24px 32px 0 32px">
                 <div
                   style="
                     height: 1px;
@@ -341,7 +329,7 @@
 
             <!-- Trust / value pillars -->
             <tr>
-              <td style="padding: 20px 32px 8px 32px;">
+              <td style="padding: 20px 32px 8px 32px">
                 <p
                   style="
                     margin: 0;
@@ -361,7 +349,7 @@
                   cellpadding="0"
                   cellspacing="0"
                   border="0"
-                  style="margin-top: 14px;"
+                  style="margin-top: 14px"
                 >
                   <tr>
                     <td
@@ -375,14 +363,12 @@
                         color: #b8c3d4;
                       "
                     >
-                      <strong style="color: #f4f7fb;">Personal.</strong>
+                      <strong style="color: #f4f7fb">Personal.</strong>
                       Registrá gastos en segundos.
                     </td>
                   </tr>
                   <tr>
-                    <td height="8" style="line-height: 8px; font-size: 8px;">
-                      &nbsp;
-                    </td>
+                    <td height="8" style="line-height: 8px; font-size: 8px">&nbsp;</td>
                   </tr>
                   <tr>
                     <td
@@ -396,14 +382,12 @@
                         color: #b8c3d4;
                       "
                     >
-                      <strong style="color: #f4f7fb;">Compartido.</strong>
+                      <strong style="color: #f4f7fb">Compartido.</strong>
                       Dividí cuentas con tu grupo, sin papelitos.
                     </td>
                   </tr>
                   <tr>
-                    <td height="8" style="line-height: 8px; font-size: 8px;">
-                      &nbsp;
-                    </td>
+                    <td height="8" style="line-height: 8px; font-size: 8px">&nbsp;</td>
                   </tr>
                   <tr>
                     <td
@@ -417,7 +401,7 @@
                         color: #b8c3d4;
                       "
                     >
-                      <strong style="color: #f4f7fb;">ARS + USD.</strong>
+                      <strong style="color: #f4f7fb">ARS + USD.</strong>
                       Tu plata en pesos y dólares, en un solo lugar.
                     </td>
                   </tr>
@@ -427,7 +411,7 @@
 
             <!-- Security note -->
             <tr>
-              <td style="padding: 24px 32px 32px 32px;">
+              <td style="padding: 24px 32px 32px 32px">
                 <p
                   style="
                     margin: 0;
@@ -437,8 +421,8 @@
                     text-align: center;
                   "
                 >
-                  Si vos no creaste esta cuenta, ignorá este mail. Nadie va a
-                  poder entrar sin el código.
+                  Si vos no creaste esta cuenta, ignorá este mail. Nadie va a poder entrar sin el
+                  código.
                 </p>
               </td>
             </tr>
@@ -451,22 +435,16 @@
             cellpadding="0"
             cellspacing="0"
             border="0"
-            style="width: 100%; max-width: 600px; margin-top: 24px;"
+            style="width: 100%; max-width: 600px; margin-top: 24px"
           >
             <tr>
               <td
                 align="center"
-                style="
-                  font-size: 11px;
-                  line-height: 1.5;
-                  color: #4b566b;
-                  padding: 0 32px;
-                "
+                style="font-size: 11px; line-height: 1.5; color: #4b566b; padding: 0 32px"
               >
                 RADAR · Hecho en Argentina<br />
                 Recibiste este mail porque alguien (¿vos?) usó
-                <span style="color: #7e8aa0;">{{ .Email }}</span> para
-                registrarse.
+                <span style="color: #7e8aa0">{{ .Email }}</span> para registrarse.
               </td>
             </tr>
           </table>

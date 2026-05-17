@@ -419,14 +419,30 @@ CI enforces these on every push/PR via `.github/workflows/ci.yml`.
 
 ## 10. Pending / next steps for the human
 
-See `docs/features/radar-app.md` "Next steps" checklist. Highlights:
+### Already shipped
 
-1. Create Supabase tables (`profiles`, `device_tokens`, `expenses`, `groups`, `group_members`, `splits`) with RLS
+- `profiles` + `categories` + `expenses` tables with RLS — see
+  `docs/decisions/2026-05-17-expenses-schema.md`
+- Categories seeded (9 rows) for the default Argentine taxonomy
+- Trigger `handle_new_user()` auto-creates profile rows on signup
+- Expenses CRUD UI + list + filter + search — see
+  `docs/features/expenses-crud.md`
+- Custom OTP email template for sign-up — `docs/auth/email-templates/`
+
+### Still pending
+
+1. Create Supabase tables for shared / groups (`groups`, `group_members`,
+   `splits`, `device_tokens`) with RLS
 2. Create Supabase Storage bucket `media` with RLS for per-user folders
-3. Run `pnpm exec eas init` → set `EAS_PROJECT_ID` in `.env.local`
-4. Decide ARS/USD FX source (BCRA vs Bluelytics)
-5. Decide WhatsApp Business API integration scope
-6. Build screens 1–8 from `prototipo-app-brief.md`
-7. Wire AI/insights pipeline (model choice + edge function)
+3. Configure custom SMTP in Supabase (Resend recommended) — shared SMTP
+   is capped at 2 emails/hour and breaks even basic testing
+4. Run `pnpm exec eas init` → set `EAS_PROJECT_ID` in `.env.local`
+5. Decide ARS/USD FX source (BCRA vs Bluelytics)
+6. Decide WhatsApp Business API integration scope
+7. Build the remaining screens from `prototipo-app-brief.md`
+   (groups detail, settlement flow, AI insights detail)
+8. Wire AI/insights pipeline (model choice + edge function)
+9. Date picker for `occurred_at` on the new-expense screen
 
-The current scaffold is **stack-ready** but contains zero RADAR-specific business logic yet. The default Expo Router tabs (Home / Camera / Explore) are placeholders until the real screens land.
+The expenses CRUD is the first feature with real persistence end-to-end.
+Everything else still depends on the items above.
