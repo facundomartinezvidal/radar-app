@@ -309,9 +309,7 @@ export default function HomeScreen(): React.JSX.Element {
                   row={row}
                   isLast={index === recentRows.length - 1}
                   onPress={(id) =>
-                    router.push(
-                      `/(protected)/expense/${id}` as Parameters<typeof router.push>[0],
-                    )
+                    router.push(`/(protected)/expense/${id}` as Parameters<typeof router.push>[0])
                   }
                 />
               ))
