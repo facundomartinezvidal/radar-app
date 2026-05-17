@@ -5,6 +5,7 @@
  * Content is Spanish rioplatense, voseo, sentence case.
  * All amounts are placeholder zeros — real data wiring is post-scaffold.
  */
+import { router } from 'expo-router';
 import React from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -23,10 +24,13 @@ import {
   Pill,
   Text,
 } from '@/components/ui';
+import { formatMoney } from '@/lib/format/money';
 import { supabase } from '@/lib/supabase';
 import { colors, motion, radii, spacing, typography } from '@/lib/theme';
+import { useExpenseTotals, useExpenses } from '@/hooks/use-expenses';
 import { useSession } from '@/hooks/use-session';
 import { useAuthStore } from '@/stores';
+import type { IconName } from '@/components/ui/icon';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -36,10 +40,11 @@ interface QuickAction {
   label: string;
   iconName: 'Plus' | 'Users' | 'Camera' | 'MoreHorizontal';
   accessibilityLabel: string;
+  onPress?: () => void;
 }
 
 interface ExpenseRow {
-  iconName: 'UtensilsCrossed' | 'Bus' | 'Coffee' | 'Film';
+  iconName: IconName;
   name: string;
   meta: string;
   amount: string;
@@ -50,43 +55,52 @@ interface ExpenseRow {
 // Data (hardcoded mock)
 // ---------------------------------------------------------------------------
 
-const QUICK_ACTIONS: QuickAction[] = [
-  { label: 'Agregar', iconName: 'Plus', accessibilityLabel: 'Agregar gasto' },
-  { label: 'Grupos', iconName: 'Users', accessibilityLabel: 'Ver grupos' },
-  { label: 'Escanear', iconName: 'Camera', accessibilityLabel: 'Escanear comprobante' },
-  { label: 'Más', iconName: 'MoreHorizontal', accessibilityLabel: 'Más opciones' },
-];
+// QUICK_ACTIONS now built inside the component so we can wire `onPress` to the
+// router. Static keeps the order + icons.
+function buildQuickActions(): QuickAction[] {
+  return [
+    {
+      label: 'Agregar',
+      iconName: 'Plus',
+      accessibilityLabel: 'Agregar gasto',
+      onPress: () => router.push('/(protected)/expense/new'),
+    },
+    {
+      label: 'Grupos',
+      iconName: 'Users',
+      accessibilityLabel: 'Ver grupos',
+    },
+    {
+      label: 'Escanear',
+      iconName: 'Camera',
+      accessibilityLabel: 'Escanear comprobante',
+    },
+    {
+      label: 'Más',
+      iconName: 'MoreHorizontal',
+      accessibilityLabel: 'Más opciones',
+    },
+  ];
+}
 
-const EXPENSE_ROWS: ExpenseRow[] = [
-  {
-    iconName: 'UtensilsCrossed',
-    name: 'Delivery',
-    meta: 'Mercado Pago · hoy 20:14',
-    amount: '$ 3.200',
-    tone: 'out',
-  },
-  {
-    iconName: 'Bus',
-    name: 'SUBE',
-    meta: 'Efectivo · hoy 09:30',
-    amount: '$ 950',
-    tone: 'out',
-  },
-  {
-    iconName: 'Coffee',
-    name: 'Café',
-    meta: 'Tarjeta · ayer',
-    amount: '$ 1.800',
-    tone: 'out',
-  },
-  {
-    iconName: 'Film',
-    name: 'Netflix',
-    meta: 'Wise · hace 3 días',
-    amount: 'US$ 5,99',
-    tone: 'out',
-  },
-];
+function relativeTime(occurredAt: string): string {
+  const now = Date.now();
+  const then = new Date(occurredAt).getTime();
+  const diffMin = Math.floor((now - then) / 60_000);
+  if (diffMin < 60) return diffMin <= 1 ? 'recién' : `hace ${diffMin}m`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `hace ${diffHr}h`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay === 1) return 'ayer';
+  if (diffDay < 7) return `hace ${diffDay} días`;
+  try {
+    return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short' }).format(
+      new Date(occurredAt),
+    );
+  } catch {
+    return occurredAt.slice(0, 10);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -109,6 +123,7 @@ function QuickActionButton({ action }: { action: QuickAction }): React.JSX.Eleme
 
   return (
     <Pressable
+      onPress={action.onPress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       accessibilityRole="button"
@@ -163,6 +178,21 @@ function ExpenseRowItem({ row, isLast }: { row: ExpenseRow; isLast: boolean }): 
 
 export default function HomeScreen(): React.JSX.Element {
   const { user } = useSession();
+  const totalsQuery = useExpenseTotals({});
+  const recentQuery = useExpenses({ limit: 4 });
+
+  const arsTotal = totalsQuery.data?.find((t) => t.currency === 'ARS')?.total ?? 0;
+  const usdTotal = totalsQuery.data?.find((t) => t.currency === 'USD')?.total ?? 0;
+
+  const recentRows: ExpenseRow[] = (recentQuery.data ?? []).map((e) => ({
+    iconName: (e.category?.icon as IconName | undefined) ?? 'CircleDashed',
+    name: e.description?.trim().length ? e.description : (e.category?.name ?? 'Gasto'),
+    meta: `${e.category?.name ?? 'Sin categoría'} · ${relativeTime(e.occurred_at)}`,
+    amount: formatMoney(Number(e.amount), e.currency as 'ARS' | 'USD'),
+    tone: 'out',
+  }));
+
+  const quickActions = React.useMemo(() => buildQuickActions(), []);
 
   // Derive display name from email (before the @)
   const displayName = user?.email ? user.email.split('@')[0] : null;
@@ -205,20 +235,21 @@ export default function HomeScreen(): React.JSX.Element {
         <Card variant="raised" padding={6} style={styles.balanceCard}>
           <Label>Este mes</Label>
           <Text variant="display" style={styles.balanceAmount}>
-            $ 0,00
+            {formatMoney(arsTotal, 'ARS')}
           </Text>
           <Caption color={colors.fg[3]} style={styles.balanceUsd}>
-            ≈ USD 0
+            + {formatMoney(usdTotal, 'USD')}
           </Caption>
           <View style={styles.balancePills}>
-            <Pill variant="income">↑ $ 0,00</Pill>
-            <Pill variant="expense">↓ $ 0,00</Pill>
+            <Pill variant="expense">
+              {recentQuery.data?.length ?? 0} {recentQuery.data?.length === 1 ? 'gasto' : 'gastos'}
+            </Pill>
           </View>
         </Card>
 
         {/* ── Quick-access row ── */}
         <View style={styles.quickActions}>
-          {QUICK_ACTIONS.map((action) => (
+          {quickActions.map((action) => (
             <QuickActionButton key={action.label} action={action} />
           ))}
         </View>
@@ -246,18 +277,30 @@ export default function HomeScreen(): React.JSX.Element {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <H3>Últimos gastos</H3>
-            <Button variant="ghost" size="sm" onPress={() => {}}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => router.push('/(protected)/(tabs)/expenses')}
+            >
               Ver todos
             </Button>
           </View>
           <Card variant="base" padding={4}>
-            {EXPENSE_ROWS.map((row, index) => (
-              <ExpenseRowItem
-                key={row.name + row.meta}
-                row={row}
-                isLast={index === EXPENSE_ROWS.length - 1}
-              />
-            ))}
+            {recentRows.length === 0 ? (
+              <View style={{ paddingVertical: spacing[4], alignItems: 'center' }}>
+                <Body color={colors.fg[3]} style={{ textAlign: 'center' }}>
+                  Todavía no cargaste nada este mes.
+                </Body>
+              </View>
+            ) : (
+              recentRows.map((row, index) => (
+                <ExpenseRowItem
+                  key={row.name + row.meta + index}
+                  row={row}
+                  isLast={index === recentRows.length - 1}
+                />
+              ))
+            )}
           </Card>
         </View>
 

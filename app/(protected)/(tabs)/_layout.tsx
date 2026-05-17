@@ -41,6 +41,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="expenses"
+        options={{
+          title: 'Gastos',
+          tabBarIcon: ({ color }) => (
+            <Icon name="Receipt" size={24} color={color} strokeWidth={1.5} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="camera"
         options={{
           title: 'Cámara',
