@@ -52,9 +52,7 @@ export default function NewExpenseScreen(): React.JSX.Element {
           {categoriesQuery.isLoading ? (
             <Body color={colors.fg[3]}>Cargando categorías…</Body>
           ) : categoriesQuery.error ? (
-            <Body color={colors.money.out}>
-              No pudimos cargar las categorías. Probá de nuevo.
-            </Body>
+            <Body color={colors.money.out}>No pudimos cargar las categorías. Probá de nuevo.</Body>
           ) : (
             <ExpenseForm
               categories={categoriesQuery.data ?? []}
@@ -67,9 +65,7 @@ export default function NewExpenseScreen(): React.JSX.Element {
                   router.back();
                 } catch (e) {
                   setSubmitError(
-                    e instanceof Error
-                      ? e.message
-                      : 'No pudimos guardar el gasto. Probá de nuevo.',
+                    e instanceof Error ? e.message : 'No pudimos guardar el gasto. Probá de nuevo.',
                   );
                 }
               }}

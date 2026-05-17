@@ -37,8 +37,24 @@ jest.mock('react-native-svg', () => {
 const mockedRepo = repo as jest.Mocked<typeof repo>;
 
 const FIXTURE_CATEGORIES = [
-  { id: 'cat-1', slug: 'comida', name: 'Comida', icon: 'UtensilsCrossed', color: '#F59E0B', sort_order: 10, created_at: '2026-01-01' },
-  { id: 'cat-2', slug: 'transporte', name: 'Transporte', icon: 'Bus', color: '#4FB3DC', sort_order: 30, created_at: '2026-01-01' },
+  {
+    id: 'cat-1',
+    slug: 'comida',
+    name: 'Comida',
+    icon: 'UtensilsCrossed',
+    color: '#F59E0B',
+    sort_order: 10,
+    created_at: '2026-01-01',
+  },
+  {
+    id: 'cat-2',
+    slug: 'transporte',
+    name: 'Transporte',
+    icon: 'Bus',
+    color: '#4FB3DC',
+    sort_order: 30,
+    created_at: '2026-01-01',
+  },
 ] satisfies repo.CategoryRow[];
 
 function renderWithProviders(): { client: QueryClient } {
