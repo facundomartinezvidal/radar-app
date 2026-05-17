@@ -1,9 +1,9 @@
 /**
- * RADAR — Sign-up screen (C3)
+ * RADAR — Sign-up screen (C3, OTP flow)
  *
- * Full rewrite using DS primitives. All copy is Spanish rioplatense.
- * Form validation via react-hook-form + zod. Supabase auth on submit.
- * Shows a success state after email confirmation is sent.
+ * Calls `supabase.auth.signUp` without `emailRedirectTo` so Supabase delivers
+ * an OTP code via email instead of a confirmation link. On success the user
+ * is routed to /verify-otp with their email as a param to complete the flow.
  */
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from 'expo-router';
@@ -47,52 +47,11 @@ function mapAuthError(message: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Email sent state
-// ---------------------------------------------------------------------------
-
-interface EmailSentViewProps {
-  onBack: () => void;
-}
-
-function EmailSentView({ onBack }: EmailSentViewProps): React.JSX.Element {
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg[0] }}>
-      <View
-        style={{
-          flex: 1,
-          alignItems: 'center',
-          justifyContent: 'center',
-          paddingHorizontal: spacing[5],
-        }}
-      >
-        <LogoMark size={96} color={colors.brand[300]} />
-        <H1 style={{ marginTop: spacing[5], textAlign: 'center' }}>Revisá tu mail</H1>
-        <Body
-          style={{
-            marginTop: spacing[3],
-            textAlign: 'center',
-            color: colors.fg[2],
-          }}
-        >
-          Te mandamos un link para activar tu cuenta. Abrí el mail y volvé.
-        </Body>
-        <View style={{ marginTop: spacing[6], width: '100%' }}>
-          <Button variant="secondary" fullWidth onPress={onBack}>
-            Volver a iniciar sesión
-          </Button>
-        </View>
-      </View>
-    </SafeAreaView>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 export default function SignUpScreen(): React.JSX.Element {
   const [authError, setAuthError] = useState<string | null>(null);
-  const [emailSent, setEmailSent] = useState(false);
 
   const {
     control,
@@ -105,20 +64,22 @@ export default function SignUpScreen(): React.JSX.Element {
 
   const onSubmit = async (data: FormData): Promise<void> => {
     setAuthError(null);
+    // Omitting `emailRedirectTo` forces Supabase to use the OTP token flow.
+    // The user receives a 6-digit code in their email and types it on the
+    // verify-otp screen — no deep-link / scheme config needed in Expo Go.
     const { error } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
     });
     if (error) {
       setAuthError(mapAuthError(error.message));
-    } else {
-      setEmailSent(true);
+      return;
     }
+    router.push({
+      pathname: '/(auth)/verify-otp',
+      params: { email: data.email },
+    });
   };
-
-  if (emailSent) {
-    return <EmailSentView onBack={() => router.push('/(auth)/sign-in')} />;
-  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg[0] }}>

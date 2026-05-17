@@ -1,14 +1,22 @@
 <!--
-  RADAR — Confirm signup email template
+  RADAR — Confirm signup email template (OTP flow)
+
+  This template is built for the OTP flow used by the Expo app: the app calls
+  `supabase.auth.signUp({ email, password })` WITHOUT `emailRedirectTo`, so
+  Supabase delivers the 6-digit `{{ .Token }}` code. The user types it into
+  the verify-otp screen — no deep-link / scheme config needed.
 
   WHERE TO PASTE:
     Supabase Dashboard → Authentication → Email Templates → "Confirm signup"
     Paste the full <html>…</html> below into the "Message (HTML)" field.
 
+  SUGGESTED SUBJECT:
+    Tu código RADAR es {{ .Token }}
+
   SUPABASE VARS:
-    {{ .ConfirmationURL }}  — single-use signup confirmation link
+    {{ .Token }}            — 6-digit OTP code (primary, prominently rendered)
     {{ .Email }}            — user email
-    {{ .SiteURL }}          — site URL (optional, currently unused)
+    {{ .ConfirmationURL }}  — optional fallback link (kept for browser flow)
 
   EMAIL-CLIENT COMPAT:
     - Inline CSS only (Gmail strips <head><style>)
@@ -17,9 +25,8 @@
     - System font stack — most clients block @font-face
     - No remote images (logo built with CSS shapes) → no broken-image icons
       and no privacy prompts
-
-  WHEN PRESENTATION MATTERS MORE THAN VOICE: it does not. Keep Spanish
-  rioplatense voseo. Sentence case. No emoji.
+    - JetBrains Mono falls back to Menlo / Consolas / Courier New for the
+      code display
 -->
 <!doctype html>
 <html lang="es-AR">
@@ -29,7 +36,7 @@
     <meta name="x-apple-disable-message-reformatting" />
     <meta name="color-scheme" content="dark light" />
     <meta name="supported-color-schemes" content="dark light" />
-    <title>Confirmá tu cuenta · RADAR</title>
+    <title>Tu código RADAR · {{ .Token }}</title>
     <!--[if mso]>
       <style>
         * { font-family: 'Segoe UI', Arial, sans-serif !important; }
@@ -62,7 +69,7 @@
         opacity: 0;
       "
     >
-      Confirmá tu cuenta para empezar a usar RADAR. El link vence en 24 hs.
+      Tu código de confirmación es {{ .Token }}. Vence en 1 hora.
     </div>
 
     <!-- Outer wrapper -->
@@ -170,7 +177,6 @@
                     font-weight: 800;
                     letter-spacing: -0.5px;
                     color: #f4f7fb;
-                    text-transform: none;
                   "
                 >
                   RADAR
@@ -219,7 +225,7 @@
                     letter-spacing: -0.5px;
                   "
                 >
-                  Confirmá tu cuenta
+                  Tu código de confirmación
                 </h1>
                 <p
                   style="
@@ -229,61 +235,65 @@
                     color: #b8c3d4;
                   "
                 >
-                  Estás a un click de empezar a controlar tu plata. Tocá el
-                  botón de abajo para activar tu cuenta y entrar a RADAR.
+                  Ingresá este código en la app para activar tu cuenta.
                 </p>
               </td>
             </tr>
 
-            <!-- CTA -->
+            <!-- OTP code block — the hero element -->
             <tr>
               <td style="padding: 24px 32px 8px 32px;" align="center">
-                <!--[if mso]>
-                  <v:roundrect
-                    xmlns:v="urn:schemas-microsoft-com:vml"
-                    xmlns:w="urn:schemas-microsoft-com:office:word"
-                    href="{{ .ConfirmationURL }}"
-                    style="height:52px;v-text-anchor:middle;width:280px;"
-                    arcsize="27%"
-                    stroke="f"
-                    fillcolor="#0077B6"
-                  >
-                    <w:anchorlock />
-                    <center
-                      style="color:#ffffff;font-family:Segoe UI,Arial,sans-serif;font-size:16px;font-weight:600;"
+                <table
+                  role="presentation"
+                  cellpadding="0"
+                  cellspacing="0"
+                  border="0"
+                  align="center"
+                  style="margin: 0 auto;"
+                >
+                  <tr>
+                    <td
+                      align="center"
+                      style="
+                        background-color: #17202f;
+                        border: 1px solid rgba(0, 119, 182, 0.32);
+                        border-radius: 14px;
+                        padding: 24px 32px;
+                      "
                     >
-                      Confirmar mi cuenta
-                    </center>
-                  </v:roundrect>
-                <![endif]-->
-                <!--[if !mso]><!-- -->
-                <a
-                  href="{{ .ConfirmationURL }}"
-                  target="_blank"
+                      <div
+                        style="
+                          font-family: 'JetBrains Mono', 'SF Mono', Menlo,
+                            Consolas, 'Courier New', monospace;
+                          font-size: 40px;
+                          font-weight: 600;
+                          letter-spacing: 12px;
+                          color: #f4f7fb;
+                          line-height: 1;
+                          padding-left: 12px;
+                          mso-line-height-rule: exactly;
+                        "
+                      >
+                        {{ .Token }}
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+                <p
                   style="
-                    display: inline-block;
-                    background-color: #0077b6;
-                    color: #ffffff;
-                    text-decoration: none;
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI',
-                      Inter, Roboto, Helvetica, Arial, sans-serif;
-                    font-size: 16px;
-                    font-weight: 600;
-                    line-height: 52px;
-                    padding: 0 32px;
-                    border-radius: 14px;
-                    border-top: 1px solid rgba(255, 255, 255, 0.12);
-                    box-shadow: 0 6px 20px rgba(0, 119, 182, 0.35);
-                    mso-padding-alt: 0;
+                    margin: 14px 0 0 0;
+                    font-size: 12px;
+                    line-height: 1.5;
+                    color: #7e8aa0;
+                    text-align: center;
                   "
                 >
-                  Confirmar mi cuenta
-                </a>
-                <!--<![endif]-->
+                  Vence en 1 hora. Solo sirve una vez.
+                </p>
               </td>
             </tr>
 
-            <!-- Fallback link -->
+            <!-- Optional link fallback -->
             <tr>
               <td style="padding: 16px 32px 0 32px;">
                 <p
@@ -295,30 +305,25 @@
                     text-align: center;
                   "
                 >
-                  ¿No anda el botón? Copiá y pegá este link en tu navegador:
+                  ¿Preferís confirmar desde el navegador? Tocá acá:
                 </p>
-                <p
-                  style="
-                    margin: 8px 0 0 0;
-                    font-size: 12px;
-                    line-height: 1.45;
-                    color: #4fb3dc;
-                    word-break: break-all;
-                    text-align: center;
-                  "
-                >
+                <p style="margin: 8px 0 0 0; text-align: center;">
                   <a
                     href="{{ .ConfirmationURL }}"
                     target="_blank"
-                    style="color: #4fb3dc; text-decoration: underline;"
+                    style="
+                      color: #4fb3dc;
+                      text-decoration: underline;
+                      font-size: 13px;
+                    "
                   >
-                    {{ .ConfirmationURL }}
+                    Confirmar en el navegador
                   </a>
                 </p>
               </td>
             </tr>
 
-            <!-- Spacer -->
+            <!-- Spacer + divider -->
             <tr>
               <td style="padding: 24px 32px 0 32px;">
                 <div
@@ -432,8 +437,8 @@
                     text-align: center;
                   "
                 >
-                  Si vos no creaste esta cuenta, ignorá este mail. El link
-                  vence en 24 horas y solo sirve una vez.
+                  Si vos no creaste esta cuenta, ignorá este mail. Nadie va a
+                  poder entrar sin el código.
                 </p>
               </td>
             </tr>

@@ -54,6 +54,8 @@ jest.mock('@/lib/supabase', () => ({
       signInWithPassword: jest.fn(),
       signUp: jest.fn(),
       signOut: jest.fn(),
+      verifyOtp: jest.fn().mockResolvedValue({ data: null, error: null }),
+      resend: jest.fn().mockResolvedValue({ data: null, error: null }),
     },
     storage: {
       from: jest.fn(() => ({

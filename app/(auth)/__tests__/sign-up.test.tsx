@@ -142,8 +142,8 @@ describe('Sign-up screen', () => {
     });
   });
 
-  describe('email sent success state', () => {
-    it('shows "Revisá tu mail" after successful sign-up', async () => {
+  describe('OTP redirect on success', () => {
+    it('navigates to /verify-otp with email param after successful sign-up', async () => {
       (supabase.auth.signUp as jest.Mock).mockResolvedValueOnce({
         data: { user: { id: '123' } },
         error: null,
@@ -164,19 +164,22 @@ describe('Sign-up screen', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Revisá tu mail')).toBeTruthy();
+        expect(router.push).toHaveBeenCalledWith({
+          pathname: '/(auth)/verify-otp',
+          params: { email: 'user@test.com' },
+        });
       });
     });
 
-    it('shows back-to-sign-in button in success state', async () => {
+    it('does NOT navigate when sign-up fails', async () => {
       (supabase.auth.signUp as jest.Mock).mockResolvedValueOnce({
-        data: { user: { id: '123' } },
-        error: null,
+        data: null,
+        error: { message: 'User already registered' },
       });
 
       render(<SignUpScreen />);
 
-      fireEvent.changeText(screen.getByPlaceholderText('vos@ejemplo.com'), 'user@test.com');
+      fireEvent.changeText(screen.getByPlaceholderText('vos@ejemplo.com'), 'dup@test.com');
       const emptyInputs = screen.getAllByDisplayValue('');
       if (emptyInputs.length >= 2) {
         fireEvent.changeText(emptyInputs[0], 'password123');
@@ -189,8 +192,11 @@ describe('Sign-up screen', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Volver a iniciar sesión')).toBeTruthy();
+        expect(screen.getByText('Ya hay una cuenta con ese email.')).toBeTruthy();
       });
+      expect(router.push).not.toHaveBeenCalledWith(
+        expect.objectContaining({ pathname: '/(auth)/verify-otp' }),
+      );
     });
   });
 

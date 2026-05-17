@@ -6,11 +6,30 @@ directly into the Supabase Dashboard.
 
 ## Templates
 
-| File                        | Supabase template name | Trigger                           |
-| --------------------------- | ---------------------- | --------------------------------- |
-| `confirm-signup.html`       | Confirm signup         | First-time email + password sign-up |
+| File                  | Supabase template name | Trigger                             |
+| --------------------- | ---------------------- | ----------------------------------- |
+| `confirm-signup.html` | Confirm signup         | First-time email + password sign-up |
 
 > Reset password, magic link, email change, and re-auth templates pending.
+
+## Flow type — OTP (NOT email link)
+
+The app uses **OTP codes** rather than confirmation links. Reason: in Expo
+Go, custom deep-link schemes (`radar://`) don't resolve back to the app,
+so a click-the-link confirmation flow is fragile in development. Instead:
+
+1. App calls `supabase.auth.signUp({ email, password })` **without**
+   `emailRedirectTo` → Supabase sends an email containing `{{ .Token }}`
+   (6-digit code).
+2. User reads the code from the email.
+3. User types the code into the `verify-otp` screen in the app.
+4. App calls `supabase.auth.verifyOtp({ email, token, type: 'signup' })`.
+5. Supabase returns a session → `useAuthListener` flips the store →
+   `(auth)/_layout` redirects to `(protected)/(tabs)`.
+
+The template puts `{{ .Token }}` front-and-center as a JetBrains-Mono
+display block. A `Confirmar en el navegador` link is kept as a fallback
+for users who prefer the legacy URL flow.
 
 ## How to apply
 
