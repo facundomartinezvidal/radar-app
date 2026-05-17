@@ -1,41 +1,61 @@
+/**
+ * Tab bar layout — RADAR (Phase C5b)
+ *
+ * Replaces IconSymbol (SF Symbols) with DS Icon (Lucide) wrapper.
+ * Replaces legacy Colors/useColorScheme with DS tokens directly.
+ * HapticTab is kept for haptic feedback UX on iOS.
+ */
 import { Tabs } from 'expo-router';
 import React from 'react';
+import { Platform } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Icon } from '@/components/ui';
+import { colors, typography } from '@/lib/theme';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarActiveTintColor: colors.brand[400],
+        tabBarInactiveTintColor: colors.fg[3],
         headerShown: false,
         tabBarButton: HapticTab,
+        tabBarStyle: {
+          backgroundColor: colors.bg[1],
+          borderTopColor: colors.line[1],
+          borderTopWidth: 1,
+          height: Platform.OS === 'ios' ? 84 : 64,
+        },
+        tabBarLabelStyle: {
+          fontFamily: typography.family.medium,
+          fontSize: 11,
+        },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: 'Inicio',
+          tabBarIcon: ({ color }) => <Icon name="Home" size={24} color={color} strokeWidth={1.5} />,
         }}
       />
       <Tabs.Screen
         name="camera"
         options={{
-          title: 'Camera',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="camera.fill" color={color} />,
+          title: 'Cámara',
+          tabBarIcon: ({ color }) => (
+            <Icon name="Camera" size={24} color={color} strokeWidth={1.5} />
+          ),
         }}
       />
       <Tabs.Screen
         name="explore"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: 'Insights',
+          tabBarIcon: ({ color }) => (
+            <Icon name="Compass" size={24} color={color} strokeWidth={1.5} />
+          ),
         }}
       />
     </Tabs>

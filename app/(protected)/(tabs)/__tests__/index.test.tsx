@@ -1,0 +1,116 @@
+/**
+ * Tests for Home screen (C4 rewrite).
+ *
+ * Covers:
+ *   - Renders without crashing
+ *   - Shows "Hola" greeting (with or without user session)
+ *   - Shows "ESTE MES" label
+ *   - Shows "Cerrar sesión" button
+ *   - Sign-out calls supabase.auth.signOut() and useAuthStore.getState().reset()
+ */
+import React from 'react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
+
+import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/stores';
+import HomeScreen from '../index';
+
+jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
+
+jest.mock('react-native-safe-area-context', () => {
+  const { View } = require('react-native');
+  return {
+    SafeAreaView: View,
+    SafeAreaProvider: View,
+    useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+  };
+});
+
+jest.mock('@/hooks/use-session', () => ({
+  useSession: jest.fn().mockReturnValue({ user: null, session: null, isLoading: false }),
+}));
+
+jest.mock('@/stores', () => ({
+  useAuthStore: {
+    getState: jest.fn().mockReturnValue({ reset: jest.fn() }),
+  },
+}));
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+// We need to re-require the mocked module to get a typed handle on the spy.
+const { useSession } = require('@/hooks/use-session') as {
+  useSession: jest.Mock;
+};
+
+describe('HomeScreen', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useSession.mockReturnValue({ user: null, session: null, isLoading: false });
+  });
+
+  it('renders without crashing', () => {
+    expect(() => render(<HomeScreen />)).not.toThrow();
+  });
+
+  describe('greeting', () => {
+    it('shows fallback "Hola" when no user session', () => {
+      useSession.mockReturnValue({ user: null, session: null, isLoading: false });
+      render(<HomeScreen />);
+      expect(screen.getByText('Hola')).toBeTruthy();
+    });
+
+    it('shows personalised greeting when user has email', () => {
+      useSession.mockReturnValue({
+        user: { id: '1', email: 'facundo@example.com' },
+        session: {},
+        isLoading: false,
+      });
+      render(<HomeScreen />);
+      // Name is derived from email prefix with first char capitalised
+      expect(screen.getByText('Hola, Facundo')).toBeTruthy();
+    });
+  });
+
+  it('shows "ESTE MES" section label', () => {
+    render(<HomeScreen />);
+    // Label primitive renders "Este mes" (uppercased via textTransform in CSS).
+    // Use getAllByText since the text may appear in multiple RN nodes in the tree.
+    const labels = screen.getAllByText(/este mes/i);
+    expect(labels.length).toBeGreaterThan(0);
+  });
+
+  it('shows "Cerrar sesión" button', () => {
+    render(<HomeScreen />);
+    expect(screen.getByText('Cerrar sesión')).toBeTruthy();
+  });
+
+  describe('sign-out', () => {
+    it('calls supabase.auth.signOut() when "Cerrar sesión" is pressed', async () => {
+      const signOutMock = supabase.auth.signOut as jest.Mock;
+      signOutMock.mockResolvedValueOnce({ error: null });
+
+      render(<HomeScreen />);
+      fireEvent.press(screen.getByText('Cerrar sesión'));
+
+      await waitFor(() => {
+        expect(signOutMock).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    it('calls useAuthStore.getState().reset() after sign out', async () => {
+      const resetMock = jest.fn();
+      (useAuthStore.getState as jest.Mock).mockReturnValue({ reset: resetMock });
+      (supabase.auth.signOut as jest.Mock).mockResolvedValueOnce({ error: null });
+
+      render(<HomeScreen />);
+      fireEvent.press(screen.getByText('Cerrar sesión'));
+
+      await waitFor(() => {
+        expect(resetMock).toHaveBeenCalledTimes(1);
+      });
+    });
+  });
+});

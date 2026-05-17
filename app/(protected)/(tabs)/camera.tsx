@@ -1,20 +1,21 @@
+/**
+ * Camera screen — RADAR (Phase C5)
+ *
+ * Restyled to use DS tokens and Lucide icons.
+ * Logic kept intact — only visual layer updated.
+ */
 import { useMutation } from '@tanstack/react-query';
 import { CameraView, useCameraPermissions, type CameraType } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
 import React, { useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  StyleSheet,
-  TouchableOpacity,
-  View,
-  Text,
-  Platform,
-} from 'react-native';
+import { ActivityIndicator, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Body, Button, Icon } from '@/components/ui';
 import { useSession } from '@/hooks/use-session';
 import { uploadMediaToSupabase } from '@/lib/storage';
+import { colors, radii, spacing, typography } from '@/lib/theme';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -143,9 +144,9 @@ export default function CameraScreen() {
           accessibilityRole="tab"
           accessibilityState={{ selected: mode === 'camera' }}
         >
-          <Text style={[styles.tabButtonText, mode === 'camera' && styles.tabButtonTextActive]}>
+          <Body style={[styles.tabButtonText, mode === 'camera' && styles.tabButtonTextActive]}>
             Cámara
-          </Text>
+          </Body>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tabButton, mode === 'gallery' && styles.tabButtonActive]}
@@ -153,9 +154,9 @@ export default function CameraScreen() {
           accessibilityRole="tab"
           accessibilityState={{ selected: mode === 'gallery' }}
         >
-          <Text style={[styles.tabButtonText, mode === 'gallery' && styles.tabButtonTextActive]}>
+          <Body style={[styles.tabButtonText, mode === 'gallery' && styles.tabButtonTextActive]}>
             Galería
-          </Text>
+          </Body>
         </TouchableOpacity>
       </View>
     );
@@ -165,14 +166,14 @@ export default function CameraScreen() {
     if (successMessage) {
       return (
         <View style={styles.feedbackContainer}>
-          <Text style={styles.successText}>{successMessage}</Text>
+          <Body style={styles.successText}>{successMessage}</Body>
         </View>
       );
     }
     if (errorMessage) {
       return (
         <View style={styles.feedbackContainer}>
-          <Text style={styles.errorText}>{errorMessage}</Text>
+          <Body style={styles.errorText}>{errorMessage}</Body>
         </View>
       );
     }
@@ -185,25 +186,29 @@ export default function CameraScreen() {
         <Image source={{ uri: previewUri ?? '' }} style={styles.previewImage} contentFit="cover" />
         {renderFeedback()}
         {uploadMutation.isPending ? (
-          <ActivityIndicator size="large" color="#0a7ea4" style={styles.loader} />
+          <ActivityIndicator size="large" color={colors.brand[500]} style={styles.loader} />
         ) : (
           <View style={styles.previewActions}>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.retakeButton]}
-              onPress={handleRetake}
-              accessibilityRole="button"
-              accessibilityLabel="Volver a capturar"
-            >
-              <Text style={styles.actionButtonText}>Volver a tomar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.uploadButton]}
-              onPress={handleUpload}
-              accessibilityRole="button"
-              accessibilityLabel="Subir imagen"
-            >
-              <Text style={[styles.actionButtonText, styles.uploadButtonText]}>Subir</Text>
-            </TouchableOpacity>
+            <View style={styles.previewActionButton}>
+              <Button
+                variant="secondary"
+                size="md"
+                onPress={handleRetake}
+                accessibilityLabel="Volver a capturar"
+              >
+                Volver a tomar
+              </Button>
+            </View>
+            <View style={styles.previewActionButton}>
+              <Button
+                variant="primary"
+                size="md"
+                onPress={handleUpload}
+                accessibilityLabel="Subir imagen"
+              >
+                Subir
+              </Button>
+            </View>
           </View>
         )}
       </View>
@@ -212,10 +217,9 @@ export default function CameraScreen() {
 
   function renderCameraContent() {
     if (!cameraPermission) {
-      // Permissions are still loading
       return (
         <View style={styles.centeredContent}>
-          <ActivityIndicator size="large" color="#0a7ea4" />
+          <ActivityIndicator size="large" color={colors.brand[500]} />
         </View>
       );
     }
@@ -223,15 +227,15 @@ export default function CameraScreen() {
     if (!cameraPermission.granted) {
       return (
         <View style={styles.centeredContent}>
-          <Text style={styles.permissionText}>Se requiere permiso para acceder a la cámara.</Text>
-          <TouchableOpacity
-            style={styles.permissionButton}
-            onPress={requestCameraPermission}
-            accessibilityRole="button"
+          <Body style={styles.permissionText}>Se requiere permiso para acceder a la cámara.</Body>
+          <Button
+            variant="primary"
+            size="md"
+            onPress={() => void requestCameraPermission()}
             accessibilityLabel="Solicitar permiso de cámara"
           >
-            <Text style={styles.permissionButtonText}>Conceder permiso</Text>
-          </TouchableOpacity>
+            Conceder permiso
+          </Button>
         </View>
       );
     }
@@ -250,7 +254,7 @@ export default function CameraScreen() {
             accessibilityRole="button"
             accessibilityLabel="Cambiar cámara"
           >
-            <Text style={styles.flipButtonText}>{Platform.OS === 'ios' ? '⇄' : '⇄'}</Text>
+            <Icon name="RotateCw" size={22} color={colors.fg.onBrand} strokeWidth={2} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.captureButton}
@@ -275,14 +279,14 @@ export default function CameraScreen() {
     return (
       <View style={styles.centeredContent}>
         {renderFeedback()}
-        <TouchableOpacity
-          style={styles.galleryPickButton}
-          onPress={handlePickFromGallery}
-          accessibilityRole="button"
+        <Button
+          variant="primary"
+          size="md"
+          onPress={() => void handlePickFromGallery()}
           accessibilityLabel="Seleccionar imagen de la galería"
         >
-          <Text style={styles.galleryPickButtonText}>Seleccionar de la galería</Text>
-        </TouchableOpacity>
+          Seleccionar de la galería
+        </Button>
       </View>
     );
   }
@@ -310,37 +314,37 @@ export default function CameraScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.bg[0],
   },
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.bg[0],
   },
   // --- tab toggle ---
   tabToggle: {
     flexDirection: 'row',
-    backgroundColor: '#111',
-    marginHorizontal: 16,
-    marginVertical: 12,
-    borderRadius: 12,
+    backgroundColor: colors.bg[2],
+    marginHorizontal: spacing[4],
+    marginVertical: spacing[3],
+    borderRadius: radii.sm,
     overflow: 'hidden',
   },
   tabButton: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: spacing[2] + 2,
     alignItems: 'center',
-    borderRadius: 12,
+    borderRadius: radii.sm,
   },
   tabButtonActive: {
-    backgroundColor: '#0a7ea4',
+    backgroundColor: colors.brand[500],
   },
   tabButtonText: {
-    color: '#9BA1A6',
-    fontWeight: '600',
+    color: colors.fg[3],
+    fontFamily: typography.family.semibold,
     fontSize: 15,
   },
   tabButtonTextActive: {
-    color: '#fff',
+    color: colors.fg.onBrand,
   },
   // --- content area ---
   content: {
@@ -350,8 +354,8 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 16,
-    paddingHorizontal: 24,
+    gap: spacing[4],
+    paddingHorizontal: spacing[6],
   },
   // --- camera ---
   cameraContainer: {
@@ -378,16 +382,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  flipButtonText: {
-    color: '#fff',
-    fontSize: 22,
-    fontWeight: '600',
-  },
   captureButton: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: '#fff',
+    backgroundColor: colors.fg.onBrand,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 4,
@@ -397,25 +396,12 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#fff',
+    backgroundColor: colors.fg.onBrand,
   },
   // --- permission ---
   permissionText: {
-    color: '#fff',
-    fontSize: 16,
+    color: colors.fg[1],
     textAlign: 'center',
-    lineHeight: 24,
-  },
-  permissionButton: {
-    backgroundColor: '#0a7ea4',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-  },
-  permissionButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 16,
   },
   // --- preview ---
   previewContainer: {
@@ -431,69 +417,36 @@ const styles = StyleSheet.create({
     right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 16,
+    gap: spacing[4],
     paddingHorizontal: 32,
   },
-  actionButton: {
+  previewActionButton: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  retakeButton: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
-  },
-  uploadButton: {
-    backgroundColor: '#0a7ea4',
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  uploadButtonText: {
-    color: '#fff',
   },
   loader: {
     position: 'absolute',
     bottom: 40,
     alignSelf: 'center',
   },
-  // --- gallery ---
-  galleryPickButton: {
-    backgroundColor: '#0a7ea4',
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 8,
-  },
-  galleryPickButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 16,
-  },
   // --- feedback ---
   feedbackContainer: {
     position: 'absolute',
-    top: 16,
-    left: 16,
-    right: 16,
+    top: spacing[4],
+    left: spacing[4],
+    right: spacing[4],
     backgroundColor: 'rgba(0,0,0,0.7)',
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: radii.sm,
+    padding: spacing[3],
     alignItems: 'center',
   },
   successText: {
-    color: '#4ade80',
-    fontWeight: '600',
-    fontSize: 15,
+    color: colors.money.in,
+    fontFamily: typography.family.semibold,
     textAlign: 'center',
   },
   errorText: {
-    color: '#f87171',
-    fontWeight: '600',
-    fontSize: 15,
+    color: colors.money.out,
+    fontFamily: typography.family.semibold,
     textAlign: 'center',
   },
 });

@@ -1,17 +1,27 @@
-import { Link } from 'expo-router';
-import { StyleSheet } from 'react-native';
+/**
+ * Modal screen — RADAR (Phase C5c)
+ *
+ * Placeholder modal using DS primitives.
+ * ThemedText / ThemedView replaced with DS Text + View.
+ */
+import { useRouter } from 'expo-router';
+import React from 'react';
+import { StyleSheet, View } from 'react-native';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import { Body, Button, H2 } from '@/components/ui';
+import { colors, spacing } from '@/lib/theme';
 
-export default function ModalScreen() {
+export default function ModalScreen(): React.JSX.Element {
+  const router = useRouter();
+
   return (
-    <ThemedView style={styles.container}>
-      <ThemedText type="title">This is a modal</ThemedText>
-      <Link href="/" dismissTo style={styles.link}>
-        <ThemedText type="link">Go to home screen</ThemedText>
-      </Link>
-    </ThemedView>
+    <View style={styles.container}>
+      <H2>Modal</H2>
+      <Body style={styles.body}>Contenido del modal.</Body>
+      <Button variant="secondary" size="md" onPress={() => router.back()}>
+        Cerrar
+      </Button>
+    </View>
   );
 }
 
@@ -20,10 +30,11 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 20,
+    padding: spacing[5],
+    backgroundColor: colors.bg[1],
+    gap: spacing[4],
   },
-  link: {
-    marginTop: 15,
-    paddingVertical: 15,
+  body: {
+    color: colors.fg[2],
   },
 });
