@@ -4,6 +4,8 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: '14.5';
   };
@@ -88,21 +90,27 @@ export type Database = {
           avatar_url: string | null;
           created_at: string;
           display_name: string | null;
+          first_name: string;
           id: string;
+          last_name: string;
           updated_at: string;
         };
         Insert: {
           avatar_url?: string | null;
           created_at?: string;
           display_name?: string | null;
+          first_name?: string;
           id: string;
+          last_name?: string;
           updated_at?: string;
         };
         Update: {
           avatar_url?: string | null;
           created_at?: string;
           display_name?: string | null;
+          first_name?: string;
           id?: string;
+          last_name?: string;
           updated_at?: string;
         };
         Relationships: [];
