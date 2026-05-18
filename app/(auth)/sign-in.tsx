@@ -37,9 +37,17 @@ function mapAuthError(message: string): string {
     return 'Email o contraseña incorrectos.';
   }
   if (message.toLowerCase().includes('email not confirmed')) {
-    return 'Confirmá tu mail antes de iniciar sesión.';
+    return 'Tu email todavía no está confirmado.';
   }
   return 'No pudimos iniciar sesión. Probá de nuevo.';
+}
+
+function mapResendError(message: string): string {
+  const lower = message.toLowerCase();
+  if (lower.includes('rate') || lower.includes('too many')) {
+    return 'Esperá un toque antes de pedir otro código.';
+  }
+  return 'No pudimos reenviar el código. Probá de nuevo.';
 }
 
 // ---------------------------------------------------------------------------
@@ -48,6 +56,8 @@ function mapAuthError(message: string): string {
 
 export default function SignInScreen(): React.JSX.Element {
   const [authError, setAuthError] = useState<string | null>(null);
+  const [needsConfirmation, setNeedsConfirmation] = useState<{ email: string } | null>(null);
+  const [isResending, setIsResending] = useState(false);
 
   const {
     control,
@@ -60,14 +70,40 @@ export default function SignInScreen(): React.JSX.Element {
 
   const onSubmit = async (data: FormData): Promise<void> => {
     setAuthError(null);
+    setNeedsConfirmation(null);
     const { error } = await supabase.auth.signInWithPassword({
       email: data.email,
       password: data.password,
     });
     if (error) {
       setAuthError(mapAuthError(error.message));
+      if (error.message.toLowerCase().includes('email not confirmed')) {
+        setNeedsConfirmation({ email: data.email });
+      }
     }
   };
+
+  async function handleResendAndGo(): Promise<void> {
+    if (!needsConfirmation) return;
+    setIsResending(true);
+    setAuthError(null);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: needsConfirmation.email,
+      });
+      if (error) {
+        setAuthError(mapResendError(error.message));
+        return;
+      }
+      router.push({
+        pathname: '/(auth)/verify-otp',
+        params: { email: needsConfirmation.email },
+      });
+    } finally {
+      setIsResending(false);
+    }
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg[0] }}>
@@ -142,6 +178,21 @@ export default function SignInScreen(): React.JSX.Element {
             {/* Auth error */}
             {authError != null && (
               <Body style={{ color: colors.money.out, textAlign: 'center' }}>{authError}</Body>
+            )}
+
+            {/* Resend CTA — shown when email is unconfirmed */}
+            {needsConfirmation != null && (
+              <View style={{ alignItems: 'center' }}>
+                <Button
+                  variant="primary"
+                  size="md"
+                  loading={isResending}
+                  onPress={handleResendAndGo}
+                  accessibilityLabel="Reenviar código de verificación"
+                >
+                  Reenviar código y verificar
+                </Button>
+              </View>
             )}
 
             {/* Submit */}

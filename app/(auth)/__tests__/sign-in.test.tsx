@@ -165,6 +165,137 @@ describe('Sign-in screen', () => {
     });
   });
 
+  describe('email not confirmed — resend flow', () => {
+    const EMAIL = 'unverified@test.com';
+    const PASSWORD = 'password123';
+
+    async function triggerUnconfirmedError(): Promise<void> {
+      (supabase.auth.signInWithPassword as jest.Mock).mockResolvedValueOnce({
+        data: null,
+        error: { message: 'Email not confirmed' },
+      });
+
+      render(<SignInScreen />);
+
+      fireEvent.changeText(screen.getByPlaceholderText('vos@ejemplo.com'), EMAIL);
+      const passwordInputs = screen.getAllByDisplayValue('');
+      fireEvent.changeText(passwordInputs[1] ?? passwordInputs[0], PASSWORD);
+
+      const submitBtn = screen.getByLabelText('Iniciar sesión');
+      await act(async () => {
+        fireEvent.press(submitBtn);
+      });
+    }
+
+    it('shows "Tu email todavía no está confirmado." copy', async () => {
+      await triggerUnconfirmedError();
+      await waitFor(() => {
+        expect(screen.getByText('Tu email todavía no está confirmado.')).toBeTruthy();
+      });
+    });
+
+    it('renders "Reenviar código y verificar" button when email is unconfirmed', async () => {
+      await triggerUnconfirmedError();
+      await waitFor(() => {
+        expect(screen.getByText('Reenviar código y verificar')).toBeTruthy();
+      });
+    });
+
+    it('calls supabase.auth.resend with correct args when button is pressed', async () => {
+      (supabase.auth.resend as jest.Mock).mockResolvedValueOnce({ data: null, error: null });
+
+      await triggerUnconfirmedError();
+
+      await waitFor(() => {
+        expect(screen.getByText('Reenviar código y verificar')).toBeTruthy();
+      });
+
+      const resendBtn = screen.getByLabelText('Reenviar código de verificación');
+      await act(async () => {
+        fireEvent.press(resendBtn);
+      });
+
+      await waitFor(() => {
+        expect(supabase.auth.resend).toHaveBeenCalledWith({
+          type: 'signup',
+          email: EMAIL,
+        });
+      });
+    });
+
+    it('navigates to verify-otp with email param on successful resend', async () => {
+      (supabase.auth.resend as jest.Mock).mockResolvedValueOnce({ data: null, error: null });
+
+      await triggerUnconfirmedError();
+
+      await waitFor(() => {
+        expect(screen.getByText('Reenviar código y verificar')).toBeTruthy();
+      });
+
+      const resendBtn = screen.getByLabelText('Reenviar código de verificación');
+      await act(async () => {
+        fireEvent.press(resendBtn);
+      });
+
+      await waitFor(() => {
+        expect(router.push).toHaveBeenCalledWith({
+          pathname: '/(auth)/verify-otp',
+          params: { email: EMAIL },
+        });
+      });
+    });
+
+    it('shows resend error copy and does NOT navigate when resend fails', async () => {
+      (supabase.auth.resend as jest.Mock).mockResolvedValueOnce({
+        data: null,
+        error: { message: 'Some resend failure' },
+      });
+
+      await triggerUnconfirmedError();
+
+      await waitFor(() => {
+        expect(screen.getByText('Reenviar código y verificar')).toBeTruthy();
+      });
+
+      const resendBtn = screen.getByLabelText('Reenviar código de verificación');
+      await act(async () => {
+        fireEvent.press(resendBtn);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('No pudimos reenviar el código. Probá de nuevo.')).toBeTruthy();
+      });
+      expect(router.push).not.toHaveBeenCalledWith(
+        expect.objectContaining({ pathname: '/(auth)/verify-otp' }),
+      );
+    });
+
+    it('"Reenviar código y verificar" button is gone after a successful new sign-in submit', async () => {
+      // First trigger the unconfirmed state (form is filled with EMAIL + PASSWORD)
+      await triggerUnconfirmedError();
+
+      await waitFor(() => {
+        expect(screen.getByText('Reenviar código y verificar')).toBeTruthy();
+      });
+
+      // Mock a successful sign-in on the next submit
+      (supabase.auth.signInWithPassword as jest.Mock).mockResolvedValueOnce({
+        data: { user: { id: '123' } },
+        error: null,
+      });
+
+      // The form fields are already filled from triggerUnconfirmedError; just submit again
+      const submitBtn = screen.getByLabelText('Iniciar sesión');
+      await act(async () => {
+        fireEvent.press(submitBtn);
+      });
+
+      await waitFor(() => {
+        expect(screen.queryByText('Reenviar código y verificar')).toBeNull();
+      });
+    });
+  });
+
   describe('navigation', () => {
     it('navigates to sign-up when "Sumate" is pressed', async () => {
       render(<SignInScreen />);
