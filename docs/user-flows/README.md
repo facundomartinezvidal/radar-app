@@ -11,14 +11,18 @@ spreadsheet; this folder is the engineering interpretation of those rows.
 
 ## Inventory
 
-| HU    | Historia                    | Estado | Relevancia | Release   | Documento                            | Estado de implementación |
-| ----- | --------------------------- | ------ | ---------- | --------- | ------------------------------------ | ------------------------ |
-| HU-01 | Iniciar sesión              | MVP    | Alta       | Release 1 | [HU-01](./HU-01-iniciar-sesion.md)   | Implementado             |
-| HU-04 | Menú principal              | MVP    | Alta       | Release 1 | [HU-04](./HU-04-menu-principal.md)   | Implementado             |
-| HU-07 | Sección historial de gastos | MVP    | Alta       | Release 1 | [HU-07](./HU-07-historial-gastos.md) | Implementado             |
-| HU-09 | Filtrar gastos              | MVP    | Baja       | Release 1 | [HU-09](./HU-09-filtrar-gastos.md)   | Implementado             |
-| HU-12 | Guardar gasto               | MVP    | Alta       | Release 1 | [HU-12](./HU-12-guardar-gasto.md)    | Implementado             |
-| HU-13 | Sección registro nuevo      | MVP    | Alta       | Release 1 | [HU-13](./HU-13-registro-nuevo.md)   | Implementado             |
+| HU    | Historia                    | Estado | Relevancia | Release   | Documento                                    | Estado de implementación |
+| ----- | --------------------------- | ------ | ---------- | --------- | -------------------------------------------- | ------------------------ |
+| HU-01 | Iniciar sesión              | MVP    | Alta       | Release 1 | [HU-01](./HU-01-iniciar-sesion.md)           | Implementado             |
+| HU-04 | Menú principal              | MVP    | Alta       | Release 1 | [HU-04](./HU-04-menu-principal.md)           | Implementado             |
+| HU-07 | Sección historial de gastos | MVP    | Alta       | Release 1 | [HU-07](./HU-07-historial-gastos.md)         | Implementado             |
+| HU-08 | Mostrar gastos              | MVP    | Alto       | Release 1 | [HU-08](./HU-08-mostrar-gastos.md)           | Implementado             |
+| HU-09 | Filtrar gastos              | MVP    | Baja       | Release 1 | [HU-09](./HU-09-filtrar-gastos.md)           | Implementado             |
+| HU-10 | Conocer gasto registrado    | MVP    | Alto       | Release 1 | [HU-10](./HU-10-conocer-gasto-registrado.md) | Implementado             |
+| HU-11 | Editar gasto                | MVP    | Bajo       | Release 1 | [HU-11](./HU-11-editar-gasto.md)             | Implementado             |
+| HU-12 | Guardar gasto               | MVP    | Alto       | Release 1 | [HU-12](./HU-12-guardar-gasto.md)            | Implementado             |
+| HU-13 | Sección registro nuevo      | MVP    | Alto       | Release 1 | [HU-13](./HU-13-registro-nuevo.md)           | Implementado             |
+| HU-14 | Registrar cuenta            | MVP    | Alto       | Release 1 | [HU-14](./HU-14-registrar-cuenta.md)         | Implementado             |
 
 ---
 
