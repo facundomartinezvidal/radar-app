@@ -4,9 +4,10 @@
  * Verifies:
  * - Renders without crashing
  * - Spanish copy: "Creá tu cuenta", field labels, submit button
- * - Validation errors shown in Spanish when submit pressed with empty/invalid fields
+ * - Validation errors for firstName / lastName shown in Spanish
+ * - Validation errors shown in Spanish for email/password fields
  * - Password mismatch validation shows Spanish error
- * - Email sent state shows "Revisá tu mail" with back button
+ * - supabase.auth.signUp called with options.data { first_name, last_name }
  * - Auth errors mapped to friendly Spanish messages
  * - "Iniciá sesión" link navigates to sign-in
  */
@@ -42,6 +43,20 @@ jest.mock('react-native-svg', () => {
   };
 });
 
+// Helper: fill all required fields with valid values.
+// Field order in UI: firstName, lastName, email, password, confirmPassword.
+function fillValidForm(): void {
+  fireEvent.changeText(screen.getByPlaceholderText('Tu nombre'), 'Ana');
+  fireEvent.changeText(screen.getByPlaceholderText('Tu apellido'), 'García');
+  fireEvent.changeText(screen.getByPlaceholderText('vos@ejemplo.com'), 'ana@test.com');
+  const emptyPasswords = screen.getAllByDisplayValue('');
+  // After filling name + email, remaining empty inputs are password and confirmPassword
+  if (emptyPasswords.length >= 2) {
+    fireEvent.changeText(emptyPasswords[0], 'password123');
+    fireEvent.changeText(emptyPasswords[1], 'password123');
+  }
+}
+
 describe('Sign-up screen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -60,6 +75,16 @@ describe('Sign-up screen', () => {
     it('shows onboarding hook copy', () => {
       render(<SignUpScreen />);
       expect(screen.getByText('Empezá a controlar tu plata.')).toBeTruthy();
+    });
+
+    it('shows Nombre label', () => {
+      render(<SignUpScreen />);
+      expect(screen.getByText('Nombre')).toBeTruthy();
+    });
+
+    it('shows Apellido label', () => {
+      render(<SignUpScreen />);
+      expect(screen.getByText('Apellido')).toBeTruthy();
     });
 
     it('shows Email label', () => {
@@ -89,9 +114,81 @@ describe('Sign-up screen', () => {
     });
   });
 
-  describe('validation', () => {
+  describe('validation — firstName', () => {
+    it('shows error when firstName is empty on submit', async () => {
+      render(<SignUpScreen />);
+      const submitBtn = screen.getByLabelText('Crear cuenta');
+      await act(async () => {
+        fireEvent.press(submitBtn);
+      });
+      await waitFor(() => {
+        // nameSchema min(2) fires — empty string becomes "Mínimo 2 caracteres." after trim
+        expect(
+          screen.getAllByText(/Mínimo 2 caracteres\.|Ingresá un nombre válido\./)[0],
+        ).toBeTruthy();
+      });
+    });
+
+    it('shows error when firstName contains digits', async () => {
+      render(<SignUpScreen />);
+      fireEvent.changeText(screen.getByPlaceholderText('Tu nombre'), 'Ana123');
+      const submitBtn = screen.getByLabelText('Crear cuenta');
+      await act(async () => {
+        fireEvent.press(submitBtn);
+      });
+      await waitFor(() => {
+        expect(screen.getByText('Solo letras, espacios, guiones o apóstrofes.')).toBeTruthy();
+      });
+    });
+
+    it('shows error when firstName is a single character (below min)', async () => {
+      render(<SignUpScreen />);
+      fireEvent.changeText(screen.getByPlaceholderText('Tu nombre'), 'A');
+      const submitBtn = screen.getByLabelText('Crear cuenta');
+      await act(async () => {
+        fireEvent.press(submitBtn);
+      });
+      await waitFor(() => {
+        // Both firstName and lastName may show this message — at least one is enough.
+        expect(screen.getAllByText('Mínimo 2 caracteres.').length).toBeGreaterThanOrEqual(1);
+      });
+    });
+  });
+
+  describe('validation — lastName', () => {
+    it('shows error when lastName is empty on submit', async () => {
+      render(<SignUpScreen />);
+      fireEvent.changeText(screen.getByPlaceholderText('Tu nombre'), 'Ana');
+      const submitBtn = screen.getByLabelText('Crear cuenta');
+      await act(async () => {
+        fireEvent.press(submitBtn);
+      });
+      await waitFor(() => {
+        // With firstName valid, the next name error is for lastName
+        expect(
+          screen.getAllByText(/Mínimo 2 caracteres\.|Ingresá un nombre válido\./)[0],
+        ).toBeTruthy();
+      });
+    });
+
+    it('shows error when lastName contains digits', async () => {
+      render(<SignUpScreen />);
+      fireEvent.changeText(screen.getByPlaceholderText('Tu apellido'), 'García9');
+      const submitBtn = screen.getByLabelText('Crear cuenta');
+      await act(async () => {
+        fireEvent.press(submitBtn);
+      });
+      await waitFor(() => {
+        expect(screen.getByText('Solo letras, espacios, guiones o apóstrofes.')).toBeTruthy();
+      });
+    });
+  });
+
+  describe('validation — email', () => {
     it('shows Spanish email validation error when email is empty', async () => {
       render(<SignUpScreen />);
+      fireEvent.changeText(screen.getByPlaceholderText('Tu nombre'), 'Ana');
+      fireEvent.changeText(screen.getByPlaceholderText('Tu apellido'), 'García');
       const submitBtn = screen.getByLabelText('Crear cuenta');
       await act(async () => {
         fireEvent.press(submitBtn);
@@ -100,10 +197,14 @@ describe('Sign-up screen', () => {
         expect(screen.getByText('Ingresá un email válido.')).toBeTruthy();
       });
     });
+  });
 
+  describe('validation — password', () => {
     it('shows "Mínimo 8 caracteres." when password is too short', async () => {
       render(<SignUpScreen />);
 
+      fireEvent.changeText(screen.getByPlaceholderText('Tu nombre'), 'Ana');
+      fireEvent.changeText(screen.getByPlaceholderText('Tu apellido'), 'García');
       fireEvent.changeText(screen.getByPlaceholderText('vos@ejemplo.com'), 'user@test.com');
 
       const submitBtn = screen.getByLabelText('Crear cuenta');
@@ -119,16 +220,14 @@ describe('Sign-up screen', () => {
     it('shows password mismatch error in Spanish', async () => {
       render(<SignUpScreen />);
 
+      fireEvent.changeText(screen.getByPlaceholderText('Tu nombre'), 'Ana');
+      fireEvent.changeText(screen.getByPlaceholderText('Tu apellido'), 'García');
       fireEvent.changeText(screen.getByPlaceholderText('vos@ejemplo.com'), 'user@test.com');
 
-      // Set password and confirmPassword with different values using display value queries
       const emptyInputs = screen.getAllByDisplayValue('');
-      // inputs: email (filled), password (index 1 in empty list), confirmPassword (index 2)
       if (emptyInputs.length >= 2) {
         fireEvent.changeText(emptyInputs[0], 'password123');
-        if (emptyInputs.length >= 2) {
-          fireEvent.changeText(emptyInputs[1], 'different456');
-        }
+        fireEvent.changeText(emptyInputs[1], 'different456');
       }
 
       const submitBtn = screen.getByLabelText('Crear cuenta');
@@ -142,6 +241,36 @@ describe('Sign-up screen', () => {
     });
   });
 
+  describe('supabase.auth.signUp payload', () => {
+    it('calls signUp with options.data containing first_name and last_name', async () => {
+      (supabase.auth.signUp as jest.Mock).mockResolvedValueOnce({
+        data: { user: { id: '123' } },
+        error: null,
+      });
+
+      render(<SignUpScreen />);
+      fillValidForm();
+
+      const submitBtn = screen.getByLabelText('Crear cuenta');
+      await act(async () => {
+        fireEvent.press(submitBtn);
+      });
+
+      await waitFor(() => {
+        expect(supabase.auth.signUp).toHaveBeenCalledWith({
+          email: 'ana@test.com',
+          password: 'password123',
+          options: {
+            data: {
+              first_name: 'Ana',
+              last_name: 'García',
+            },
+          },
+        });
+      });
+    });
+  });
+
   describe('OTP redirect on success', () => {
     it('navigates to /verify-otp with email param after successful sign-up', async () => {
       (supabase.auth.signUp as jest.Mock).mockResolvedValueOnce({
@@ -150,13 +279,7 @@ describe('Sign-up screen', () => {
       });
 
       render(<SignUpScreen />);
-
-      fireEvent.changeText(screen.getByPlaceholderText('vos@ejemplo.com'), 'user@test.com');
-      const emptyInputs = screen.getAllByDisplayValue('');
-      if (emptyInputs.length >= 2) {
-        fireEvent.changeText(emptyInputs[0], 'password123');
-        fireEvent.changeText(emptyInputs[1], 'password123');
-      }
+      fillValidForm();
 
       const submitBtn = screen.getByLabelText('Crear cuenta');
       await act(async () => {
@@ -166,7 +289,7 @@ describe('Sign-up screen', () => {
       await waitFor(() => {
         expect(router.push).toHaveBeenCalledWith({
           pathname: '/(auth)/verify-otp',
-          params: { email: 'user@test.com' },
+          params: { email: 'ana@test.com' },
         });
       });
     });
@@ -178,13 +301,7 @@ describe('Sign-up screen', () => {
       });
 
       render(<SignUpScreen />);
-
-      fireEvent.changeText(screen.getByPlaceholderText('vos@ejemplo.com'), 'dup@test.com');
-      const emptyInputs = screen.getAllByDisplayValue('');
-      if (emptyInputs.length >= 2) {
-        fireEvent.changeText(emptyInputs[0], 'password123');
-        fireEvent.changeText(emptyInputs[1], 'password123');
-      }
+      fillValidForm();
 
       const submitBtn = screen.getByLabelText('Crear cuenta');
       await act(async () => {
@@ -208,13 +325,7 @@ describe('Sign-up screen', () => {
       });
 
       render(<SignUpScreen />);
-
-      fireEvent.changeText(screen.getByPlaceholderText('vos@ejemplo.com'), 'user@test.com');
-      const emptyInputs = screen.getAllByDisplayValue('');
-      if (emptyInputs.length >= 2) {
-        fireEvent.changeText(emptyInputs[0], 'password123');
-        fireEvent.changeText(emptyInputs[1], 'password123');
-      }
+      fillValidForm();
 
       const submitBtn = screen.getByLabelText('Crear cuenta');
       await act(async () => {
@@ -233,13 +344,7 @@ describe('Sign-up screen', () => {
       });
 
       render(<SignUpScreen />);
-
-      fireEvent.changeText(screen.getByPlaceholderText('vos@ejemplo.com'), 'user@test.com');
-      const emptyInputs = screen.getAllByDisplayValue('');
-      if (emptyInputs.length >= 2) {
-        fireEvent.changeText(emptyInputs[0], 'password123');
-        fireEvent.changeText(emptyInputs[1], 'password123');
-      }
+      fillValidForm();
 
       const submitBtn = screen.getByLabelText('Crear cuenta');
       await act(async () => {

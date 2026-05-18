@@ -4,6 +4,10 @@
  * Calls `supabase.auth.signUp` without `emailRedirectTo` so Supabase delivers
  * an OTP code via email instead of a confirmation link. On success the user
  * is routed to /verify-otp with their email as a param to complete the flow.
+ *
+ * Name capture: collects `firstName` and `lastName` and forwards them via
+ * `options.data` (`first_name` / `last_name`) so the DB trigger can populate
+ * `profiles.first_name` and `profiles.last_name` on account creation.
  */
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from 'expo-router';
@@ -15,6 +19,7 @@ import { z } from 'zod';
 
 import { Body, Button, H1, Input } from '@/components/ui';
 import { LogoMark } from '@/components/ui/logo';
+import { nameSchema } from '@/lib/schemas/profile';
 import { supabase } from '@/lib/supabase';
 import { colors, spacing } from '@/lib/theme';
 
@@ -24,6 +29,8 @@ import { colors, spacing } from '@/lib/theme';
 
 const schema = z
   .object({
+    firstName: nameSchema,
+    lastName: nameSchema,
     email: z.string().email('Ingresá un email válido.'),
     password: z.string().min(8, 'Mínimo 8 caracteres.'),
     confirmPassword: z.string().min(8, 'Confirmá tu contraseña.'),
@@ -59,7 +66,7 @@ export default function SignUpScreen(): React.JSX.Element {
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { email: '', password: '', confirmPassword: '' },
+    defaultValues: { firstName: '', lastName: '', email: '', password: '', confirmPassword: '' },
   });
 
   const onSubmit = async (data: FormData): Promise<void> => {
@@ -70,6 +77,12 @@ export default function SignUpScreen(): React.JSX.Element {
     const { error } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
+      options: {
+        data: {
+          first_name: data.firstName,
+          last_name: data.lastName,
+        },
+      },
     });
     if (error) {
       setAuthError(mapAuthError(error.message));
@@ -102,6 +115,44 @@ export default function SignUpScreen(): React.JSX.Element {
 
           {/* Form */}
           <View style={{ gap: spacing[4] }}>
+            <Controller
+              control={control}
+              name="firstName"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input
+                  label="Nombre"
+                  placeholder="Tu nombre"
+                  autoCapitalize="words"
+                  autoComplete="given-name"
+                  textContentType="givenName"
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                  editable={!isSubmitting}
+                  error={errors.firstName?.message}
+                />
+              )}
+            />
+
+            <Controller
+              control={control}
+              name="lastName"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input
+                  label="Apellido"
+                  placeholder="Tu apellido"
+                  autoCapitalize="words"
+                  autoComplete="family-name"
+                  textContentType="familyName"
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                  editable={!isSubmitting}
+                  error={errors.lastName?.message}
+                />
+              )}
+            />
+
             <Controller
               control={control}
               name="email"
