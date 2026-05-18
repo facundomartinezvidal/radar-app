@@ -48,7 +48,13 @@ Key files:
 | `prototipo-app-brief.md`    | UI design brief — 8 screens, design system, dark-first                  |
 | `segmentacion-usuarios.md`  | Detailed user segmentation                                              |
 | `presentacion-parcial-1.md` | Class deliverable content                                               |
+| `user-flows/`               | One MD per HU — main flow, alt flows, diagrams, acceptance, tech notes  |
 | `content/`                  | Class PDFs (SIPI curriculum)                                            |
+
+The `user-flows/` directory is **mirrored** between the Obsidian vault
+(business-side reference) and the repo at `docs/user-flows/`
+(engineering-side reference). Both copies must stay in sync; the
+canonical edit-target is the repo copy.
 
 **Before adding a feature or changing UX:**
 
