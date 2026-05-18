@@ -12,6 +12,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
+  Avatar,
   Body,
   BodySm,
   Button,
@@ -204,14 +205,13 @@ export default function HomeScreen(): React.JSX.Element {
 
   const quickActions = React.useMemo(() => buildQuickActions(), []);
 
-  // Derive display name from email (before the @)
-  const displayName = user?.email ? user.email.split('@')[0] : null;
-
-  // Capitalise first letter
-  const firstName = displayName ? displayName.charAt(0).toUpperCase() + displayName.slice(1) : null;
-
-  const avatarLetter = firstName ? firstName.charAt(0).toUpperCase() : '?';
-
+  const md = user?.user_metadata ?? {};
+  const firstName =
+    typeof md.first_name === 'string' && md.first_name.trim().length > 0
+      ? md.first_name.trim()
+      : null;
+  const lastName =
+    typeof md.last_name === 'string' && md.last_name.trim().length > 0 ? md.last_name.trim() : null;
   const greeting = firstName ? `Hola, ${firstName}` : 'Hola';
 
   async function handleSignOut(): Promise<void> {
@@ -231,11 +231,7 @@ export default function HomeScreen(): React.JSX.Element {
           <H2 style={styles.greeting}>{greeting}</H2>
           <View style={styles.headerRight}>
             {/* Avatar */}
-            <View style={styles.avatar}>
-              <Text variant="h3" color={colors.fg.onBrand} style={styles.avatarLetter}>
-                {avatarLetter}
-              </Text>
-            </View>
+            <Avatar firstName={firstName} lastName={lastName} size={36} />
             {/* Notification bell */}
             <Icon name="Bell" size={24} color={colors.fg[2]} strokeWidth={1.5} />
           </View>
@@ -379,18 +375,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing[3],
   },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.brand[500],
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarLetter: {
-    lineHeight: 22,
-  },
-
   // Balance card
   balanceCard: {
     marginHorizontal: spacing[5],

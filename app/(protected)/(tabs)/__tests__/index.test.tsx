@@ -86,15 +86,29 @@ describe('HomeScreen', () => {
       expect(screen.getByText('Hola')).toBeTruthy();
     });
 
-    it('shows personalised greeting when user has email', () => {
+    it('shows personalised greeting when user has first_name in user_metadata', () => {
       useSession.mockReturnValue({
-        user: { id: '1', email: 'facundo@example.com' },
+        user: {
+          id: '1',
+          email: 'facundo@example.com',
+          user_metadata: { first_name: 'Facundo', last_name: 'Martinez' },
+        },
         session: {},
         isLoading: false,
       });
       renderWithClient();
-      // Name is derived from email prefix with first char capitalised
+      // Name is derived from user_metadata.first_name
       expect(screen.getByText('Hola, Facundo')).toBeTruthy();
+    });
+
+    it('shows fallback "Hola" when user_metadata has no first_name', () => {
+      useSession.mockReturnValue({
+        user: { id: '1', email: 'facundo@example.com', user_metadata: {} },
+        session: {},
+        isLoading: false,
+      });
+      renderWithClient();
+      expect(screen.getByText('Hola')).toBeTruthy();
     });
   });
 
