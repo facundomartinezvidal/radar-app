@@ -26,11 +26,9 @@ import {
   Text,
 } from '@/components/ui';
 import { formatMoney } from '@/lib/format/money';
-import { supabase } from '@/lib/supabase';
 import { colors, motion, radii, spacing, typography } from '@/lib/theme';
 import { useExpenseTotals, useExpenses } from '@/hooks/use-expenses';
 import { useSession } from '@/hooks/use-session';
-import { useAuthStore } from '@/stores';
 import type { IconName } from '@/components/ui/icon';
 
 // ---------------------------------------------------------------------------
@@ -214,11 +212,6 @@ export default function HomeScreen(): React.JSX.Element {
     typeof md.last_name === 'string' && md.last_name.trim().length > 0 ? md.last_name.trim() : null;
   const greeting = firstName ? `Hola, ${firstName}` : 'Hola';
 
-  async function handleSignOut(): Promise<void> {
-    await supabase.auth.signOut();
-    useAuthStore.getState().reset();
-  }
-
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ScrollView
@@ -230,8 +223,14 @@ export default function HomeScreen(): React.JSX.Element {
         <View style={styles.header}>
           <H2 style={styles.greeting}>{greeting}</H2>
           <View style={styles.headerRight}>
-            {/* Avatar */}
-            <Avatar firstName={firstName} lastName={lastName} size={36} />
+            {/* Avatar — tap to open Perfil */}
+            <Pressable
+              onPress={() => router.push('/(protected)/profile')}
+              accessibilityRole="button"
+              accessibilityLabel="Abrir perfil"
+            >
+              <Avatar firstName={firstName} lastName={lastName} size={36} />
+            </Pressable>
             {/* Notification bell */}
             <Icon name="Bell" size={24} color={colors.fg[2]} strokeWidth={1.5} />
           </View>
@@ -326,13 +325,6 @@ export default function HomeScreen(): React.JSX.Element {
             </BodySm>
             <Icon name="ChevronRight" size={18} color={colors.fg[3]} strokeWidth={1.5} />
           </Pressable>
-        </View>
-
-        {/* ── Sign-out (temporal para testing) ── */}
-        <View style={styles.signOutContainer}>
-          <Button variant="ghost" size="md" onPress={handleSignOut}>
-            Cerrar sesión
-          </Button>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -480,13 +472,6 @@ const styles = StyleSheet.create({
   insightText: {
     flex: 1,
     color: colors.fg[2],
-  },
-
-  // Sign-out
-  signOutContainer: {
-    alignItems: 'center',
-    marginTop: spacing[8],
-    marginBottom: spacing[8],
   },
 
   // Platform-specific (unused currently but reserved)

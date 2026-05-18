@@ -5,15 +5,13 @@
  *   - Renders without crashing
  *   - Shows "Hola" greeting (with or without user session)
  *   - Shows "ESTE MES" label
- *   - Shows "Cerrar sesión" button
- *   - Sign-out calls supabase.auth.signOut() and useAuthStore.getState().reset()
+ *   - Avatar is pressable and navigates to profile
  */
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
+import { render, screen, fireEvent } from '@testing-library/react-native';
 
-import { supabase } from '@/lib/supabase';
-import { useAuthStore } from '@/stores';
+import { router } from 'expo-router';
 import HomeScreen from '../index';
 
 // Mock the expenses repo so home's TanStack Query hooks resolve without DB
@@ -54,17 +52,10 @@ jest.mock('@/hooks/use-session', () => ({
   useSession: jest.fn().mockReturnValue({ user: null, session: null, isLoading: false }),
 }));
 
-jest.mock('@/stores', () => ({
-  useAuthStore: {
-    getState: jest.fn().mockReturnValue({ reset: jest.fn() }),
-  },
-}));
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-// We need to re-require the mocked module to get a typed handle on the spy.
 const { useSession } = require('@/hooks/use-session') as {
   useSession: jest.Mock;
 };
@@ -120,35 +111,23 @@ describe('HomeScreen', () => {
     expect(labels.length).toBeGreaterThan(0);
   });
 
-  it('shows "Cerrar sesión" button', () => {
+  it('does not show "Cerrar sesión" on home screen', () => {
     renderWithClient();
-    expect(screen.getByText('Cerrar sesión')).toBeTruthy();
+    expect(screen.queryByText('Cerrar sesión')).toBeNull();
   });
 
-  describe('sign-out', () => {
-    it('calls supabase.auth.signOut() when "Cerrar sesión" is pressed', async () => {
-      const signOutMock = supabase.auth.signOut as jest.Mock;
-      signOutMock.mockResolvedValueOnce({ error: null });
-
-      renderWithClient();
-      fireEvent.press(screen.getByText('Cerrar sesión'));
-
-      await waitFor(() => {
-        expect(signOutMock).toHaveBeenCalledTimes(1);
-      });
+  it('avatar Pressable navigates to profile', () => {
+    useSession.mockReturnValue({
+      user: {
+        id: '1',
+        email: 'facundo@example.com',
+        user_metadata: { first_name: 'Facundo', last_name: 'Martinez' },
+      },
+      session: {},
+      isLoading: false,
     });
-
-    it('calls useAuthStore.getState().reset() after sign out', async () => {
-      const resetMock = jest.fn();
-      (useAuthStore.getState as jest.Mock).mockReturnValue({ reset: resetMock });
-      (supabase.auth.signOut as jest.Mock).mockResolvedValueOnce({ error: null });
-
-      renderWithClient();
-      fireEvent.press(screen.getByText('Cerrar sesión'));
-
-      await waitFor(() => {
-        expect(resetMock).toHaveBeenCalledTimes(1);
-      });
-    });
+    renderWithClient();
+    fireEvent.press(screen.getByLabelText('Abrir perfil'));
+    expect(router.push).toHaveBeenCalledWith('/(protected)/profile');
   });
 });
