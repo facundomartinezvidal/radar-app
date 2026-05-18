@@ -1,21 +1,21 @@
 import { Redirect, Stack } from 'expo-router';
 
 import { hasCompletedProfile } from '@/lib/profile/completion';
-import { useSession } from '@/hooks/use-session';
 import { colors } from '@/lib/theme';
+import { useSession } from '@/hooks/use-session';
 
-export default function AuthLayout() {
+export default function OnboardingLayout() {
   const { isAuthenticated, isLoading, user } = useSession();
 
   if (isLoading) {
     return null;
   }
 
-  if (isAuthenticated && !hasCompletedProfile(user)) {
-    return <Redirect href="/(onboarding)/profile-setup" />;
+  if (!isAuthenticated) {
+    return <Redirect href="/(auth)/sign-in" />;
   }
 
-  if (isAuthenticated) {
+  if (hasCompletedProfile(user)) {
     return <Redirect href="/(protected)/(tabs)" />;
   }
 
