@@ -428,6 +428,12 @@ CI enforces these on every push/PR via `.github/workflows/ci.yml`.
 - Expenses CRUD UI + list + filter + search — see
   `docs/features/expenses-crud.md`
 - Custom OTP email template for sign-up — `docs/auth/email-templates/`
+- User identity capture (first_name + last_name) at sign-up, persisted
+  via `auth.users.raw_user_meta_data` + synced into `profiles` by a
+  pair of triggers. Onboarding gate for legacy users. New Perfil stack
+  with edit + sign-out. Reusable `<Avatar />` primitive. See
+  `docs/decisions/2026-05-17-user-profile-fields.md` and
+  `docs/features/user-name-capture.md`.
 
 ### Still pending
 
