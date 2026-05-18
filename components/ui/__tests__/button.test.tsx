@@ -51,7 +51,7 @@ describe('Button primitive', () => {
           Loading
         </Button>,
       );
-      // When loading, children are replaced by ActivityIndicator — query by role
+      // When loading, children are replaced by the Loader spinner — query by role
       fireEvent.press(screen.getByRole('button'));
       expect(onPress).not.toHaveBeenCalled();
     });
@@ -81,7 +81,7 @@ describe('Button primitive', () => {
   });
 
   describe('loading state', () => {
-    it('hides children text and shows ActivityIndicator when loading', () => {
+    it('hides children text and shows Loader spinner when loading', () => {
       render(
         <Button onPress={jest.fn()} loading>
           Submit

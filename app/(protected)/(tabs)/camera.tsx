@@ -9,10 +9,10 @@ import { CameraView, useCameraPermissions, type CameraType } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
 import React, { useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Body, Button, Icon } from '@/components/ui';
+import { Body, Button, Icon, Loader } from '@/components/ui';
 import { useSession } from '@/hooks/use-session';
 import { uploadMediaToSupabase } from '@/lib/storage';
 import { colors, radii, spacing, typography } from '@/lib/theme';
@@ -186,7 +186,9 @@ export default function CameraScreen() {
         <Image source={{ uri: previewUri ?? '' }} style={styles.previewImage} contentFit="cover" />
         {renderFeedback()}
         {uploadMutation.isPending ? (
-          <ActivityIndicator size="large" color={colors.brand[500]} style={styles.loader} />
+          <View style={styles.loader}>
+            <Loader size={40} color={colors.brand[500]} strokeWidth={2.5} />
+          </View>
         ) : (
           <View style={styles.previewActions}>
             <View style={styles.previewActionButton}>
@@ -219,7 +221,7 @@ export default function CameraScreen() {
     if (!cameraPermission) {
       return (
         <View style={styles.centeredContent}>
-          <ActivityIndicator size="large" color={colors.brand[500]} />
+          <Loader size={40} color={colors.brand[500]} strokeWidth={2.5} />
         </View>
       );
     }

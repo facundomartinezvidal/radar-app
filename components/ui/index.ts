@@ -32,3 +32,7 @@ export type { IconProps, IconName } from './icon';
 // Avatar
 export { Avatar } from './avatar';
 export type { AvatarProps } from './avatar';
+
+// Loader
+export { Loader } from './loader';
+export type { LoaderProps } from './loader';

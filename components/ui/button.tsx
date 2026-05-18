@@ -5,10 +5,11 @@
  * No Material ripple — scale 0.97 over 120ms per DS spec.
  */
 import React from 'react';
-import { ActivityIndicator, Pressable } from 'react-native';
+import { Pressable } from 'react-native';
 import Animated, { useSharedValue, withTiming, useAnimatedStyle } from 'react-native-reanimated';
 
 import { colors, motion, radii, spacing, typography } from '@/lib/theme';
+import { Loader } from './loader';
 import { Text } from './text';
 
 // ---------------------------------------------------------------------------
@@ -157,7 +158,7 @@ export function Button({
         ]}
       >
         {loading ? (
-          <ActivityIndicator size="small" color={variantStyle.textColor} />
+          <Loader size={sizeStyle.fontSize + 2} color={variantStyle.textColor} strokeWidth={2} />
         ) : (
           <>
             {leftIcon != null && leftIcon}

@@ -10,7 +10,7 @@ import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ExpenseForm } from '@/components/expenses/expense-form';
-import { Body, Button, H1, Icon } from '@/components/ui';
+import { Body, Button, H1, Icon, Loader } from '@/components/ui';
 import {
   useCategories,
   useDeleteExpense,
@@ -98,7 +98,7 @@ export default function ExpenseDetailScreen(): React.JSX.Element {
           </View>
 
           {isLoading ? (
-            <Body color={colors.fg[3]}>Cargando…</Body>
+            <Loader color={colors.fg[3]} label="Cargando" />
           ) : !expense ? (
             <Body color={colors.fg[3]}>No se encontró el gasto solicitado.</Body>
           ) : (
