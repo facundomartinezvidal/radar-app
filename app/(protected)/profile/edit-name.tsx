@@ -40,7 +40,7 @@ export default function EditNameScreen(): React.JSX.Element {
       data: { first_name: data.firstName, last_name: data.lastName },
     });
     if (error) {
-      setAuthError('No pudimos guardar tu nombre. Probá de nuevo.');
+      setAuthError('No se pudo guardar tu nombre. Intentá nuevamente.');
       return;
     }
     // On success the auth listener fires USER_UPDATED → store rehydrates →
@@ -81,7 +81,7 @@ export default function EditNameScreen(): React.JSX.Element {
 
           {/* Subtitle */}
           <Body style={{ marginBottom: spacing[5], color: colors.fg[2] }}>
-            Actualizá tu nombre y apellido.
+            Modificá tu nombre y apellido.
           </Body>
 
           {/* Form */}
@@ -92,7 +92,7 @@ export default function EditNameScreen(): React.JSX.Element {
               render={({ field: { onChange, onBlur, value } }) => (
                 <Input
                   label="Nombre"
-                  placeholder="Tu nombre"
+                  placeholder="Nombre"
                   autoCapitalize="words"
                   autoComplete="given-name"
                   textContentType="givenName"
@@ -111,7 +111,7 @@ export default function EditNameScreen(): React.JSX.Element {
               render={({ field: { onChange, onBlur, value } }) => (
                 <Input
                   label="Apellido"
-                  placeholder="Tu apellido"
+                  placeholder="Apellido"
                   autoCapitalize="words"
                   autoComplete="family-name"
                   textContentType="familyName"

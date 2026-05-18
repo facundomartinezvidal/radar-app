@@ -294,7 +294,7 @@ export default function HomeScreen(): React.JSX.Element {
             {recentRows.length === 0 ? (
               <View style={{ paddingVertical: spacing[4], alignItems: 'center' }}>
                 <Body color={colors.fg[3]} style={{ textAlign: 'center' }}>
-                  Todavía no cargaste nada este mes.
+                  Aún no se registraron gastos este mes.
                 </Body>
               </View>
             ) : (

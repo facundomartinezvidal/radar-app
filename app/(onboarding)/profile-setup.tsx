@@ -38,7 +38,7 @@ export default function ProfileSetupScreen(): React.JSX.Element {
       data: { first_name: data.firstName, last_name: data.lastName },
     });
     if (error) {
-      setAuthError('No pudimos guardar tu nombre. Probá de nuevo.');
+      setAuthError('No se pudo guardar tu nombre. Intentá nuevamente.');
       return;
     }
     // No router.push — auth listener will fire USER_UPDATED → store rehidrata → gate redirige a tabs
@@ -57,9 +57,9 @@ export default function ProfileSetupScreen(): React.JSX.Element {
           {/* Header */}
           <View style={{ paddingTop: spacing[6], paddingBottom: spacing[6] }}>
             <LogoMark size={48} />
-            <H1 style={{ marginTop: spacing[4] }}>Contanos quién sos</H1>
+            <H1 style={{ marginTop: spacing[4] }}>Completá tu perfil</H1>
             <Body style={{ marginTop: spacing[2], color: colors.fg[2] }}>
-              Necesitamos tu nombre para personalizar tu experiencia.
+              Ingresá tu nombre y apellido para continuar.
             </Body>
           </View>
 
@@ -71,7 +71,7 @@ export default function ProfileSetupScreen(): React.JSX.Element {
               render={({ field: { onChange, onBlur, value } }) => (
                 <Input
                   label="Nombre"
-                  placeholder="Tu nombre"
+                  placeholder="Nombre"
                   autoCapitalize="words"
                   autoComplete="given-name"
                   textContentType="givenName"
@@ -90,7 +90,7 @@ export default function ProfileSetupScreen(): React.JSX.Element {
               render={({ field: { onChange, onBlur, value } }) => (
                 <Input
                   label="Apellido"
-                  placeholder="Tu apellido"
+                  placeholder="Apellido"
                   autoCapitalize="words"
                   autoComplete="family-name"
                   textContentType="familyName"

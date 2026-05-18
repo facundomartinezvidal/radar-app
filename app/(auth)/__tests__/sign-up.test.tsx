@@ -3,13 +3,13 @@
  *
  * Verifies:
  * - Renders without crashing
- * - Spanish copy: "Creá tu cuenta", field labels, submit button
+ * - Spanish copy: "Crear cuenta", field labels, submit button
  * - Validation errors for firstName / lastName shown in Spanish
  * - Validation errors shown in Spanish for email/password fields
  * - Password mismatch validation shows Spanish error
  * - supabase.auth.signUp called with options.data { first_name, last_name }
  * - Auth errors mapped to friendly Spanish messages
- * - "Iniciá sesión" link navigates to sign-in
+ * - "Iniciar sesión" link navigates to sign-in
  */
 import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react-native';
@@ -46,9 +46,9 @@ jest.mock('react-native-svg', () => {
 // Helper: fill all required fields with valid values.
 // Field order in UI: firstName, lastName, email, password, confirmPassword.
 function fillValidForm(): void {
-  fireEvent.changeText(screen.getByPlaceholderText('Tu nombre'), 'Ana');
-  fireEvent.changeText(screen.getByPlaceholderText('Tu apellido'), 'García');
-  fireEvent.changeText(screen.getByPlaceholderText('vos@ejemplo.com'), 'ana@test.com');
+  fireEvent.changeText(screen.getByPlaceholderText('Nombre'), 'Ana');
+  fireEvent.changeText(screen.getByPlaceholderText('Apellido'), 'García');
+  fireEvent.changeText(screen.getByPlaceholderText('nombre@ejemplo.com'), 'ana@test.com');
   const emptyPasswords = screen.getAllByDisplayValue('');
   // After filling name + email, remaining empty inputs are password and confirmPassword
   if (emptyPasswords.length >= 2) {
@@ -67,14 +67,14 @@ describe('Sign-up screen', () => {
       expect(() => render(<SignUpScreen />)).not.toThrow();
     });
 
-    it('shows "Creá tu cuenta" heading', () => {
+    it('shows "Crear cuenta" heading', () => {
       render(<SignUpScreen />);
-      expect(screen.getByText('Creá tu cuenta')).toBeTruthy();
+      expect(screen.getByText('Crear tu cuenta')).toBeTruthy();
     });
 
     it('shows onboarding hook copy', () => {
       render(<SignUpScreen />);
-      expect(screen.getByText('Empezá a controlar tu plata.')).toBeTruthy();
+      expect(screen.getByText('Comenzá a gestionar tus finanzas.')).toBeTruthy();
     });
 
     it('shows Nombre label', () => {
@@ -87,9 +87,9 @@ describe('Sign-up screen', () => {
       expect(screen.getByText('Apellido')).toBeTruthy();
     });
 
-    it('shows Email label', () => {
+    it('shows correo electrónico label', () => {
       render(<SignUpScreen />);
-      expect(screen.getByText('Email')).toBeTruthy();
+      expect(screen.getByText('Correo electrónico')).toBeTruthy();
     });
 
     it('shows Contraseña label', () => {
@@ -109,8 +109,8 @@ describe('Sign-up screen', () => {
 
     it('shows sign-in link copy', () => {
       render(<SignUpScreen />);
-      expect(screen.getByText('¿Ya tenés cuenta?')).toBeTruthy();
-      expect(screen.getByText('Iniciá sesión')).toBeTruthy();
+      expect(screen.getByText('¿Ya tenés una cuenta?')).toBeTruthy();
+      expect(screen.getByText('Iniciar sesión')).toBeTruthy();
     });
   });
 
@@ -131,7 +131,7 @@ describe('Sign-up screen', () => {
 
     it('shows error when firstName contains digits', async () => {
       render(<SignUpScreen />);
-      fireEvent.changeText(screen.getByPlaceholderText('Tu nombre'), 'Ana123');
+      fireEvent.changeText(screen.getByPlaceholderText('Nombre'), 'Ana123');
       const submitBtn = screen.getByLabelText('Crear cuenta');
       await act(async () => {
         fireEvent.press(submitBtn);
@@ -143,7 +143,7 @@ describe('Sign-up screen', () => {
 
     it('shows error when firstName is a single character (below min)', async () => {
       render(<SignUpScreen />);
-      fireEvent.changeText(screen.getByPlaceholderText('Tu nombre'), 'A');
+      fireEvent.changeText(screen.getByPlaceholderText('Nombre'), 'A');
       const submitBtn = screen.getByLabelText('Crear cuenta');
       await act(async () => {
         fireEvent.press(submitBtn);
@@ -158,7 +158,7 @@ describe('Sign-up screen', () => {
   describe('validation — lastName', () => {
     it('shows error when lastName is empty on submit', async () => {
       render(<SignUpScreen />);
-      fireEvent.changeText(screen.getByPlaceholderText('Tu nombre'), 'Ana');
+      fireEvent.changeText(screen.getByPlaceholderText('Nombre'), 'Ana');
       const submitBtn = screen.getByLabelText('Crear cuenta');
       await act(async () => {
         fireEvent.press(submitBtn);
@@ -173,7 +173,7 @@ describe('Sign-up screen', () => {
 
     it('shows error when lastName contains digits', async () => {
       render(<SignUpScreen />);
-      fireEvent.changeText(screen.getByPlaceholderText('Tu apellido'), 'García9');
+      fireEvent.changeText(screen.getByPlaceholderText('Apellido'), 'García9');
       const submitBtn = screen.getByLabelText('Crear cuenta');
       await act(async () => {
         fireEvent.press(submitBtn);
@@ -187,25 +187,25 @@ describe('Sign-up screen', () => {
   describe('validation — email', () => {
     it('shows Spanish email validation error when email is empty', async () => {
       render(<SignUpScreen />);
-      fireEvent.changeText(screen.getByPlaceholderText('Tu nombre'), 'Ana');
-      fireEvent.changeText(screen.getByPlaceholderText('Tu apellido'), 'García');
+      fireEvent.changeText(screen.getByPlaceholderText('Nombre'), 'Ana');
+      fireEvent.changeText(screen.getByPlaceholderText('Apellido'), 'García');
       const submitBtn = screen.getByLabelText('Crear cuenta');
       await act(async () => {
         fireEvent.press(submitBtn);
       });
       await waitFor(() => {
-        expect(screen.getByText('Ingresá un email válido.')).toBeTruthy();
+        expect(screen.getByText('Ingresá un correo electrónico válido.')).toBeTruthy();
       });
     });
   });
 
   describe('validation — password', () => {
-    it('shows "Mínimo 8 caracteres." when password is too short', async () => {
+    it('shows "La contraseña debe tener al menos 8 caracteres." when password is too short', async () => {
       render(<SignUpScreen />);
 
-      fireEvent.changeText(screen.getByPlaceholderText('Tu nombre'), 'Ana');
-      fireEvent.changeText(screen.getByPlaceholderText('Tu apellido'), 'García');
-      fireEvent.changeText(screen.getByPlaceholderText('vos@ejemplo.com'), 'user@test.com');
+      fireEvent.changeText(screen.getByPlaceholderText('Nombre'), 'Ana');
+      fireEvent.changeText(screen.getByPlaceholderText('Apellido'), 'García');
+      fireEvent.changeText(screen.getByPlaceholderText('nombre@ejemplo.com'), 'user@test.com');
 
       const submitBtn = screen.getByLabelText('Crear cuenta');
       await act(async () => {
@@ -213,16 +213,16 @@ describe('Sign-up screen', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Mínimo 8 caracteres.')).toBeTruthy();
+        expect(screen.getByText('La contraseña debe tener al menos 8 caracteres.')).toBeTruthy();
       });
     });
 
     it('shows password mismatch error in Spanish', async () => {
       render(<SignUpScreen />);
 
-      fireEvent.changeText(screen.getByPlaceholderText('Tu nombre'), 'Ana');
-      fireEvent.changeText(screen.getByPlaceholderText('Tu apellido'), 'García');
-      fireEvent.changeText(screen.getByPlaceholderText('vos@ejemplo.com'), 'user@test.com');
+      fireEvent.changeText(screen.getByPlaceholderText('Nombre'), 'Ana');
+      fireEvent.changeText(screen.getByPlaceholderText('Apellido'), 'García');
+      fireEvent.changeText(screen.getByPlaceholderText('nombre@ejemplo.com'), 'user@test.com');
 
       const emptyInputs = screen.getAllByDisplayValue('');
       if (emptyInputs.length >= 2) {
@@ -309,7 +309,7 @@ describe('Sign-up screen', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Ya hay una cuenta con ese email.')).toBeTruthy();
+        expect(screen.getByText('Ya existe una cuenta con ese correo electrónico.')).toBeTruthy();
       });
       expect(router.push).not.toHaveBeenCalledWith(
         expect.objectContaining({ pathname: '/(auth)/verify-otp' }),
@@ -333,7 +333,7 @@ describe('Sign-up screen', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Ya hay una cuenta con ese email.')).toBeTruthy();
+        expect(screen.getByText('Ya existe una cuenta con ese correo electrónico.')).toBeTruthy();
       });
     });
 
@@ -352,15 +352,15 @@ describe('Sign-up screen', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText('No pudimos crear la cuenta. Probá de nuevo.')).toBeTruthy();
+        expect(screen.getByText('No se pudo crear la cuenta. Intentá nuevamente.')).toBeTruthy();
       });
     });
   });
 
   describe('navigation', () => {
-    it('navigates to sign-in when "Iniciá sesión" is pressed', async () => {
+    it('navigates to sign-in when "Iniciar sesión" is pressed', async () => {
       render(<SignUpScreen />);
-      fireEvent.press(screen.getByText('Iniciá sesión'));
+      fireEvent.press(screen.getByText('Iniciar sesión'));
       expect(router.push).toHaveBeenCalledWith('/(auth)/sign-in');
     });
   });

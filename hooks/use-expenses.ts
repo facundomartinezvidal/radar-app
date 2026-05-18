@@ -100,7 +100,7 @@ export function useCreateExpense() {
   return useMutation<ExpenseWithCategory, Error, CreateExpenseInput>({
     mutationFn: async (input) => {
       const { data, error } = await createExpense(input);
-      if (error || !data) throw error ?? new Error('No pudimos guardar el gasto.');
+      if (error || !data) throw error ?? new Error('No se pudo guardar el gasto.');
       return data;
     },
     onSuccess: () => {
@@ -114,7 +114,7 @@ export function useUpdateExpense() {
   return useMutation<ExpenseWithCategory, Error, { id: string; input: UpdateExpenseInput }>({
     mutationFn: async ({ id, input }) => {
       const { data, error } = await updateExpense(id, input);
-      if (error || !data) throw error ?? new Error('No pudimos actualizar el gasto.');
+      if (error || !data) throw error ?? new Error('No se pudo actualizar el gasto.');
       return data;
     },
     onSuccess: (row) => {
@@ -129,7 +129,7 @@ export function useDeleteExpense() {
   return useMutation<{ id: string }, Error, string>({
     mutationFn: async (id) => {
       const { data, error } = await deleteExpense(id);
-      if (error || !data) throw error ?? new Error('No pudimos borrar el gasto.');
+      if (error || !data) throw error ?? new Error('No se pudo eliminar el gasto.');
       return data;
     },
     onSuccess: ({ id }) => {

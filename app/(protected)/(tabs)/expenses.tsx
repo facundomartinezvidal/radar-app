@@ -191,9 +191,9 @@ export default function ExpensesTab(): React.JSX.Element {
           isEmpty ? (
             <View style={{ alignItems: 'center', paddingVertical: spacing[8], gap: spacing[3] }}>
               <Icon name="Inbox" size={48} color={colors.fg[4]} />
-              <H3 style={{ textAlign: 'center' }}>Sin gastos por acá</H3>
+              <H3 style={{ textAlign: 'center' }}>No hay gastos registrados</H3>
               <Body color={colors.fg[3]} style={{ textAlign: 'center' }}>
-                Registrá tu primer gasto y empezá a mover el radar.
+                Registrá tu primer gasto para comenzar.
               </Body>
               <Button
                 variant="primary"

@@ -39,20 +39,20 @@ const RESEND_COOLDOWN_SECONDS = 60;
 function mapVerifyError(message: string): string {
   const lower = message.toLowerCase();
   if (lower.includes('expired') || lower.includes('invalid')) {
-    return 'Código inválido o expirado. Pedí uno nuevo.';
+    return 'El código es inválido o expiró. Solicitá uno nuevo.';
   }
   if (lower.includes('too many')) {
-    return 'Demasiados intentos. Esperá unos minutos y probá de nuevo.';
+    return 'Demasiados intentos. Aguardá unos minutos e intentá nuevamente.';
   }
-  return 'No pudimos verificar el código. Probá de nuevo.';
+  return 'No se pudo verificar el código. Intentá nuevamente.';
 }
 
 function mapResendError(message: string): string {
   const lower = message.toLowerCase();
   if (lower.includes('rate') || lower.includes('too many')) {
-    return 'Esperá un toque antes de pedir otro código.';
+    return 'Aguardá unos minutos antes de solicitar un nuevo código.';
   }
-  return 'No pudimos reenviar el código. Probá de nuevo.';
+  return 'No se pudo reenviar el código. Intentá nuevamente.';
 }
 
 // ---------------------------------------------------------------------------
@@ -167,11 +167,11 @@ export default function VerifyOtpScreen(): React.JSX.Element {
 
   async function handleVerify(): Promise<void> {
     if (code.length !== OTP_LENGTH) {
-      setError(`Ingresá los ${OTP_LENGTH} dígitos.`);
+      setError(`Ingresá los ${OTP_LENGTH} dígitos del código.`);
       return;
     }
     if (!email) {
-      setError('Falta el email. Volvé a registrarte.');
+      setError('Falta el correo electrónico. Es necesario registrarse nuevamente.');
       return;
     }
     setError(null);
@@ -197,7 +197,7 @@ export default function VerifyOtpScreen(): React.JSX.Element {
   async function handleResend(): Promise<void> {
     if (cooldown > 0 || isResending) return;
     if (!email) {
-      setError('Falta el email. Volvé a registrarte.');
+      setError('Falta el correo electrónico. Es necesario registrarse nuevamente.');
       return;
     }
     setError(null);
@@ -212,7 +212,7 @@ export default function VerifyOtpScreen(): React.JSX.Element {
         setError(mapResendError(resendError.message));
         return;
       }
-      setInfo('Te mandamos un código nuevo.');
+      setInfo('Se envió un nuevo código.');
       setCooldown(RESEND_COOLDOWN_SECONDS);
     } finally {
       setIsResending(false);
@@ -240,10 +240,10 @@ export default function VerifyOtpScreen(): React.JSX.Element {
           {/* Header */}
           <View style={{ paddingTop: spacing[6], paddingBottom: spacing[5] }}>
             <LogoMark size={48} />
-            <H1 style={{ marginTop: spacing[4] }}>Confirmá tu cuenta</H1>
+            <H1 style={{ marginTop: spacing[4] }}>Confirmar tu cuenta</H1>
             <Body style={{ marginTop: spacing[2], color: colors.fg[2] }}>
-              Te mandamos un código de {OTP_LENGTH} dígitos a{'\n'}
-              <Text color={colors.fg[1]}>{email || 'tu email'}</Text>.
+              Te enviamos un código de {OTP_LENGTH} dígitos a{'\n'}
+              <Text color={colors.fg[1]}>{email || 'tu correo electrónico'}</Text>.
             </Body>
           </View>
 
@@ -289,7 +289,7 @@ export default function VerifyOtpScreen(): React.JSX.Element {
 
           {/* Resend */}
           <View style={{ marginTop: spacing[4], alignItems: 'center' }}>
-            <BodySm style={{ color: colors.fg[2] }}>¿No te llegó?</BodySm>
+            <BodySm style={{ color: colors.fg[2] }}>¿No recibiste el código?</BodySm>
             <Button
               variant="ghost"
               size="sm"
@@ -304,7 +304,7 @@ export default function VerifyOtpScreen(): React.JSX.Element {
           {/* Back to sign-up */}
           <View style={{ marginTop: spacing[3], alignItems: 'center', marginBottom: spacing[6] }}>
             <Button variant="ghost" size="sm" onPress={() => router.replace('/(auth)/sign-up')}>
-              Usar otro email
+              Utilizar otro correo electrónico
             </Button>
           </View>
         </ScrollView>

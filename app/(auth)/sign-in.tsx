@@ -22,7 +22,7 @@ import { colors, spacing } from '@/lib/theme';
 // ---------------------------------------------------------------------------
 
 const schema = z.object({
-  email: z.string().email('Ingresá un email válido.'),
+  email: z.string().email('Ingresá un correo electrónico válido.'),
   password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres.'),
 });
 
@@ -34,20 +34,20 @@ type FormData = z.infer<typeof schema>;
 
 function mapAuthError(message: string): string {
   if (message.toLowerCase().includes('invalid login credentials')) {
-    return 'Email o contraseña incorrectos.';
+    return 'El correo electrónico o la contraseña son incorrectos.';
   }
   if (message.toLowerCase().includes('email not confirmed')) {
-    return 'Tu email todavía no está confirmado.';
+    return 'El correo electrónico aún no fue confirmado.';
   }
-  return 'No pudimos iniciar sesión. Probá de nuevo.';
+  return 'No se pudo iniciar sesión. Intentá nuevamente.';
 }
 
 function mapResendError(message: string): string {
   const lower = message.toLowerCase();
   if (lower.includes('rate') || lower.includes('too many')) {
-    return 'Esperá un toque antes de pedir otro código.';
+    return 'Aguardá unos minutos antes de solicitar un nuevo código.';
   }
-  return 'No pudimos reenviar el código. Probá de nuevo.';
+  return 'No se pudo reenviar el código. Intentá nuevamente.';
 }
 
 // ---------------------------------------------------------------------------
@@ -118,9 +118,9 @@ export default function SignInScreen(): React.JSX.Element {
           {/* Header */}
           <View style={{ paddingTop: spacing[6], paddingBottom: spacing[6] }}>
             <LogoMark size={48} />
-            <H1 style={{ marginTop: spacing[4] }}>Iniciá sesión</H1>
+            <H1 style={{ marginTop: spacing[4] }}>Acceder a tu cuenta</H1>
             <Body style={{ marginTop: spacing[2], color: colors.fg[2] }}>
-              Bienvenido de vuelta a RADAR.
+              Bienvenido nuevamente a RADAR.
             </Body>
           </View>
 
@@ -131,8 +131,8 @@ export default function SignInScreen(): React.JSX.Element {
               name="email"
               render={({ field: { onChange, onBlur, value } }) => (
                 <Input
-                  label="Email"
-                  placeholder="vos@ejemplo.com"
+                  label="Correo electrónico"
+                  placeholder="nombre@ejemplo.com"
                   autoCapitalize="none"
                   keyboardType="email-address"
                   autoComplete="email"
@@ -220,9 +220,9 @@ export default function SignInScreen(): React.JSX.Element {
                 marginBottom: spacing[6],
               }}
             >
-              <Body>¿No tenés cuenta?</Body>
+              <Body>¿No tenés una cuenta?</Body>
               <Button variant="ghost" size="sm" onPress={() => router.push('/(auth)/sign-up')}>
-                Sumate
+                Crear cuenta
               </Button>
             </View>
           </View>

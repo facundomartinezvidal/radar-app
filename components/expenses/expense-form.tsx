@@ -133,7 +133,7 @@ export function ExpenseForm({
           render={({ field: { onChange, onBlur, value } }) => (
             <Input
               label="Descripción (opcional)"
-              placeholder="Pizza del viernes"
+              placeholder="Descripción del gasto"
               value={value ?? ''}
               onChangeText={onChange}
               onBlur={onBlur}

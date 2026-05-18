@@ -98,7 +98,7 @@ describe('EditNameScreen', () => {
     fireEvent.press(screen.getByText('Guardar'));
 
     await waitFor(() => {
-      expect(screen.getByText('No pudimos guardar tu nombre. Probá de nuevo.')).toBeTruthy();
+      expect(screen.getByText('No se pudo guardar tu nombre. Intentá nuevamente.')).toBeTruthy();
     });
     expect(router.back).not.toHaveBeenCalled();
   });

@@ -138,7 +138,7 @@ describe('ExpenseDetailScreen', () => {
     await waitFor(() => expect(screen.getByText('Comida')).toBeTruthy());
 
     await act(async () => {
-      fireEvent.press(screen.getAllByLabelText('Borrar gasto')[0]!);
+      fireEvent.press(screen.getAllByLabelText('Eliminar gasto')[0]!);
     });
 
     await waitFor(() => {

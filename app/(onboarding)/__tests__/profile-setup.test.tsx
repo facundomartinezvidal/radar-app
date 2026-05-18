@@ -51,16 +51,14 @@ describe('Profile-setup screen', () => {
       expect(() => render(<ProfileSetupScreen />)).not.toThrow();
     });
 
-    it('shows "Contanos quién sos" heading', () => {
+    it('shows "Completá tu perfil" heading', () => {
       render(<ProfileSetupScreen />);
-      expect(screen.getByText('Contanos quién sos')).toBeTruthy();
+      expect(screen.getByText('Completá tu perfil')).toBeTruthy();
     });
 
     it('shows subtitle copy', () => {
       render(<ProfileSetupScreen />);
-      expect(
-        screen.getByText('Necesitamos tu nombre para personalizar tu experiencia.'),
-      ).toBeTruthy();
+      expect(screen.getByText('Ingresá tu nombre y apellido para continuar.')).toBeTruthy();
     });
 
     it('shows Nombre label', () => {
@@ -101,7 +99,7 @@ describe('Profile-setup screen', () => {
 
     it('blocks submit and shows error when lastName is empty', async () => {
       render(<ProfileSetupScreen />);
-      fireEvent.changeText(screen.getByPlaceholderText('Tu nombre'), 'Facundo');
+      fireEvent.changeText(screen.getByPlaceholderText('Nombre'), 'Facundo');
       const submitBtn = screen.getByLabelText('Guardar nombre');
       await act(async () => {
         fireEvent.press(submitBtn);
@@ -116,8 +114,8 @@ describe('Profile-setup screen', () => {
 
     it('blocks submit when firstName contains digits', async () => {
       render(<ProfileSetupScreen />);
-      fireEvent.changeText(screen.getByPlaceholderText('Tu nombre'), 'Facu123');
-      fireEvent.changeText(screen.getByPlaceholderText('Tu apellido'), 'Martinez');
+      fireEvent.changeText(screen.getByPlaceholderText('Nombre'), 'Facu123');
+      fireEvent.changeText(screen.getByPlaceholderText('Apellido'), 'Martinez');
       const submitBtn = screen.getByLabelText('Guardar nombre');
       await act(async () => {
         fireEvent.press(submitBtn);
@@ -132,8 +130,8 @@ describe('Profile-setup screen', () => {
   describe('supabase.auth.updateUser payload', () => {
     it('calls updateUser with exact payload { data: { first_name, last_name } }', async () => {
       render(<ProfileSetupScreen />);
-      fireEvent.changeText(screen.getByPlaceholderText('Tu nombre'), 'Facundo');
-      fireEvent.changeText(screen.getByPlaceholderText('Tu apellido'), 'Martinez');
+      fireEvent.changeText(screen.getByPlaceholderText('Nombre'), 'Facundo');
+      fireEvent.changeText(screen.getByPlaceholderText('Apellido'), 'Martinez');
 
       const submitBtn = screen.getByLabelText('Guardar nombre');
       await act(async () => {
@@ -156,8 +154,8 @@ describe('Profile-setup screen', () => {
         .mockResolvedValueOnce({ data: null, error: { message: 'Network error' } });
 
       render(<ProfileSetupScreen />);
-      fireEvent.changeText(screen.getByPlaceholderText('Tu nombre'), 'Facundo');
-      fireEvent.changeText(screen.getByPlaceholderText('Tu apellido'), 'Martinez');
+      fireEvent.changeText(screen.getByPlaceholderText('Nombre'), 'Facundo');
+      fireEvent.changeText(screen.getByPlaceholderText('Apellido'), 'Martinez');
 
       const submitBtn = screen.getByLabelText('Guardar nombre');
       await act(async () => {
@@ -165,7 +163,7 @@ describe('Profile-setup screen', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText('No pudimos guardar tu nombre. Probá de nuevo.')).toBeTruthy();
+        expect(screen.getByText('No se pudo guardar tu nombre. Intentá nuevamente.')).toBeTruthy();
       });
     });
   });
@@ -173,8 +171,8 @@ describe('Profile-setup screen', () => {
   describe('navigation', () => {
     it('does NOT call router.push after successful submission', async () => {
       render(<ProfileSetupScreen />);
-      fireEvent.changeText(screen.getByPlaceholderText('Tu nombre'), 'Facundo');
-      fireEvent.changeText(screen.getByPlaceholderText('Tu apellido'), 'Martinez');
+      fireEvent.changeText(screen.getByPlaceholderText('Nombre'), 'Facundo');
+      fireEvent.changeText(screen.getByPlaceholderText('Apellido'), 'Martinez');
 
       const submitBtn = screen.getByLabelText('Guardar nombre');
       await act(async () => {

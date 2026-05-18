@@ -31,9 +31,9 @@ const schema = z
   .object({
     firstName: nameSchema,
     lastName: nameSchema,
-    email: z.string().email('Ingresá un email válido.'),
-    password: z.string().min(8, 'Mínimo 8 caracteres.'),
-    confirmPassword: z.string().min(8, 'Confirmá tu contraseña.'),
+    email: z.string().email('Ingresá un correo electrónico válido.'),
+    password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres.'),
+    confirmPassword: z.string().min(8, 'Confirmá la contraseña.'),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: 'Las contraseñas no coinciden.',
@@ -48,9 +48,9 @@ type FormData = z.infer<typeof schema>;
 
 function mapAuthError(message: string): string {
   if (message.toLowerCase().includes('user already registered')) {
-    return 'Ya hay una cuenta con ese email.';
+    return 'Ya existe una cuenta con ese correo electrónico.';
   }
-  return 'No pudimos crear la cuenta. Probá de nuevo.';
+  return 'No se pudo crear la cuenta. Intentá nuevamente.';
 }
 
 // ---------------------------------------------------------------------------
@@ -107,9 +107,9 @@ export default function SignUpScreen(): React.JSX.Element {
           {/* Header */}
           <View style={{ paddingTop: spacing[6], paddingBottom: spacing[6] }}>
             <LogoMark size={48} />
-            <H1 style={{ marginTop: spacing[4] }}>Creá tu cuenta</H1>
+            <H1 style={{ marginTop: spacing[4] }}>Crear tu cuenta</H1>
             <Body style={{ marginTop: spacing[2], color: colors.fg[2] }}>
-              Empezá a controlar tu plata.
+              Comenzá a gestionar tus finanzas.
             </Body>
           </View>
 
@@ -121,7 +121,7 @@ export default function SignUpScreen(): React.JSX.Element {
               render={({ field: { onChange, onBlur, value } }) => (
                 <Input
                   label="Nombre"
-                  placeholder="Tu nombre"
+                  placeholder="Nombre"
                   autoCapitalize="words"
                   autoComplete="given-name"
                   textContentType="givenName"
@@ -140,7 +140,7 @@ export default function SignUpScreen(): React.JSX.Element {
               render={({ field: { onChange, onBlur, value } }) => (
                 <Input
                   label="Apellido"
-                  placeholder="Tu apellido"
+                  placeholder="Apellido"
                   autoCapitalize="words"
                   autoComplete="family-name"
                   textContentType="familyName"
@@ -158,8 +158,8 @@ export default function SignUpScreen(): React.JSX.Element {
               name="email"
               render={({ field: { onChange, onBlur, value } }) => (
                 <Input
-                  label="Email"
-                  placeholder="vos@ejemplo.com"
+                  label="Correo electrónico"
+                  placeholder="nombre@ejemplo.com"
                   autoCapitalize="none"
                   keyboardType="email-address"
                   autoComplete="email"
@@ -236,9 +236,9 @@ export default function SignUpScreen(): React.JSX.Element {
                 marginBottom: spacing[6],
               }}
             >
-              <Body>¿Ya tenés cuenta?</Body>
+              <Body>¿Ya tenés una cuenta?</Body>
               <Button variant="ghost" size="sm" onPress={() => router.push('/(auth)/sign-in')}>
-                Iniciá sesión
+                Iniciar sesión
               </Button>
             </View>
           </View>
