@@ -14,9 +14,10 @@
     Tu código RADAR es {{ .Token }}
 
   SUPABASE VARS:
-    {{ .Token }}            — 6-digit OTP code (primary, prominently rendered)
-    {{ .Email }}            — user email
-    {{ .ConfirmationURL }}  — optional fallback link (kept for browser flow)
+    {{ .Token }}             — 6-digit OTP code (primary, prominently rendered)
+    {{ .Email }}             — user email
+    {{ .ConfirmationURL }}   — optional fallback link (kept for browser flow)
+    {{ .Data.first_name }}   — first name from signUp's options.data (greeting)
 
   EMAIL-CLIENT COMPAT:
     - Inline CSS only (Gmail strips <head><style>)
@@ -211,6 +212,25 @@
             <!-- Headline + body -->
             <tr>
               <td style="padding: 32px 32px 8px 32px">
+                <!--
+                  The `{{ if .Data.first_name }} … {{ else }} … {{ end }}` block
+                  uses Go template syntax — Supabase Auth's template engine
+                  supports it. Falls back to a generic "Hola" if the user signed
+                  up before name capture existed (legacy accounts).
+                -->
+                <p
+                  style="
+                    margin: 0 0 12px 0;
+                    font-family:
+                      -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, Helvetica,
+                      Arial, sans-serif;
+                    font-size: 14px;
+                    line-height: 1.4;
+                    color: #b8c3d4;
+                  "
+                >
+                  {{ if .Data.first_name }}Hola {{ .Data.first_name }},{{ else }}Hola,{{ end }}
+                </p>
                 <h1
                   style="
                     margin: 0;

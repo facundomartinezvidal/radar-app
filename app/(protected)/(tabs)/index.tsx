@@ -12,6 +12,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
+  Avatar,
   Body,
   BodySm,
   Button,
@@ -25,11 +26,9 @@ import {
   Text,
 } from '@/components/ui';
 import { formatMoney } from '@/lib/format/money';
-import { supabase } from '@/lib/supabase';
 import { colors, motion, radii, spacing, typography } from '@/lib/theme';
 import { useExpenseTotals, useExpenses } from '@/hooks/use-expenses';
 import { useSession } from '@/hooks/use-session';
-import { useAuthStore } from '@/stores';
 import type { IconName } from '@/components/ui/icon';
 
 // ---------------------------------------------------------------------------
@@ -204,20 +203,14 @@ export default function HomeScreen(): React.JSX.Element {
 
   const quickActions = React.useMemo(() => buildQuickActions(), []);
 
-  // Derive display name from email (before the @)
-  const displayName = user?.email ? user.email.split('@')[0] : null;
-
-  // Capitalise first letter
-  const firstName = displayName ? displayName.charAt(0).toUpperCase() + displayName.slice(1) : null;
-
-  const avatarLetter = firstName ? firstName.charAt(0).toUpperCase() : '?';
-
+  const md = user?.user_metadata ?? {};
+  const firstName =
+    typeof md.first_name === 'string' && md.first_name.trim().length > 0
+      ? md.first_name.trim()
+      : null;
+  const lastName =
+    typeof md.last_name === 'string' && md.last_name.trim().length > 0 ? md.last_name.trim() : null;
   const greeting = firstName ? `Hola, ${firstName}` : 'Hola';
-
-  async function handleSignOut(): Promise<void> {
-    await supabase.auth.signOut();
-    useAuthStore.getState().reset();
-  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -230,12 +223,14 @@ export default function HomeScreen(): React.JSX.Element {
         <View style={styles.header}>
           <H2 style={styles.greeting}>{greeting}</H2>
           <View style={styles.headerRight}>
-            {/* Avatar */}
-            <View style={styles.avatar}>
-              <Text variant="h3" color={colors.fg.onBrand} style={styles.avatarLetter}>
-                {avatarLetter}
-              </Text>
-            </View>
+            {/* Avatar — tap to open Perfil */}
+            <Pressable
+              onPress={() => router.push('/(protected)/profile')}
+              accessibilityRole="button"
+              accessibilityLabel="Abrir perfil"
+            >
+              <Avatar firstName={firstName} lastName={lastName} size={36} />
+            </Pressable>
             {/* Notification bell */}
             <Icon name="Bell" size={24} color={colors.fg[2]} strokeWidth={1.5} />
           </View>
@@ -299,7 +294,7 @@ export default function HomeScreen(): React.JSX.Element {
             {recentRows.length === 0 ? (
               <View style={{ paddingVertical: spacing[4], alignItems: 'center' }}>
                 <Body color={colors.fg[3]} style={{ textAlign: 'center' }}>
-                  Todavía no cargaste nada este mes.
+                  Aún no se registraron gastos este mes.
                 </Body>
               </View>
             ) : (
@@ -330,13 +325,6 @@ export default function HomeScreen(): React.JSX.Element {
             </BodySm>
             <Icon name="ChevronRight" size={18} color={colors.fg[3]} strokeWidth={1.5} />
           </Pressable>
-        </View>
-
-        {/* ── Sign-out (temporal para testing) ── */}
-        <View style={styles.signOutContainer}>
-          <Button variant="ghost" size="md" onPress={handleSignOut}>
-            Cerrar sesión
-          </Button>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -379,18 +367,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing[3],
   },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.brand[500],
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarLetter: {
-    lineHeight: 22,
-  },
-
   // Balance card
   balanceCard: {
     marginHorizontal: spacing[5],
@@ -496,13 +472,6 @@ const styles = StyleSheet.create({
   insightText: {
     flex: 1,
     color: colors.fg[2],
-  },
-
-  // Sign-out
-  signOutContainer: {
-    alignItems: 'center',
-    marginTop: spacing[8],
-    marginBottom: spacing[8],
   },
 
   // Platform-specific (unused currently but reserved)

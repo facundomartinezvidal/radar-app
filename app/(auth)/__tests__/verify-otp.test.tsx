@@ -7,7 +7,7 @@
  *   - Calls supabase.auth.verifyOtp on submit
  *   - Shows ES error on invalid/expired token
  *   - Resend triggers supabase.auth.resend + cooldown
- *   - "Usar otro email" routes back to sign-up
+ *   - "Utilizar otro correo electrónico" routes back to sign-up
  */
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
@@ -57,7 +57,7 @@ describe('VerifyOtpScreen', () => {
 
   it('renders heading and target email', () => {
     render(<VerifyOtpScreen />);
-    expect(screen.getByText('Confirmá tu cuenta')).toBeTruthy();
+    expect(screen.getByText('Confirmar tu cuenta')).toBeTruthy();
     expect(screen.getByText('user@test.com')).toBeTruthy();
   });
 
@@ -76,13 +76,13 @@ describe('VerifyOtpScreen', () => {
 
     const input = screen.getByLabelText('Código de verificación');
     await act(async () => {
-      fireEvent.changeText(input, '123456');
+      fireEvent.changeText(input, '12345678');
     });
 
     await waitFor(() => {
       expect(supabase.auth.verifyOtp).toHaveBeenCalledWith({
         email: 'user@test.com',
-        token: '123456',
+        token: '12345678',
         type: 'signup',
       });
     });
@@ -97,11 +97,11 @@ describe('VerifyOtpScreen', () => {
     render(<VerifyOtpScreen />);
     const input = screen.getByLabelText('Código de verificación');
     await act(async () => {
-      fireEvent.changeText(input, '000000');
+      fireEvent.changeText(input, '00000000');
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Código inválido o expirado. Pedí uno nuevo.')).toBeTruthy();
+      expect(screen.getByText('El código es inválido o expiró. Solicitá uno nuevo.')).toBeTruthy();
     });
   });
 
@@ -109,21 +109,21 @@ describe('VerifyOtpScreen', () => {
     render(<VerifyOtpScreen />);
     const input = screen.getByLabelText('Código de verificación');
     await act(async () => {
-      fireEvent.changeText(input, 'abc12d34xy56');
+      fireEvent.changeText(input, 'abc12d34xy56qq78');
     });
-    // verifyOtp should still receive a 6-digit numeric token
+    // verifyOtp should still receive an OTP_LENGTH-digit numeric token
     await waitFor(() => {
       expect(supabase.auth.verifyOtp).toHaveBeenCalledWith({
         email: 'user@test.com',
-        token: '123456',
+        token: '12345678',
         type: 'signup',
       });
     });
   });
 
-  it('navigates back to sign-up via "Usar otro email"', () => {
+  it('navigates back to sign-up via "Utilizar otro correo electrónico"', () => {
     render(<VerifyOtpScreen />);
-    fireEvent.press(screen.getByText('Usar otro email'));
+    fireEvent.press(screen.getByText('Utilizar otro correo electrónico'));
     expect(router.replace).toHaveBeenCalledWith('/(auth)/sign-up');
   });
 
@@ -143,7 +143,7 @@ describe('VerifyOtpScreen', () => {
         type: 'signup',
         email: 'user@test.com',
       });
-      expect(screen.getByText('Te mandamos un código nuevo.')).toBeTruthy();
+      expect(screen.getByText('Se envió un nuevo código.')).toBeTruthy();
     });
   });
 });

@@ -319,31 +319,34 @@ When building screens, **start by reading `desing-system/README.md`**, then `col
 
 ### Content fundamentals (copy rules)
 
-- **Idioma:** español rioplatense, voseo permitido no obligatorio. Tono cercano, directo, sin ser informal de más.
-- **Persona del producto:** un amigo que entiende de plata pero no te habla como un banco.
-- **Verbs:** active + short. "Registrá un gasto", NOT "Proceder al registro de un gasto".
-- **CTAs principales:** voseo — _Registrá · Dividí · Saldá · Sumá · Agregá_.
+- **Idioma:** español rioplatense, voseo permitido no obligatorio. Tono formal-cercano, claro, sin slang.
+- **Persona del producto:** profesional, claro, respetuoso. Tono formal sin ser frío. Voseo argentino como estándar regional, sin slang ("un toque", "che", "joya", "por acá" → fuera).
+- **Verbs:** active + short. "Registrá un gasto", NOT "Proceder al registro de un gasto". Verbos formales en voseo (`Ingresá`, `Aguardá`, `Intentá`, `Modificá`, `Confirmá`); evitar `probá`, `mandate`, `dale`.
+- **CTAs principales:** voseo formal — _Registrá · Dividí · Saldá · Agregá_. CTAs de cuenta en infinitivo — _Iniciar sesión · Crear cuenta · Verificar código · Continuar_.
 - **Navigation labels:** infinitivo — _Gastos · Grupos · Perfil_.
 - **Title/button casing:** sentence case. `Nuevo gasto`, NOT `Nuevo Gasto`.
 - **Numbers:** local format — `$ 12.500,00` (punto miles, coma decimal).
 - **Currency:** always explicit — `$ 12.500 ARS`, `US$ 85,00`. Never mix without indicating.
-- **No financial jargon:** "Plata que te deben", NOT "Cuentas por cobrar".
-- **Empty states:** moderate humor, never condescending. "Sin gastos por acá. Por ahora."
-- **Errors:** empathetic. "No pudimos guardar el gasto. Probá de nuevo." NOT "Error 500".
+- **Email convention:** "correo electrónico" en copy formal (labels, errores); "email" sólo en logs/dev/console.
+- **No financial jargon coloquial:** "Plata que te deben" sigue siendo OK en marketing, pero microcopy de errores e instrucciones usa "dinero", "monto", "saldo", "gasto".
+- **Empty states:** claros y descriptivos, sin humor. "No hay gastos registrados." NOT "Sin gastos por acá. Por ahora."
+- **Errors:** impersonales, formales. "No se pudo guardar el gasto. Intentá nuevamente." NOT "No pudimos guardar el gasto. Probá de nuevo." NOT "Error 500".
 - **No emoji in UI base.** Emoji OK in push notifs when emotional context adds (rarely).
 
 ### Microcopy reference (use these verbatim)
 
-| Context                   | Copy                                                      |
-| ------------------------- | --------------------------------------------------------- |
-| CTA primary "new expense" | `Registrar gasto`                                         |
-| Empty state home          | `Todavía no cargaste nada este mes.`                      |
-| Debt settled confirmation | `Listo. Deuda saldada.`                                   |
-| Push notification         | `Juan te marcó un gasto de $ 4.200 en Pizza del viernes.` |
-| Generic error             | `No pudimos conectar. Reintentamos en 5s.`                |
-| Onboarding hook           | `¿Sabés en qué se te fue la plata este mes?`              |
-| Amount input placeholder  | `0,00`                                                    |
-| Destructive confirm       | `Seguro que querés borrar este gasto?`                    |
+| Context                   | Copy                                                             |
+| ------------------------- | ---------------------------------------------------------------- |
+| CTA primary "new expense" | `Registrar gasto`                                                |
+| Empty state home          | `Aún no se registraron gastos este mes.`                         |
+| Empty state list          | `No hay gastos registrados`                                      |
+| Debt settled confirmation | `Deuda saldada correctamente.`                                   |
+| Push notification         | `Juan registró un gasto de $ 4.200 en Pizza del viernes.`        |
+| Generic error             | `No se pudo establecer la conexión. Reintentando en 5 segundos.` |
+| Onboarding hook           | `Visualizá en qué se invirtió tu dinero este mes.`               |
+| Amount input placeholder  | `0,00`                                                           |
+| Destructive confirm       | `¿Confirmás que querés eliminar este gasto?`                     |
+| Resend rate-limited       | `Aguardá unos minutos antes de solicitar un nuevo código.`       |
 
 ### Iconography
 
@@ -434,6 +437,12 @@ CI enforces these on every push/PR via `.github/workflows/ci.yml`.
 - Expenses CRUD UI + list + filter + search — see
   `docs/features/expenses-crud.md`
 - Custom OTP email template for sign-up — `docs/auth/email-templates/`
+- User identity capture (first_name + last_name) at sign-up, persisted
+  via `auth.users.raw_user_meta_data` + synced into `profiles` by a
+  pair of triggers. Onboarding gate for legacy users. New Perfil stack
+  with edit + sign-out. Reusable `<Avatar />` primitive. See
+  `docs/decisions/2026-05-17-user-profile-fields.md` and
+  `docs/features/user-name-capture.md`.
 
 ### Still pending
 

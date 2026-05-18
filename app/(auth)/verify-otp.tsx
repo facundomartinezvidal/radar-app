@@ -24,7 +24,12 @@ import { colors, radii, spacing, typography } from '@/lib/theme';
 // Constants
 // ---------------------------------------------------------------------------
 
-const OTP_LENGTH = 6;
+// Supabase Auth project setting controls how many digits the OTP token is.
+// This Supabase project currently issues 8-digit tokens (Auth → Providers →
+// Email → "Email OTP Length"). If you flip that back to 6, also update this
+// constant and the test fixtures in `__tests__/verify-otp.test.tsx` and
+// `__tests__/sign-in.test.tsx`.
+const OTP_LENGTH = 8;
 const RESEND_COOLDOWN_SECONDS = 60;
 
 // ---------------------------------------------------------------------------
@@ -34,20 +39,20 @@ const RESEND_COOLDOWN_SECONDS = 60;
 function mapVerifyError(message: string): string {
   const lower = message.toLowerCase();
   if (lower.includes('expired') || lower.includes('invalid')) {
-    return 'Código inválido o expirado. Pedí uno nuevo.';
+    return 'El código es inválido o expiró. Solicitá uno nuevo.';
   }
   if (lower.includes('too many')) {
-    return 'Demasiados intentos. Esperá unos minutos y probá de nuevo.';
+    return 'Demasiados intentos. Aguardá unos minutos e intentá nuevamente.';
   }
-  return 'No pudimos verificar el código. Probá de nuevo.';
+  return 'No se pudo verificar el código. Intentá nuevamente.';
 }
 
 function mapResendError(message: string): string {
   const lower = message.toLowerCase();
   if (lower.includes('rate') || lower.includes('too many')) {
-    return 'Esperá un toque antes de pedir otro código.';
+    return 'Aguardá unos minutos antes de solicitar un nuevo código.';
   }
-  return 'No pudimos reenviar el código. Probá de nuevo.';
+  return 'No se pudo reenviar el código. Intentá nuevamente.';
 }
 
 // ---------------------------------------------------------------------------
@@ -76,7 +81,7 @@ function OtpInput({
         style={{
           flexDirection: 'row',
           justifyContent: 'space-between',
-          gap: spacing[2],
+          gap: spacing[1],
         }}
       >
         {cells.map((char, idx) => {
@@ -92,7 +97,7 @@ function OtpInput({
               style={{
                 flex: 1,
                 aspectRatio: 1,
-                maxWidth: 56,
+                maxWidth: 44,
                 backgroundColor: colors.bg[2],
                 borderRadius: radii.md,
                 borderWidth: isFocused || hasError ? 2 : 1,
@@ -102,7 +107,7 @@ function OtpInput({
               }}
             >
               <Text
-                variant="h2"
+                variant="h3"
                 color={colors.fg[1]}
                 style={{ fontFamily: typography.family.monoMedium }}
               >
@@ -162,11 +167,11 @@ export default function VerifyOtpScreen(): React.JSX.Element {
 
   async function handleVerify(): Promise<void> {
     if (code.length !== OTP_LENGTH) {
-      setError('Ingresá los 6 dígitos.');
+      setError(`Ingresá los ${OTP_LENGTH} dígitos del código.`);
       return;
     }
     if (!email) {
-      setError('Falta el email. Volvé a registrarte.');
+      setError('Falta el correo electrónico. Es necesario registrarse nuevamente.');
       return;
     }
     setError(null);
@@ -192,7 +197,7 @@ export default function VerifyOtpScreen(): React.JSX.Element {
   async function handleResend(): Promise<void> {
     if (cooldown > 0 || isResending) return;
     if (!email) {
-      setError('Falta el email. Volvé a registrarte.');
+      setError('Falta el correo electrónico. Es necesario registrarse nuevamente.');
       return;
     }
     setError(null);
@@ -207,7 +212,7 @@ export default function VerifyOtpScreen(): React.JSX.Element {
         setError(mapResendError(resendError.message));
         return;
       }
-      setInfo('Te mandamos un código nuevo.');
+      setInfo('Se envió un nuevo código.');
       setCooldown(RESEND_COOLDOWN_SECONDS);
     } finally {
       setIsResending(false);
@@ -235,10 +240,10 @@ export default function VerifyOtpScreen(): React.JSX.Element {
           {/* Header */}
           <View style={{ paddingTop: spacing[6], paddingBottom: spacing[5] }}>
             <LogoMark size={48} />
-            <H1 style={{ marginTop: spacing[4] }}>Confirmá tu cuenta</H1>
+            <H1 style={{ marginTop: spacing[4] }}>Confirmar tu cuenta</H1>
             <Body style={{ marginTop: spacing[2], color: colors.fg[2] }}>
-              Te mandamos un código de 6 dígitos a{'\n'}
-              <Text color={colors.fg[1]}>{email || 'tu email'}</Text>.
+              Te enviamos un código de {OTP_LENGTH} dígitos a{'\n'}
+              <Text color={colors.fg[1]}>{email || 'tu correo electrónico'}</Text>.
             </Body>
           </View>
 
@@ -284,7 +289,7 @@ export default function VerifyOtpScreen(): React.JSX.Element {
 
           {/* Resend */}
           <View style={{ marginTop: spacing[4], alignItems: 'center' }}>
-            <BodySm style={{ color: colors.fg[2] }}>¿No te llegó?</BodySm>
+            <BodySm style={{ color: colors.fg[2] }}>¿No recibiste el código?</BodySm>
             <Button
               variant="ghost"
               size="sm"
@@ -299,7 +304,7 @@ export default function VerifyOtpScreen(): React.JSX.Element {
           {/* Back to sign-up */}
           <View style={{ marginTop: spacing[3], alignItems: 'center', marginBottom: spacing[6] }}>
             <Button variant="ghost" size="sm" onPress={() => router.replace('/(auth)/sign-up')}>
-              Usar otro email
+              Utilizar otro correo electrónico
             </Button>
           </View>
         </ScrollView>

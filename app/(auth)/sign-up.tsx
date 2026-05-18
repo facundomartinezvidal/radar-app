@@ -4,6 +4,10 @@
  * Calls `supabase.auth.signUp` without `emailRedirectTo` so Supabase delivers
  * an OTP code via email instead of a confirmation link. On success the user
  * is routed to /verify-otp with their email as a param to complete the flow.
+ *
+ * Name capture: collects `firstName` and `lastName` and forwards them via
+ * `options.data` (`first_name` / `last_name`) so the DB trigger can populate
+ * `profiles.first_name` and `profiles.last_name` on account creation.
  */
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from 'expo-router';
@@ -15,6 +19,7 @@ import { z } from 'zod';
 
 import { Body, Button, H1, Input } from '@/components/ui';
 import { LogoMark } from '@/components/ui/logo';
+import { nameSchema } from '@/lib/schemas/profile';
 import { supabase } from '@/lib/supabase';
 import { colors, spacing } from '@/lib/theme';
 
@@ -24,9 +29,11 @@ import { colors, spacing } from '@/lib/theme';
 
 const schema = z
   .object({
-    email: z.string().email('Ingresá un email válido.'),
-    password: z.string().min(8, 'Mínimo 8 caracteres.'),
-    confirmPassword: z.string().min(8, 'Confirmá tu contraseña.'),
+    firstName: nameSchema,
+    lastName: nameSchema,
+    email: z.string().email('Ingresá un correo electrónico válido.'),
+    password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres.'),
+    confirmPassword: z.string().min(8, 'Confirmá la contraseña.'),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: 'Las contraseñas no coinciden.',
@@ -41,9 +48,9 @@ type FormData = z.infer<typeof schema>;
 
 function mapAuthError(message: string): string {
   if (message.toLowerCase().includes('user already registered')) {
-    return 'Ya hay una cuenta con ese email.';
+    return 'Ya existe una cuenta con ese correo electrónico.';
   }
-  return 'No pudimos crear la cuenta. Probá de nuevo.';
+  return 'No se pudo crear la cuenta. Intentá nuevamente.';
 }
 
 // ---------------------------------------------------------------------------
@@ -59,7 +66,7 @@ export default function SignUpScreen(): React.JSX.Element {
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { email: '', password: '', confirmPassword: '' },
+    defaultValues: { firstName: '', lastName: '', email: '', password: '', confirmPassword: '' },
   });
 
   const onSubmit = async (data: FormData): Promise<void> => {
@@ -70,6 +77,12 @@ export default function SignUpScreen(): React.JSX.Element {
     const { error } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
+      options: {
+        data: {
+          first_name: data.firstName,
+          last_name: data.lastName,
+        },
+      },
     });
     if (error) {
       setAuthError(mapAuthError(error.message));
@@ -94,9 +107,9 @@ export default function SignUpScreen(): React.JSX.Element {
           {/* Header */}
           <View style={{ paddingTop: spacing[6], paddingBottom: spacing[6] }}>
             <LogoMark size={48} />
-            <H1 style={{ marginTop: spacing[4] }}>Creá tu cuenta</H1>
+            <H1 style={{ marginTop: spacing[4] }}>Crear tu cuenta</H1>
             <Body style={{ marginTop: spacing[2], color: colors.fg[2] }}>
-              Empezá a controlar tu plata.
+              Comenzá a gestionar tus finanzas.
             </Body>
           </View>
 
@@ -104,11 +117,49 @@ export default function SignUpScreen(): React.JSX.Element {
           <View style={{ gap: spacing[4] }}>
             <Controller
               control={control}
+              name="firstName"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input
+                  label="Nombre"
+                  placeholder="Nombre"
+                  autoCapitalize="words"
+                  autoComplete="given-name"
+                  textContentType="givenName"
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                  editable={!isSubmitting}
+                  error={errors.firstName?.message}
+                />
+              )}
+            />
+
+            <Controller
+              control={control}
+              name="lastName"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input
+                  label="Apellido"
+                  placeholder="Apellido"
+                  autoCapitalize="words"
+                  autoComplete="family-name"
+                  textContentType="familyName"
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                  editable={!isSubmitting}
+                  error={errors.lastName?.message}
+                />
+              )}
+            />
+
+            <Controller
+              control={control}
               name="email"
               render={({ field: { onChange, onBlur, value } }) => (
                 <Input
-                  label="Email"
-                  placeholder="vos@ejemplo.com"
+                  label="Correo electrónico"
+                  placeholder="nombre@ejemplo.com"
                   autoCapitalize="none"
                   keyboardType="email-address"
                   autoComplete="email"
@@ -185,9 +236,9 @@ export default function SignUpScreen(): React.JSX.Element {
                 marginBottom: spacing[6],
               }}
             >
-              <Body>¿Ya tenés cuenta?</Body>
+              <Body>¿Ya tenés una cuenta?</Body>
               <Button variant="ghost" size="sm" onPress={() => router.push('/(auth)/sign-in')}>
-                Iniciá sesión
+                Iniciar sesión
               </Button>
             </View>
           </View>

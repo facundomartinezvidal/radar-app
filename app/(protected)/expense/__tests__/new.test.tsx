@@ -126,7 +126,7 @@ describe('NewExpenseScreen', () => {
   it('shows error message when create fails', async () => {
     mockedRepo.createExpense.mockResolvedValueOnce({
       data: null,
-      error: new Error('No pudimos guardar el gasto.'),
+      error: new Error('No se pudo guardar el gasto.'),
     });
 
     renderWithProviders();
@@ -139,7 +139,7 @@ describe('NewExpenseScreen', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('No pudimos guardar el gasto.')).toBeTruthy();
+      expect(screen.getByText('No se pudo guardar el gasto.')).toBeTruthy();
     });
   });
 });

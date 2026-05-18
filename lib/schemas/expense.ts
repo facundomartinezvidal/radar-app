@@ -18,7 +18,7 @@ export const createExpenseSchema = z.object({
     .number({ message: 'Ingresá un monto válido.' })
     .positive('El monto tiene que ser mayor a cero.')
     .max(1_000_000_000, 'Monto demasiado grande.'),
-  currency: z.enum(CURRENCIES, { message: 'Elegí ARS o USD.' }),
+  currency: z.enum(CURRENCIES, { message: 'Seleccioná ARS o USD.' }),
   category_id: z.string().min(1, 'Categoría inválida.').nullable(),
   description: z
     .string()

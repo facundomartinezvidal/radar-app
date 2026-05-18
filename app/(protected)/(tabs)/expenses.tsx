@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ExpenseRow } from '@/components/expenses/expense-row';
 import { FilterBar, type ExpenseFilters } from '@/components/expenses/filter-bar';
-import { Body, Button, H1, H3, Icon, Text } from '@/components/ui';
+import { Body, Button, H1, H3, Icon, Loader, Text } from '@/components/ui';
 import { formatMoney } from '@/lib/format/money';
 import { useCategories, useExpenseTotals, useExpenses } from '@/hooks/use-expenses';
 import type { ExpenseWithCategory } from '@/lib/repositories/expenses';
@@ -188,12 +188,16 @@ export default function ExpensesTab(): React.JSX.Element {
           );
         }}
         ListEmptyComponent={
-          isEmpty ? (
+          expensesQuery.isLoading ? (
+            <View style={{ alignItems: 'center', paddingVertical: spacing[8] }}>
+              <Loader size={32} color={colors.fg[2]} strokeWidth={2} label="Cargando gastos" />
+            </View>
+          ) : isEmpty ? (
             <View style={{ alignItems: 'center', paddingVertical: spacing[8], gap: spacing[3] }}>
               <Icon name="Inbox" size={48} color={colors.fg[4]} />
-              <H3 style={{ textAlign: 'center' }}>Sin gastos por acá</H3>
+              <H3 style={{ textAlign: 'center' }}>No hay gastos registrados</H3>
               <Body color={colors.fg[3]} style={{ textAlign: 'center' }}>
-                Registrá tu primer gasto y empezá a mover el radar.
+                Registrá tu primer gasto para comenzar.
               </Body>
               <Button
                 variant="primary"

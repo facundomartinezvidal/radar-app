@@ -10,7 +10,7 @@ import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ExpenseForm } from '@/components/expenses/expense-form';
-import { Body, Button, H1, Icon } from '@/components/ui';
+import { Body, Button, H1, Icon, Loader } from '@/components/ui';
 import {
   useCategories,
   useDeleteExpense,
@@ -31,10 +31,10 @@ export default function ExpenseDetailScreen(): React.JSX.Element {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   function confirmDelete(): void {
-    Alert.alert('Borrar gasto', '¿Seguro que querés borrar este gasto?', [
+    Alert.alert('Eliminar gasto', '¿Confirmás que querés eliminar este gasto?', [
       { text: 'Cancelar', style: 'cancel' },
       {
-        text: 'Borrar',
+        text: 'Eliminar',
         style: 'destructive',
         onPress: async () => {
           try {
@@ -42,7 +42,7 @@ export default function ExpenseDetailScreen(): React.JSX.Element {
             router.back();
           } catch (e) {
             setSubmitError(
-              e instanceof Error ? e.message : 'No pudimos borrar el gasto. Probá de nuevo.',
+              e instanceof Error ? e.message : 'No se pudo eliminar el gasto. Intentá nuevamente.',
             );
           }
         },
@@ -88,7 +88,7 @@ export default function ExpenseDetailScreen(): React.JSX.Element {
             {expense ? (
               <Pressable
                 onPress={confirmDelete}
-                accessibilityLabel="Borrar gasto"
+                accessibilityLabel="Eliminar gasto"
                 hitSlop={12}
                 style={{ padding: spacing[1] }}
               >
@@ -98,9 +98,9 @@ export default function ExpenseDetailScreen(): React.JSX.Element {
           </View>
 
           {isLoading ? (
-            <Body color={colors.fg[3]}>Cargando…</Body>
+            <Loader color={colors.fg[3]} label="Cargando" />
           ) : !expense ? (
-            <Body color={colors.fg[3]}>No encontramos este gasto.</Body>
+            <Body color={colors.fg[3]}>No se encontró el gasto solicitado.</Body>
           ) : (
             <ExpenseForm
               categories={categoriesQuery.data ?? []}
@@ -117,7 +117,7 @@ export default function ExpenseDetailScreen(): React.JSX.Element {
                   setSubmitError(
                     e instanceof Error
                       ? e.message
-                      : 'No pudimos actualizar el gasto. Probá de nuevo.',
+                      : 'No se pudo actualizar el gasto. Intentá nuevamente.',
                   );
                 }
               }}
@@ -132,10 +132,10 @@ export default function ExpenseDetailScreen(): React.JSX.Element {
                 fullWidth
                 loading={deleteMutation.isPending}
                 onPress={confirmDelete}
-                accessibilityLabel="Borrar gasto"
+                accessibilityLabel="Eliminar gasto"
                 leftIcon={<Icon name="Trash2" size={18} color={colors.fg.onBrand} />}
               >
-                Borrar gasto
+                Eliminar gasto
               </Button>
             </View>
           ) : null}

@@ -7,7 +7,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ExpenseForm } from '@/components/expenses/expense-form';
-import { Body, H1, Icon } from '@/components/ui';
+import { Body, H1, Icon, Loader } from '@/components/ui';
 import { useCategories, useCreateExpense } from '@/hooks/use-expenses';
 import { colors, spacing } from '@/lib/theme';
 
@@ -50,9 +50,11 @@ export default function NewExpenseScreen(): React.JSX.Element {
 
           {/* Form / loading */}
           {categoriesQuery.isLoading ? (
-            <Body color={colors.fg[3]}>Cargando categorías…</Body>
+            <Loader color={colors.fg[3]} label="Cargando categorías" />
           ) : categoriesQuery.error ? (
-            <Body color={colors.money.out}>No pudimos cargar las categorías. Probá de nuevo.</Body>
+            <Body color={colors.money.out}>
+              No se pudieron cargar las categorías. Intentá nuevamente.
+            </Body>
           ) : (
             <ExpenseForm
               categories={categoriesQuery.data ?? []}
@@ -65,7 +67,9 @@ export default function NewExpenseScreen(): React.JSX.Element {
                   router.back();
                 } catch (e) {
                   setSubmitError(
-                    e instanceof Error ? e.message : 'No pudimos guardar el gasto. Probá de nuevo.',
+                    e instanceof Error
+                      ? e.message
+                      : 'No se pudo guardar el gasto. Intentá nuevamente.',
                   );
                 }
               }}

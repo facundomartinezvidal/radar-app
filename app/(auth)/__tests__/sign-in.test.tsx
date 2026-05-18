@@ -3,11 +3,11 @@
  *
  * Verifies:
  * - Renders without crashing
- * - Spanish copy: "Iniciá sesión", field labels, submit button
+ * - Spanish copy: "Iniciar sesión", field labels, submit button
  * - Validation errors shown in Spanish when submit pressed with empty fields
  * - Submit button shows loading state (ActivityIndicator) when isSubmitting
  * - Auth errors are mapped to friendly Spanish messages
- * - "Sumate" link navigates to sign-up
+ * - "Crear cuenta" link navigates to sign-up
  */
 import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react-native';
@@ -51,19 +51,19 @@ describe('Sign-in screen', () => {
       expect(() => render(<SignInScreen />)).not.toThrow();
     });
 
-    it('shows "Iniciá sesión" heading', () => {
+    it('shows "Iniciar sesión" heading', () => {
       render(<SignInScreen />);
-      expect(screen.getByText('Iniciá sesión')).toBeTruthy();
+      expect(screen.getByText('Acceder a tu cuenta')).toBeTruthy();
     });
 
     it('shows welcome copy', () => {
       render(<SignInScreen />);
-      expect(screen.getByText('Bienvenido de vuelta a RADAR.')).toBeTruthy();
+      expect(screen.getByText('Bienvenido nuevamente a RADAR.')).toBeTruthy();
     });
 
-    it('shows Email label', () => {
+    it('shows correo electrónico label', () => {
       render(<SignInScreen />);
-      expect(screen.getByText('Email')).toBeTruthy();
+      expect(screen.getByText('Correo electrónico')).toBeTruthy();
     });
 
     it('shows Contraseña label', () => {
@@ -73,7 +73,7 @@ describe('Sign-in screen', () => {
 
     it('shows submit button with correct label', () => {
       render(<SignInScreen />);
-      expect(screen.getByText('Iniciar sesión')).toBeTruthy();
+      expect(screen.getByText('Acceder a tu cuenta')).toBeTruthy();
     });
 
     it('shows forgot-password affordance', () => {
@@ -83,8 +83,8 @@ describe('Sign-in screen', () => {
 
     it('shows sign-up link copy', () => {
       render(<SignInScreen />);
-      expect(screen.getByText('¿No tenés cuenta?')).toBeTruthy();
-      expect(screen.getByText('Sumate')).toBeTruthy();
+      expect(screen.getByText('¿No tenés una cuenta?')).toBeTruthy();
+      expect(screen.getByText('Crear cuenta')).toBeTruthy();
     });
   });
 
@@ -96,7 +96,7 @@ describe('Sign-in screen', () => {
         fireEvent.press(submitBtn);
       });
       await waitFor(() => {
-        expect(screen.getByText('Ingresá un email válido.')).toBeTruthy();
+        expect(screen.getByText('Ingresá un correo electrónico válido.')).toBeTruthy();
       });
     });
 
@@ -104,7 +104,7 @@ describe('Sign-in screen', () => {
       render(<SignInScreen />);
 
       // Fill email to pass email validation
-      fireEvent.changeText(screen.getByPlaceholderText('vos@ejemplo.com'), 'test@test.com');
+      fireEvent.changeText(screen.getByPlaceholderText('nombre@ejemplo.com'), 'test@test.com');
 
       const submitBtn = screen.getByLabelText('Iniciar sesión');
       await act(async () => {
@@ -125,7 +125,7 @@ describe('Sign-in screen', () => {
 
       render(<SignInScreen />);
 
-      fireEvent.changeText(screen.getByPlaceholderText('vos@ejemplo.com'), 'user@test.com');
+      fireEvent.changeText(screen.getByPlaceholderText('nombre@ejemplo.com'), 'user@test.com');
 
       // Fill password field — find by accessibility or placeholder
       const passwordInputs = screen.getAllByDisplayValue('');
@@ -138,7 +138,9 @@ describe('Sign-in screen', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Email o contraseña incorrectos.')).toBeTruthy();
+        expect(
+          screen.getByText('El correo electrónico o la contraseña son incorrectos.'),
+        ).toBeTruthy();
       });
     });
 
@@ -150,7 +152,7 @@ describe('Sign-in screen', () => {
 
       render(<SignInScreen />);
 
-      fireEvent.changeText(screen.getByPlaceholderText('vos@ejemplo.com'), 'user@test.com');
+      fireEvent.changeText(screen.getByPlaceholderText('nombre@ejemplo.com'), 'user@test.com');
       const passwordInputs = screen.getAllByDisplayValue('');
       fireEvent.changeText(passwordInputs[1] ?? passwordInputs[0], 'password123');
 
@@ -160,15 +162,146 @@ describe('Sign-in screen', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText('No pudimos iniciar sesión. Probá de nuevo.')).toBeTruthy();
+        expect(screen.getByText('No se pudo iniciar sesión. Intentá nuevamente.')).toBeTruthy();
+      });
+    });
+  });
+
+  describe('email not confirmed — resend flow', () => {
+    const EMAIL = 'unverified@test.com';
+    const PASSWORD = 'password123';
+
+    async function triggerUnconfirmedError(): Promise<void> {
+      (supabase.auth.signInWithPassword as jest.Mock).mockResolvedValueOnce({
+        data: null,
+        error: { message: 'Email not confirmed' },
+      });
+
+      render(<SignInScreen />);
+
+      fireEvent.changeText(screen.getByPlaceholderText('nombre@ejemplo.com'), EMAIL);
+      const passwordInputs = screen.getAllByDisplayValue('');
+      fireEvent.changeText(passwordInputs[1] ?? passwordInputs[0], PASSWORD);
+
+      const submitBtn = screen.getByLabelText('Iniciar sesión');
+      await act(async () => {
+        fireEvent.press(submitBtn);
+      });
+    }
+
+    it('shows "El correo electrónico aún no fue confirmado." copy', async () => {
+      await triggerUnconfirmedError();
+      await waitFor(() => {
+        expect(screen.getByText('El correo electrónico aún no fue confirmado.')).toBeTruthy();
+      });
+    });
+
+    it('renders "Reenviar código y verificar" button when email is unconfirmed', async () => {
+      await triggerUnconfirmedError();
+      await waitFor(() => {
+        expect(screen.getByText('Reenviar código y verificar')).toBeTruthy();
+      });
+    });
+
+    it('calls supabase.auth.resend with correct args when button is pressed', async () => {
+      (supabase.auth.resend as jest.Mock).mockResolvedValueOnce({ data: null, error: null });
+
+      await triggerUnconfirmedError();
+
+      await waitFor(() => {
+        expect(screen.getByText('Reenviar código y verificar')).toBeTruthy();
+      });
+
+      const resendBtn = screen.getByLabelText('Reenviar código de verificación');
+      await act(async () => {
+        fireEvent.press(resendBtn);
+      });
+
+      await waitFor(() => {
+        expect(supabase.auth.resend).toHaveBeenCalledWith({
+          type: 'signup',
+          email: EMAIL,
+        });
+      });
+    });
+
+    it('navigates to verify-otp with email param on successful resend', async () => {
+      (supabase.auth.resend as jest.Mock).mockResolvedValueOnce({ data: null, error: null });
+
+      await triggerUnconfirmedError();
+
+      await waitFor(() => {
+        expect(screen.getByText('Reenviar código y verificar')).toBeTruthy();
+      });
+
+      const resendBtn = screen.getByLabelText('Reenviar código de verificación');
+      await act(async () => {
+        fireEvent.press(resendBtn);
+      });
+
+      await waitFor(() => {
+        expect(router.push).toHaveBeenCalledWith({
+          pathname: '/(auth)/verify-otp',
+          params: { email: EMAIL },
+        });
+      });
+    });
+
+    it('shows resend error copy and does NOT navigate when resend fails', async () => {
+      (supabase.auth.resend as jest.Mock).mockResolvedValueOnce({
+        data: null,
+        error: { message: 'Some resend failure' },
+      });
+
+      await triggerUnconfirmedError();
+
+      await waitFor(() => {
+        expect(screen.getByText('Reenviar código y verificar')).toBeTruthy();
+      });
+
+      const resendBtn = screen.getByLabelText('Reenviar código de verificación');
+      await act(async () => {
+        fireEvent.press(resendBtn);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('No se pudo reenviar el código. Intentá nuevamente.')).toBeTruthy();
+      });
+      expect(router.push).not.toHaveBeenCalledWith(
+        expect.objectContaining({ pathname: '/(auth)/verify-otp' }),
+      );
+    });
+
+    it('"Reenviar código y verificar" button is gone after a successful new sign-in submit', async () => {
+      // First trigger the unconfirmed state (form is filled with EMAIL + PASSWORD)
+      await triggerUnconfirmedError();
+
+      await waitFor(() => {
+        expect(screen.getByText('Reenviar código y verificar')).toBeTruthy();
+      });
+
+      // Mock a successful sign-in on the next submit
+      (supabase.auth.signInWithPassword as jest.Mock).mockResolvedValueOnce({
+        data: { user: { id: '123' } },
+        error: null,
+      });
+
+      // The form fields are already filled from triggerUnconfirmedError; just submit again
+      const submitBtn = screen.getByLabelText('Iniciar sesión');
+      await act(async () => {
+        fireEvent.press(submitBtn);
+      });
+
+      await waitFor(() => {
+        expect(screen.queryByText('Reenviar código y verificar')).toBeNull();
       });
     });
   });
 
   describe('navigation', () => {
-    it('navigates to sign-up when "Sumate" is pressed', async () => {
+    it('navigates to sign-up when "Crear cuenta" is pressed', async () => {
       render(<SignInScreen />);
-      fireEvent.press(screen.getByText('Sumate'));
+      fireEvent.press(screen.getByText('Crear cuenta'));
       expect(router.push).toHaveBeenCalledWith('/(auth)/sign-up');
     });
   });

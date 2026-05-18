@@ -55,13 +55,22 @@ directly — paste manually:
 The templates use these Go-template placeholders (Supabase resolves them
 server-side before sending):
 
-| Variable                 | Meaning                        |
-| ------------------------ | ------------------------------ |
-| `{{ .ConfirmationURL }}` | Single-use action link         |
-| `{{ .Email }}`           | The recipient's email          |
-| `{{ .SiteURL }}`         | Site URL configured in Auth    |
-| `{{ .Token }}`           | OTP token (alternative to URL) |
-| `{{ .TokenHash }}`       | Hashed OTP token               |
+| Variable                 | Meaning                                                                                  |
+| ------------------------ | ---------------------------------------------------------------------------------------- |
+| `{{ .ConfirmationURL }}` | Single-use action link                                                                   |
+| `{{ .Email }}`           | The recipient's email                                                                    |
+| `{{ .SiteURL }}`         | Site URL configured in Auth                                                              |
+| `{{ .Token }}`           | OTP token (alternative to URL)                                                           |
+| `{{ .TokenHash }}`       | Hashed OTP token                                                                         |
+| `{{ .Data.<key> }}`      | Any key from `auth.users.raw_user_meta_data` (set via `signUp({ options: { data } })`) — |
+|                          | e.g. `{{ .Data.first_name }}` resolves to the name the user typed at sign-up.            |
+
+Go-template control flow is supported, so templates can guard for legacy
+accounts that never set the key:
+
+```html
+{{ if .Data.first_name }}Hola {{ .Data.first_name }},{{ else }}Hola,{{ end }}
+```
 
 Reference: https://supabase.com/docs/guides/auth/auth-email-templates
 
@@ -93,3 +102,8 @@ Reference: https://supabase.com/docs/guides/auth/auth-email-templates
 ## Audit trail
 
 - 2026-05-16 — initial `confirm-signup.html`.
+- 2026-05-17 — `confirm-signup.html` personalised: greeting now reads
+  `Hola {{ .Data.first_name }},` when the sign-up form supplied a name.
+  Falls back to `Hola,` for legacy accounts (no metadata) and for any
+  future flow where the key isn't populated. Paste the updated file into
+  Supabase Dashboard → Authentication → Email Templates → Confirm signup.
