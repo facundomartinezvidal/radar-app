@@ -76,13 +76,13 @@ describe('VerifyOtpScreen', () => {
 
     const input = screen.getByLabelText('Código de verificación');
     await act(async () => {
-      fireEvent.changeText(input, '123456');
+      fireEvent.changeText(input, '12345678');
     });
 
     await waitFor(() => {
       expect(supabase.auth.verifyOtp).toHaveBeenCalledWith({
         email: 'user@test.com',
-        token: '123456',
+        token: '12345678',
         type: 'signup',
       });
     });
@@ -97,7 +97,7 @@ describe('VerifyOtpScreen', () => {
     render(<VerifyOtpScreen />);
     const input = screen.getByLabelText('Código de verificación');
     await act(async () => {
-      fireEvent.changeText(input, '000000');
+      fireEvent.changeText(input, '00000000');
     });
 
     await waitFor(() => {
@@ -109,13 +109,13 @@ describe('VerifyOtpScreen', () => {
     render(<VerifyOtpScreen />);
     const input = screen.getByLabelText('Código de verificación');
     await act(async () => {
-      fireEvent.changeText(input, 'abc12d34xy56');
+      fireEvent.changeText(input, 'abc12d34xy56qq78');
     });
-    // verifyOtp should still receive a 6-digit numeric token
+    // verifyOtp should still receive an OTP_LENGTH-digit numeric token
     await waitFor(() => {
       expect(supabase.auth.verifyOtp).toHaveBeenCalledWith({
         email: 'user@test.com',
-        token: '123456',
+        token: '12345678',
         type: 'signup',
       });
     });

@@ -24,7 +24,12 @@ import { colors, radii, spacing, typography } from '@/lib/theme';
 // Constants
 // ---------------------------------------------------------------------------
 
-const OTP_LENGTH = 6;
+// Supabase Auth project setting controls how many digits the OTP token is.
+// This Supabase project currently issues 8-digit tokens (Auth → Providers →
+// Email → "Email OTP Length"). If you flip that back to 6, also update this
+// constant and the test fixtures in `__tests__/verify-otp.test.tsx` and
+// `__tests__/sign-in.test.tsx`.
+const OTP_LENGTH = 8;
 const RESEND_COOLDOWN_SECONDS = 60;
 
 // ---------------------------------------------------------------------------
@@ -76,7 +81,7 @@ function OtpInput({
         style={{
           flexDirection: 'row',
           justifyContent: 'space-between',
-          gap: spacing[2],
+          gap: spacing[1],
         }}
       >
         {cells.map((char, idx) => {
@@ -92,7 +97,7 @@ function OtpInput({
               style={{
                 flex: 1,
                 aspectRatio: 1,
-                maxWidth: 56,
+                maxWidth: 44,
                 backgroundColor: colors.bg[2],
                 borderRadius: radii.md,
                 borderWidth: isFocused || hasError ? 2 : 1,
@@ -102,7 +107,7 @@ function OtpInput({
               }}
             >
               <Text
-                variant="h2"
+                variant="h3"
                 color={colors.fg[1]}
                 style={{ fontFamily: typography.family.monoMedium }}
               >
@@ -162,7 +167,7 @@ export default function VerifyOtpScreen(): React.JSX.Element {
 
   async function handleVerify(): Promise<void> {
     if (code.length !== OTP_LENGTH) {
-      setError('Ingresá los 6 dígitos.');
+      setError(`Ingresá los ${OTP_LENGTH} dígitos.`);
       return;
     }
     if (!email) {
@@ -237,7 +242,7 @@ export default function VerifyOtpScreen(): React.JSX.Element {
             <LogoMark size={48} />
             <H1 style={{ marginTop: spacing[4] }}>Confirmá tu cuenta</H1>
             <Body style={{ marginTop: spacing[2], color: colors.fg[2] }}>
-              Te mandamos un código de 6 dígitos a{'\n'}
+              Te mandamos un código de {OTP_LENGTH} dígitos a{'\n'}
               <Text color={colors.fg[1]}>{email || 'tu email'}</Text>.
             </Body>
           </View>
