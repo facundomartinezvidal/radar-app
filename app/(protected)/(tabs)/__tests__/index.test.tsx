@@ -116,6 +116,12 @@ describe('HomeScreen', () => {
     expect(screen.queryByText('Cerrar sesión')).toBeNull();
   });
 
+  it('pressing "Escanear" navigates to the camera tab', () => {
+    renderWithClient();
+    fireEvent.press(screen.getByLabelText('Escanear comprobante'));
+    expect(router.push).toHaveBeenCalledWith('/(protected)/(tabs)/camera');
+  });
+
   it('avatar Pressable navigates to profile', () => {
     useSession.mockReturnValue({
       user: {

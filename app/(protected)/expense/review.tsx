@@ -12,6 +12,8 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ExpenseForm } from '@/components/expenses/expense-form';
+import { ScanOverlay } from '@/components/expenses/scan-overlay';
+import { ScanStatus } from '@/components/expenses/scan-status';
 import { Body, BodySm, Button, H1, Icon, Loader } from '@/components/ui';
 import { useExtractReceipt } from '@/hooks/use-extract-receipt';
 import { useCategories, useCreateExpense } from '@/hooks/use-expenses';
@@ -214,8 +216,8 @@ export default function ReviewScreen(): React.JSX.Element {
             <H1>Revisar gasto</H1>
           </View>
 
-          {/* Receipt thumbnail */}
-          {imageUri ? (
+          {/* Receipt thumbnail — hidden while loading (ScanOverlay shows the image during OCR) */}
+          {imageUri && !isLoading ? (
             <View style={{ marginBottom: spacing[5] }}>
               <Image
                 source={{ uri: imageUri }}
@@ -232,7 +234,21 @@ export default function ReviewScreen(): React.JSX.Element {
           ) : null}
 
           {/* Loading state */}
-          {isLoading && (
+          {isLoading && imageUri ? (
+            <View
+              style={{
+                marginBottom: spacing[5],
+                gap: spacing[4],
+                alignItems: 'center',
+              }}
+            >
+              <ScanOverlay imageUri={imageUri} />
+              <ScanStatus />
+            </View>
+          ) : null}
+
+          {/* Loading state — defensive fallback when no imageUri */}
+          {isLoading && !imageUri && (
             <View
               style={{
                 flex: 1,
