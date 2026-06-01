@@ -17,10 +17,29 @@ import { CategoryPicker } from './category-picker';
 import { CurrencyToggle } from './currency-toggle';
 import { DateField } from './date-field';
 
+/** Partial prefill from OCR — used by the review screen when no DB row exists yet. */
+export interface ExpenseFormPrefill {
+  amount?: number;
+  currency?: Currency;
+  category_id?: string | null;
+  description?: string | null;
+  occurred_at?: string;
+}
+
 export interface ExpenseFormProps {
   categories: CategoryRow[];
-  /** Optional initial values (edit mode). */
+  /** Optional initial values (edit mode — DB row). Takes precedence over prefill. */
   initial?: ExpenseWithCategory | null;
+  /**
+   * Optional OCR-detected prefill (review mode — no DB row yet).
+   * Only used when `initial` is absent/null.
+   */
+  prefill?: ExpenseFormPrefill;
+  /**
+   * When true, renders a low-confidence notice above the form asking the user
+   * to verify the detected data. Does NOT block submit.
+   */
+  lowConfidence?: boolean;
   onSubmit: (input: CreateExpenseInput) => Promise<void> | void;
   submitLabel?: string;
   isSubmitting?: boolean;
@@ -39,11 +58,26 @@ interface InternalFields {
 export function ExpenseForm({
   categories,
   initial,
+  prefill,
+  lowConfidence = false,
   onSubmit,
   submitLabel = 'Registrar gasto',
   isSubmitting = false,
   submitError = null,
 }: ExpenseFormProps): React.JSX.Element {
+  // Resolve default values: initial (edit mode) > prefill (OCR review) > blank
+  const resolvedAmount = initial ? Number(initial.amount) : (prefill?.amount ?? 0);
+  const resolvedAmountText = initial
+    ? String(initial.amount).replace('.', ',')
+    : prefill?.amount != null
+      ? String(prefill.amount).replace('.', ',')
+      : '';
+  const resolvedCurrency = (initial?.currency ?? prefill?.currency ?? 'ARS') as Currency;
+  const resolvedCategoryId = initial?.category_id ?? prefill?.category_id ?? null;
+  const resolvedDescription = initial?.description ?? prefill?.description ?? '';
+  const resolvedOccurredAt =
+    initial?.occurred_at ?? prefill?.occurred_at ?? new Date().toISOString();
+
   const {
     control,
     handleSubmit,
@@ -56,12 +90,12 @@ export function ExpenseForm({
     resolver: zodResolver(createExpenseSchema) as never,
     mode: 'onChange',
     defaultValues: {
-      amount: initial ? Number(initial.amount) : 0,
-      amountText: initial ? String(initial.amount).replace('.', ',') : '',
-      currency: (initial?.currency as Currency | undefined) ?? 'ARS',
-      category_id: initial?.category_id ?? null,
-      description: initial?.description ?? '',
-      occurred_at: initial?.occurred_at ?? new Date().toISOString(),
+      amount: resolvedAmount,
+      amountText: resolvedAmountText,
+      currency: resolvedCurrency,
+      category_id: resolvedCategoryId,
+      description: resolvedDescription,
+      occurred_at: resolvedOccurredAt,
     },
   });
 
@@ -80,6 +114,11 @@ export function ExpenseForm({
 
   return (
     <View style={{ gap: spacing[5] }}>
+      {/* Low-confidence OCR notice */}
+      {lowConfidence && (
+        <BodySm color={colors.amber[500]}>Revisá los datos detectados antes de guardar.</BodySm>
+      )}
+
       {/* Amount */}
       <View style={{ gap: spacing[2] }}>
         <BodySm color={colors.fg[3]}>Monto</BodySm>

@@ -9,6 +9,7 @@
  */
 
 import { OcrError, extractReceipt, mapOcrToPrefill, matchCategory, normalizeName } from '@/lib/ocr';
+import { createExpenseSchema } from '@/lib/schemas/expense';
 import type { OcrResult } from '@/lib/schemas/ocr';
 import { supabase } from '@/lib/supabase';
 
@@ -171,8 +172,18 @@ describe('mapOcrToPrefill', () => {
     expect(prefill.currency).toBe('ARS');
     expect(prefill.description).toBe('Burguer Palace');
     expect(prefill.category_id).toBe('1');
-    expect(prefill.occurred_at).toBe(PAST_DATE);
+    // The impl converts the bare date to a full ISO datetime string so it
+    // satisfies createExpenseSchema's z.string().datetime({ offset: true }).
+    expect(prefill.occurred_at).toBe(new Date(PAST_DATE).toISOString());
     expect(prefill.lowConfidence).toBe(false);
+  });
+
+  it('occurred_at passes createExpenseSchema validation', () => {
+    const prefill = mapOcrToPrefill(makeResult(), CATEGORIES);
+    const result = createExpenseSchema.pick({ occurred_at: true }).safeParse({
+      occurred_at: prefill.occurred_at,
+    });
+    expect(result.success).toBe(true);
   });
 
   it('omits amount when amount is null', () => {
