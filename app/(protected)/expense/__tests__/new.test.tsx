@@ -12,26 +12,13 @@ import NewExpenseScreen from '../new';
 
 jest.mock('@/lib/repositories/expenses');
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
-jest.mock('react-native-svg', () => {
-  const React = require('react');
-  const make = (name: string) => {
-    const C = (props: object) => React.createElement(name, props);
-    C.displayName = name;
-    return C;
-  };
-  return {
-    __esModule: true,
-    default: make('Svg'),
-    Svg: make('Svg'),
-    Circle: make('Circle'),
-    Path: make('Path'),
-    Line: make('Line'),
-    Defs: make('Defs'),
-    Stop: make('Stop'),
-    LinearGradient: make('LinearGradient'),
-    G: make('G'),
-    Text: make('SvgText'),
-  };
+// react-native-svg is mocked globally in jest.setup.ts (includes Rect and all Lucide elements)
+jest.mock('@react-native-community/datetimepicker', () => {
+  const ReactLib = require('react');
+  const { View } = require('react-native');
+  const Mock = () => ReactLib.createElement(View, { testID: 'mock-datetimepicker' });
+  Mock.displayName = 'MockDateTimePicker';
+  return { __esModule: true, default: Mock };
 });
 
 const mockedRepo = repo as jest.Mocked<typeof repo>;

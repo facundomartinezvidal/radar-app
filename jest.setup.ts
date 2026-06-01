@@ -23,6 +23,35 @@ console.warn = (...args: unknown[]) => {
   originalWarn(...args);
 };
 
+// Mock react-native-svg — provides all elements used by lucide-react-native icons.
+// Covers: circle, ellipse, line, path, polygon, polyline, rect (full set as of v1.x).
+jest.mock('react-native-svg', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  function makeSvgMock(name: string) {
+    const C = (props: object) => React.createElement(View, { testID: `svg-${name}`, ...props });
+    C.displayName = name;
+    return C;
+  }
+  return {
+    __esModule: true,
+    default: makeSvgMock('Svg'),
+    Svg: makeSvgMock('Svg'),
+    Circle: makeSvgMock('Circle'),
+    Ellipse: makeSvgMock('Ellipse'),
+    Line: makeSvgMock('Line'),
+    Path: makeSvgMock('Path'),
+    Polygon: makeSvgMock('Polygon'),
+    Polyline: makeSvgMock('Polyline'),
+    Rect: makeSvgMock('Rect'),
+    Defs: makeSvgMock('Defs'),
+    Stop: makeSvgMock('Stop'),
+    LinearGradient: makeSvgMock('LinearGradient'),
+    G: makeSvgMock('G'),
+    Text: makeSvgMock('SvgText'),
+  };
+});
+
 // Mock expo-secure-store (jest-expo handles most modules but not this one fully)
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn().mockResolvedValue(null),

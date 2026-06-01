@@ -15,6 +15,7 @@ import { colors, spacing } from '@/lib/theme';
 import { AmountInput } from './amount-input';
 import { CategoryPicker } from './category-picker';
 import { CurrencyToggle } from './currency-toggle';
+import { DateField } from './date-field';
 
 export interface ExpenseFormProps {
   categories: CategoryRow[];
@@ -32,6 +33,7 @@ interface InternalFields {
   currency: Currency;
   category_id: string | null;
   description: string | null;
+  occurred_at: string;
 }
 
 export function ExpenseForm({
@@ -59,6 +61,7 @@ export function ExpenseForm({
       currency: (initial?.currency as Currency | undefined) ?? 'ARS',
       category_id: initial?.category_id ?? null,
       description: initial?.description ?? '',
+      occurred_at: initial?.occurred_at ?? new Date().toISOString(),
     },
   });
 
@@ -71,6 +74,7 @@ export function ExpenseForm({
       currency: data.currency,
       category_id: data.category_id,
       description: data.description ?? null,
+      occurred_at: data.occurred_at,
     });
   });
 
@@ -107,6 +111,15 @@ export function ExpenseForm({
           )}
         />
       </View>
+
+      {/* Date */}
+      <Controller
+        control={control}
+        name="occurred_at"
+        render={({ field: { onChange, value } }) => (
+          <DateField label="Fecha" value={value} onChange={onChange} disabled={isSubmitting} />
+        )}
+      />
 
       {/* Category */}
       <View style={{ gap: spacing[2] }}>
