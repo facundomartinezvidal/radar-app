@@ -19,6 +19,7 @@ import type { OcrResult } from '@/lib/schemas/ocr';
 import type { CategoryRow } from '@/lib/repositories/expenses';
 import { OcrError } from '@/lib/ocr';
 import * as repo from '@/lib/repositories/expenses';
+import * as imageLib from '@/lib/image';
 
 // ---------------------------------------------------------------------------
 // Mocks (hoisted by Jest before imports)
@@ -380,5 +381,34 @@ describe('ReviewScreen', () => {
     await waitFor(() => {
       expect(screen.getByText('No se pudo guardar el gasto.')).toBeTruthy();
     });
+  });
+
+  // -------------------------------------------------------------------------
+  // Fix 2: compression failure → manual notice + Reintentar + form (not blank)
+  // -------------------------------------------------------------------------
+
+  it('shows manual notice + Reintentar + form when compressForOcr rejects', async () => {
+    // Make compression fail for this test.
+    (imageLib.compressForOcr as jest.Mock).mockRejectedValueOnce(new Error('compression failed'));
+
+    // OCR mutation stays idle (never mutated because compression failed).
+    mockExtract.isPending = false;
+    mockExtract.data = undefined;
+    mockExtract.error = null;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      // The manual notice must be visible.
+      expect(
+        screen.getByText('No se pudo analizar el ticket. Ingresá los datos manualmente.'),
+      ).toBeTruthy();
+    });
+
+    // Reintentar button must be visible (retryable path).
+    expect(screen.getByText('Reintentar')).toBeTruthy();
+
+    // The expense form must be present (not a blank screen).
+    expect(screen.getByText('Registrar gasto')).toBeTruthy();
   });
 });
