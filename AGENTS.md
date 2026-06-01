@@ -443,6 +443,12 @@ CI enforces these on every push/PR via `.github/workflows/ci.yml`.
   with edit + sign-out. Reusable `<Avatar />` primitive. See
   `docs/decisions/2026-05-17-user-profile-fields.md` and
   `docs/features/user-name-capture.md`.
+- Receipt scan → OCR → validate (HU-02/03/05/06): camera capture +
+  gallery pick → `compressForOcr` → `extract-receipt` Supabase Edge
+  Function (Groq vision `llama-4-scout-17b`) → pre-filled `ExpenseForm`
+  → save. Date picker (`DateField`) shipped as part of this feature.
+  See `docs/features/receipt-scan-ocr.md` and
+  `docs/decisions/2026-05-31-ocr-groq-edge-function.md`.
 
 ### Still pending
 
@@ -457,7 +463,6 @@ CI enforces these on every push/PR via `.github/workflows/ci.yml`.
 7. Build the remaining screens from `prototipo-app-brief.md`
    (groups detail, settlement flow, AI insights detail)
 8. Wire AI/insights pipeline (model choice + edge function)
-9. Date picker for `occurred_at` on the new-expense screen
 
 The expenses CRUD is the first feature with real persistence end-to-end.
 Everything else still depends on the items above.
