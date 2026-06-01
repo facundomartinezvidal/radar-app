@@ -2,15 +2,15 @@
 
 ## 1. Identificación
 
-| Campo            | Valor                                                             |
-| ---------------- | ----------------------------------------------------------------- |
-| **ID**           | HU-06                                                             |
-| **Historia**     | Validar datos detectados                                          |
-| **Persona**      | Cualquier usuario autenticado                                     |
-| **Estado**       | MVP                                                               |
-| **Relevancia**   | Media                                                             |
-| **Release**      | Release 2                                                         |
-| **Trazabilidad** | `feat(receipt-scan-ocr)` — review screen + `useCreateExpense`     |
+| Campo            | Valor                                                         |
+| ---------------- | ------------------------------------------------------------- |
+| **ID**           | HU-06                                                         |
+| **Historia**     | Validar datos detectados                                      |
+| **Persona**      | Cualquier usuario autenticado                                 |
+| **Estado**       | MVP                                                           |
+| **Relevancia**   | Media                                                         |
+| **Release**      | Release 2                                                     |
+| **Trazabilidad** | `feat(receipt-scan-ocr)` — review screen + `useCreateExpense` |
 
 ## 2. Historia
 
@@ -146,29 +146,29 @@ flowchart TD
 
 ## 8. Componentes / archivos
 
-| Componente / archivo         | Ruta                                              | Rol                                                        |
-| ---------------------------- | ------------------------------------------------- | ---------------------------------------------------------- |
-| Review screen                | `app/(protected)/expense/review.tsx`              | Container principal: OCR → form → save                     |
-| `<ExpenseForm>`              | `components/expenses/expense-form.tsx`            | Form compartido; acepta `initial` + `lowConfidenceFields`  |
-| `useExtractReceipt`          | `hooks/use-extract-receipt.ts`                    | Dispara OCR (HU-05)                                        |
-| `useCreateExpense`           | `hooks/use-create-expense.ts`                     | Inserta row en `public.expenses`                           |
-| `createExpenseSchema`        | `lib/schemas/expense.ts`                          | Validación zod compartida con HU-13                        |
-| `<LowConfidenceBadge>`       | `components/expenses/low-confidence-badge.tsx`    | Ícono `AlertCircle` + borde amber en campos dudosos        |
-| `router.replace`             | `expo-router`                                     | Navega a Home tras guardar (limpia historial de navegación) |
+| Componente / archivo   | Ruta                                           | Rol                                                         |
+| ---------------------- | ---------------------------------------------- | ----------------------------------------------------------- |
+| Review screen          | `app/(protected)/expense/review.tsx`           | Container principal: OCR → form → save                      |
+| `<ExpenseForm>`        | `components/expenses/expense-form.tsx`         | Form compartido; acepta `initial` + `lowConfidenceFields`   |
+| `useExtractReceipt`    | `hooks/use-extract-receipt.ts`                 | Dispara OCR (HU-05)                                         |
+| `useCreateExpense`     | `hooks/use-create-expense.ts`                  | Inserta row en `public.expenses`                            |
+| `createExpenseSchema`  | `lib/schemas/expense.ts`                       | Validación zod compartida con HU-13                         |
+| `<LowConfidenceBadge>` | `components/expenses/low-confidence-badge.tsx` | Ícono `AlertCircle` + borde amber en campos dudosos         |
+| `router.replace`       | `expo-router`                                  | Navega a Home tras guardar (limpia historial de navegación) |
 
 ## 9. State matrix
 
-| Estado                          | Trigger                                                   | Visual                                                                                                                                                                  |
-| ------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **OCR en curso**                | `isLoading === true`                                      | Header `ChevronLeft` + `"Revisar ticket"`. Body: spinner `ActivityIndicator` grande centrado + `"Analizando ticket…"` en `colors.fg[2]`. Sin form.                       |
-| **OCR exitoso con datos**       | `data` con campos detectados                              | `<ExpenseForm>` prefilled. Campos de baja confianza: borde `#F59E0B` + ícono `AlertCircle` (14px) junto al label. Botón primario `"Registrar gasto"` habilitado.         |
-| **Sin datos OCR**               | `data` vacío / confidence bajo global                     | `<ExpenseForm>` vacío. Banner: `"No se detectaron datos. Completá manualmente."` en `colors.surface[1]` con borde izquierdo `colors.fg[3]`. Botón primario habilitado.   |
-| **Error OCR sin retry**         | `error.code ∈ { UPSTREAM_ERROR, PARSE_ERROR, CONFIG_ERROR }` | `<ExpenseForm>` vacío. Banner: `"No se pudo analizar el ticket. Ingresá los datos manualmente."` Borde izquierdo `colors.money.out`. Sin botón de reintentar.         |
-| **Error OCR con retry**         | `error.code ∈ { OCR_TIMEOUT, NETWORK_ERROR }`             | Igual a error sin retry + botón secundario `"Reintentar"` bajo el banner.                                                                                               |
-| **Validación fallida**          | Submit con datos inválidos                                | Errores inline por campo en `colors.money.out`. Botón `"Registrar gasto"` permanece habilitado.                                                                         |
-| **Guardando**                   | `useCreateExpense` en vuelo                               | Botón con `ActivityIndicator`. Inputs `editable={false}`. `isSubmitting === true` (bloquea doble tap).                                                                   |
-| **Error al guardar**            | Mutación falla                                            | `submitError` rojo centrado bajo el form: `"No se pudo guardar el gasto. Intentá nuevamente."` Form intacto, botón vuelve a habilitarse.                                 |
-| **Guardado exitoso**            | Row creado en `public.expenses`                           | `router.replace` al Home; este screen no renderiza más. Historial y totales se refrescan por invalidación.                                                               |
+| Estado                    | Trigger                                                      | Visual                                                                                                                                                                 |
+| ------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **OCR en curso**          | `isLoading === true`                                         | Header `ChevronLeft` + `"Revisar ticket"`. Body: spinner `ActivityIndicator` grande centrado + `"Analizando ticket…"` en `colors.fg[2]`. Sin form.                     |
+| **OCR exitoso con datos** | `data` con campos detectados                                 | `<ExpenseForm>` prefilled. Campos de baja confianza: borde `#F59E0B` + ícono `AlertCircle` (14px) junto al label. Botón primario `"Registrar gasto"` habilitado.       |
+| **Sin datos OCR**         | `data` vacío / confidence bajo global                        | `<ExpenseForm>` vacío. Banner: `"No se detectaron datos. Completá manualmente."` en `colors.surface[1]` con borde izquierdo `colors.fg[3]`. Botón primario habilitado. |
+| **Error OCR sin retry**   | `error.code ∈ { UPSTREAM_ERROR, PARSE_ERROR, CONFIG_ERROR }` | `<ExpenseForm>` vacío. Banner: `"No se pudo analizar el ticket. Ingresá los datos manualmente."` Borde izquierdo `colors.money.out`. Sin botón de reintentar.          |
+| **Error OCR con retry**   | `error.code ∈ { OCR_TIMEOUT, NETWORK_ERROR }`                | Igual a error sin retry + botón secundario `"Reintentar"` bajo el banner.                                                                                              |
+| **Validación fallida**    | Submit con datos inválidos                                   | Errores inline por campo en `colors.money.out`. Botón `"Registrar gasto"` permanece habilitado.                                                                        |
+| **Guardando**             | `useCreateExpense` en vuelo                                  | Botón con `ActivityIndicator`. Inputs `editable={false}`. `isSubmitting === true` (bloquea doble tap).                                                                 |
+| **Error al guardar**      | Mutación falla                                               | `submitError` rojo centrado bajo el form: `"No se pudo guardar el gasto. Intentá nuevamente."` Form intacto, botón vuelve a habilitarse.                               |
+| **Guardado exitoso**      | Row creado en `public.expenses`                              | `router.replace` al Home; este screen no renderiza más. Historial y totales se refrescan por invalidación.                                                             |
 
 ## 10. Criterios de aceptación
 

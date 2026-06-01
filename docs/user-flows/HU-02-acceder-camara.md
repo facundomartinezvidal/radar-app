@@ -112,27 +112,27 @@ flowchart TD
 
 ## 8. Componentes / archivos
 
-| Componente / hook          | Archivo                                          | Rol                              |
-| -------------------------- | ------------------------------------------------ | -------------------------------- |
-| Screen principal           | `app/(protected)/(tabs)/camera.tsx`              | Container de cámara              |
-| `useCameraPermissions`     | `expo-camera` (SDK 54)                           | Verificar y solicitar permiso    |
-| `<CameraView>`             | `expo-camera` (SDK 54)                           | Vista de cámara activa           |
-| `cameraRef`                | `useRef<CameraView>`                             | Referencia para `takePictureAsync` |
-| `<PermissionRequest>`      | `components/camera/permission-request.tsx`       | UI solicitud / denegado          |
-| `router.push`              | `expo-router`                                    | Navegar a review                 |
+| Componente / hook      | Archivo                                    | Rol                                |
+| ---------------------- | ------------------------------------------ | ---------------------------------- |
+| Screen principal       | `app/(protected)/(tabs)/camera.tsx`        | Container de cámara                |
+| `useCameraPermissions` | `expo-camera` (SDK 54)                     | Verificar y solicitar permiso      |
+| `<CameraView>`         | `expo-camera` (SDK 54)                     | Vista de cámara activa             |
+| `cameraRef`            | `useRef<CameraView>`                       | Referencia para `takePictureAsync` |
+| `<PermissionRequest>`  | `components/camera/permission-request.tsx` | UI solicitud / denegado            |
+| `router.push`          | `expo-router`                              | Navegar a review                   |
 
 ## 9. State matrix
 
-| Estado                    | Trigger                                     | Visual                                                                                                                              |
-| ------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| **Verificando permiso**   | Montaje del screen                          | Pantalla negra mientras `useCameraPermissions` inicializa (inmediato, < 100 ms).                                                    |
-| **Solicitud de permiso**  | `status === null`                           | Fondo `#0A0F1A`. Ícono `Camera` (Lucide, 48px, `--radar-400`). Texto descriptivo. Botón primario `"Permitir acceso a la cámara"`.   |
-| **Permiso denegado**      | `granted === false` (tras solicitud o previo) | Fondo `#0A0F1A`. Ícono `CameraOff` (Lucide, 48px, `colors.fg[3]`). Dos líneas de texto. Botón secundario `"Abrir configuración"`.   |
-| **Cámara activa**         | `granted === true`                          | `<CameraView>` fullscreen. Botón circular de captura centrado abajo. Ícono `RefreshCw` esquina inferior derecha.                    |
-| **Cámara delantera**      | Tap `RefreshCw`                             | Igual que activo, `facing='front'`. Ícono `RefreshCw` sin cambio visual (toggle interno).                                           |
-| **Capturando**            | Tap capturar                                | Botón de captura con `ActivityIndicator`. `CameraView` no interactiva.                                                              |
-| **Error al capturar**     | `takePictureAsync` lanza                    | Mensaje efímero flotante en `colors.money.out`. Cámara vuelve a activa.                                                             |
-| **Foto capturada**        | `takePictureAsync` devuelve URI             | Navegación inmediata a review; este screen deja de renderizarse.                                                                    |
+| Estado                   | Trigger                                       | Visual                                                                                                                            |
+| ------------------------ | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **Verificando permiso**  | Montaje del screen                            | Pantalla negra mientras `useCameraPermissions` inicializa (inmediato, < 100 ms).                                                  |
+| **Solicitud de permiso** | `status === null`                             | Fondo `#0A0F1A`. Ícono `Camera` (Lucide, 48px, `--radar-400`). Texto descriptivo. Botón primario `"Permitir acceso a la cámara"`. |
+| **Permiso denegado**     | `granted === false` (tras solicitud o previo) | Fondo `#0A0F1A`. Ícono `CameraOff` (Lucide, 48px, `colors.fg[3]`). Dos líneas de texto. Botón secundario `"Abrir configuración"`. |
+| **Cámara activa**        | `granted === true`                            | `<CameraView>` fullscreen. Botón circular de captura centrado abajo. Ícono `RefreshCw` esquina inferior derecha.                  |
+| **Cámara delantera**     | Tap `RefreshCw`                               | Igual que activo, `facing='front'`. Ícono `RefreshCw` sin cambio visual (toggle interno).                                         |
+| **Capturando**           | Tap capturar                                  | Botón de captura con `ActivityIndicator`. `CameraView` no interactiva.                                                            |
+| **Error al capturar**    | `takePictureAsync` lanza                      | Mensaje efímero flotante en `colors.money.out`. Cámara vuelve a activa.                                                           |
+| **Foto capturada**       | `takePictureAsync` devuelve URI               | Navegación inmediata a review; este screen deja de renderizarse.                                                                  |
 
 ## 10. Criterios de aceptación
 

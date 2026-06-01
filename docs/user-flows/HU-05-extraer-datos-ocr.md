@@ -2,15 +2,15 @@
 
 ## 1. Identificación
 
-| Campo            | Valor                                                                    |
-| ---------------- | ------------------------------------------------------------------------ |
-| **ID**           | HU-05                                                                    |
-| **Historia**     | Extraer datos OCR                                                        |
-| **Persona**      | Cualquier usuario autenticado                                            |
-| **Estado**       | MVP                                                                      |
-| **Relevancia**   | Alta                                                                     |
-| **Release**      | Release 2                                                                |
-| **Trazabilidad** | `feat(receipt-scan-ocr)` — edge fn `extract-receipt` + `lib/ocr.ts`     |
+| Campo            | Valor                                                               |
+| ---------------- | ------------------------------------------------------------------- |
+| **ID**           | HU-05                                                               |
+| **Historia**     | Extraer datos OCR                                                   |
+| **Persona**      | Cualquier usuario autenticado                                       |
+| **Estado**       | MVP                                                                 |
+| **Relevancia**   | Alta                                                                |
+| **Release**      | Release 2                                                           |
+| **Trazabilidad** | `feat(receipt-scan-ocr)` — edge fn `extract-receipt` + `lib/ocr.ts` |
 
 ## 2. Historia
 
@@ -47,38 +47,38 @@
 1. El review screen se monta con el parámetro `imageUri` recibido.
 2. Inmediatamente se dispara `useExtractReceipt(imageUri)`:
    a. `lib/image.ts → compressForOcr(imageUri)` comprime la imagen con
-      `expo-image-manipulator`:
-      - Resize al mayor lado ≤ 1024 px (mantiene aspect ratio).
-      - Output JPEG, calidad `0.6`.
-      - Resultado siempre en formato JPEG (convierte HEIC).
-   b. El resultado de la compresión se convierte a base64 data URL.
-   c. Si el payload supera 4 MB, se reintenta con calidad `0.4`; si
-      sigue superando, se reintenta con mayor lado ≤ 768 px.
+   `expo-image-manipulator`:
+   - Resize al mayor lado ≤ 1024 px (mantiene aspect ratio).
+   - Output JPEG, calidad `0.6`.
+   - Resultado siempre en formato JPEG (convierte HEIC).
+     b. El resultado de la compresión se convierte a base64 data URL.
+     c. Si el payload supera 4 MB, se reintenta con calidad `0.4`; si
+     sigue superando, se reintenta con mayor lado ≤ 768 px.
 3. `lib/ocr.ts → extractReceipt({ imageBase64, mimeType: 'image/jpeg' })`
    invoca `supabase.functions.invoke('extract-receipt', { body: { imageBase64, mimeType } })`.
 4. La edge function (Deno) ejecuta:
    a. Verifica el JWT del llamador (`Authorization: Bearer <token>`).
-      Si no hay token válido, responde `401` sin llamar a Groq.
+   Si no hay token válido, responde `401` sin llamar a Groq.
    b. Arma un mensaje OpenAI-compatible con:
-      - `role: 'user'`, `content` con parte de tipo `image_url`
-        (`data:image/jpeg;base64,<...>`) y parte de texto con el
-        prompt de extracción estricto.
-   c. Llama a Groq:
-      - Endpoint: `https://api.groq.com/openai/v1/chat/completions`
-      - Modelo: `meta-llama/llama-4-scout-17b-16e-instruct`
-      - `response_format: { type: 'json_object' }`.
-      - Timeout: 10 s.
-   d. Parsea la respuesta con `ocrResultSchema` (zod):
-      ```
-      {
-        amount: number | null,
-        currency: 'ARS' | 'USD' | null,
-        occurredAt: string | null,  // ISO 8601
-        merchant: string | null,
-        categoryHint: string | null,
-        confidence: number           // 0..1
-      }
-      ```
+   - `role: 'user'`, `content` con parte de tipo `image_url`
+     (`data:image/jpeg;base64,<...>`) y parte de texto con el
+     prompt de extracción estricto.
+     c. Llama a Groq:
+   - Endpoint: `https://api.groq.com/openai/v1/chat/completions`
+   - Modelo: `meta-llama/llama-4-scout-17b-16e-instruct`
+   - `response_format: { type: 'json_object' }`.
+   - Timeout: 10 s.
+     d. Parsea la respuesta con `ocrResultSchema` (zod):
+   ```
+   {
+     amount: number | null,
+     currency: 'ARS' | 'USD' | null,
+     occurredAt: string | null,  // ISO 8601
+     merchant: string | null,
+     categoryHint: string | null,
+     confidence: number           // 0..1
+   }
+   ```
    e. Responde `200` con el objeto validado.
 5. `lib/ocr.ts` recibe la respuesta y ejecuta `mapOcrToExpense`:
    - `amount`: si detectado, formatea con `parseAmount` (normaliza
@@ -112,8 +112,8 @@
 - La edge function responde con error tipado `{ code: 'OCR_TIMEOUT' }`.
 - El review screen muestra formulario vacío editable +
   `"No se pudo analizar el ticket. Ingresá los datos manualmente."`
-  + botón `"Reintentar"` que vuelve a disparar la mutación con el
-  mismo `imageUri`.
+  - botón `"Reintentar"` que vuelve a disparar la mutación con el
+    mismo `imageUri`.
 
 ### 6.c — `GROQ_API_KEY` no configurado
 
@@ -185,26 +185,26 @@ flowchart TD
 
 ## 8. Componentes / archivos
 
-| Componente / archivo             | Ruta                                              | Rol                                                   |
-| -------------------------------- | ------------------------------------------------- | ----------------------------------------------------- |
-| Edge function                    | `supabase/functions/extract-receipt/index.ts`     | JWT verify + Groq call + zod validate                 |
-| `ocrResultSchema`                | `lib/schemas/ocr.ts`                              | Zod schema de respuesta de la edge fn                 |
-| `compressForOcr`                 | `lib/image.ts`                                    | Compresión JPEG ≤ 1024px, q 0.6, < 4 MB              |
-| `extractReceipt`                 | `lib/ocr.ts`                                      | `supabase.functions.invoke` + parse + throw tipado    |
-| `mapOcrToExpense`                | `lib/ocr.ts`                                      | Mapea `OcrResult` → `Partial<CreateExpenseInput>`     |
-| `matchCategory`                  | `lib/ocr.ts`                                      | Normaliza `categoryHint` y busca en categorías        |
-| `useExtractReceipt`              | `hooks/use-extract-receipt.ts`                    | TanStack Query `useMutation` sobre `extractReceipt`   |
-| Review screen                    | `app/(protected)/expense/review.tsx`              | Dispara `useExtractReceipt`, muestra loading / result |
+| Componente / archivo | Ruta                                          | Rol                                                   |
+| -------------------- | --------------------------------------------- | ----------------------------------------------------- |
+| Edge function        | `supabase/functions/extract-receipt/index.ts` | JWT verify + Groq call + zod validate                 |
+| `ocrResultSchema`    | `lib/schemas/ocr.ts`                          | Zod schema de respuesta de la edge fn                 |
+| `compressForOcr`     | `lib/image.ts`                                | Compresión JPEG ≤ 1024px, q 0.6, < 4 MB               |
+| `extractReceipt`     | `lib/ocr.ts`                                  | `supabase.functions.invoke` + parse + throw tipado    |
+| `mapOcrToExpense`    | `lib/ocr.ts`                                  | Mapea `OcrResult` → `Partial<CreateExpenseInput>`     |
+| `matchCategory`      | `lib/ocr.ts`                                  | Normaliza `categoryHint` y busca en categorías        |
+| `useExtractReceipt`  | `hooks/use-extract-receipt.ts`                | TanStack Query `useMutation` sobre `extractReceipt`   |
+| Review screen        | `app/(protected)/expense/review.tsx`          | Dispara `useExtractReceipt`, muestra loading / result |
 
 ## 9. State matrix
 
-| Estado                    | Trigger                                         | Visual en review screen                                                                                                                                  |
-| ------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Loading OCR**           | `isLoading === true`                            | Pantalla con spinner centrado + texto `"Analizando ticket…"` en `colors.fg[2]`. No se muestra form.                                                       |
-| **OCR exitoso con datos** | `data` con al menos `amount` detectado          | `<ExpenseForm initial={data}>` con campos prefilled. Campos con `lowConfidence` marcados (borde `colors.alert`, ícono `AlertCircle` inline pequeño).      |
-| **Sin datos detectados**  | `data` vacío / confidence bajo                  | `<ExpenseForm initial={{}}>` vacío editable + banner informativo `"No se detectaron datos. Completá manualmente."` en `colors.fg[3]`.                    |
-| **Error con retry**       | `error.code === 'OCR_TIMEOUT'` o `NETWORK_ERROR` | Form vacío editable + banner `"No se pudo analizar el ticket. Ingresá los datos manualmente."` + botón `"Reintentar"` secundario.                        |
-| **Error sin retry**       | `error.code === 'UPSTREAM_ERROR'` / `PARSE_ERROR` / `CONFIG_ERROR` | Form vacío editable + banner `"No se pudo analizar el ticket. Ingresá los datos manualmente."` Sin botón de retry (el servicio está caído). |
+| Estado                    | Trigger                                                            | Visual en review screen                                                                                                                              |
+| ------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Loading OCR**           | `isLoading === true`                                               | Pantalla con spinner centrado + texto `"Analizando ticket…"` en `colors.fg[2]`. No se muestra form.                                                  |
+| **OCR exitoso con datos** | `data` con al menos `amount` detectado                             | `<ExpenseForm initial={data}>` con campos prefilled. Campos con `lowConfidence` marcados (borde `colors.alert`, ícono `AlertCircle` inline pequeño). |
+| **Sin datos detectados**  | `data` vacío / confidence bajo                                     | `<ExpenseForm initial={{}}>` vacío editable + banner informativo `"No se detectaron datos. Completá manualmente."` en `colors.fg[3]`.                |
+| **Error con retry**       | `error.code === 'OCR_TIMEOUT'` o `NETWORK_ERROR`                   | Form vacío editable + banner `"No se pudo analizar el ticket. Ingresá los datos manualmente."` + botón `"Reintentar"` secundario.                    |
+| **Error sin retry**       | `error.code === 'UPSTREAM_ERROR'` / `PARSE_ERROR` / `CONFIG_ERROR` | Form vacío editable + banner `"No se pudo analizar el ticket. Ingresá los datos manualmente."` Sin botón de retry (el servicio está caído).          |
 
 ## 10. Criterios de aceptación
 

@@ -39,10 +39,7 @@ interface GroqMessage {
   role: string;
   content:
     | string
-    | Array<
-        | { type: 'text'; text: string }
-        | { type: 'image_url'; image_url: { url: string } }
-      >;
+    | Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }>;
 }
 
 interface GroqRequestPayload {
@@ -122,9 +119,7 @@ function normaliseOcrResult(raw: Record<string, unknown>): OcrResult {
 
   // merchant: string or null
   const merchant =
-    typeof raw.merchant === 'string' && raw.merchant.trim() !== ''
-      ? raw.merchant.trim()
-      : null;
+    typeof raw.merchant === 'string' && raw.merchant.trim() !== '' ? raw.merchant.trim() : null;
 
   // categoryHint: string or null
   const categoryHint =
@@ -173,10 +168,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // -- Auth: require Bearer JWT
     const authHeader = req.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return jsonResponse(
-        { error: { code: 'UNAUTHENTICATED', message: 'No autorizado.' } },
-        401,
-      );
+      return jsonResponse({ error: { code: 'UNAUTHENTICATED', message: 'No autorizado.' } }, 401);
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
@@ -186,13 +178,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const { data: userData, error: authError } =
-      await supabase.auth.getUser();
+    const { data: userData, error: authError } = await supabase.auth.getUser();
     if (authError || !userData?.user) {
-      return jsonResponse(
-        { error: { code: 'UNAUTHENTICATED', message: 'No autorizado.' } },
-        401,
-      );
+      return jsonResponse({ error: { code: 'UNAUTHENTICATED', message: 'No autorizado.' } }, 401);
     }
 
     // -- Parse request body
@@ -200,10 +188,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     try {
       body = (await req.json()) as RequestBody;
     } catch {
-      return jsonResponse(
-        { error: { code: 'BAD_REQUEST', message: 'Falta la imagen.' } },
-        400,
-      );
+      return jsonResponse({ error: { code: 'BAD_REQUEST', message: 'Falta la imagen.' } }, 400);
     }
 
     if (
@@ -211,10 +196,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       typeof body.imageBase64 !== 'string' ||
       body.imageBase64.trim() === ''
     ) {
-      return jsonResponse(
-        { error: { code: 'BAD_REQUEST', message: 'Falta la imagen.' } },
-        400,
-      );
+      return jsonResponse({ error: { code: 'BAD_REQUEST', message: 'Falta la imagen.' } }, 400);
     }
 
     const mimeType = body.mimeType ?? 'image/jpeg';
@@ -278,16 +260,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
       });
     } catch (fetchErr: unknown) {
       clearTimeout(timeoutId);
-      const isAbort =
-        fetchErr instanceof Error && fetchErr.name === 'AbortError';
+      const isAbort = fetchErr instanceof Error && fetchErr.name === 'AbortError';
       if (isAbort) {
         console.error('[extract-receipt] Groq request timed out');
         return jsonResponse(
           {
             error: {
               code: 'OCR_TIMEOUT',
-              message:
-                'No se pudo analizar el ticket. Ingresá los datos manualmente.',
+              message: 'No se pudo analizar el ticket. Ingresá los datos manualmente.',
             },
           },
           504,
@@ -298,8 +278,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         {
           error: {
             code: 'UPSTREAM_ERROR',
-            message:
-              'No se pudo analizar el ticket. Ingresá los datos manualmente.',
+            message: 'No se pudo analizar el ticket. Ingresá los datos manualmente.',
           },
         },
         502,
@@ -310,15 +289,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     if (!groqResponse.ok) {
       const errBody = await groqResponse.text().catch(() => '(unreadable)');
-      console.error(
-        `[extract-receipt] Groq non-2xx: ${groqResponse.status} — ${errBody}`,
-      );
+      console.error(`[extract-receipt] Groq non-2xx: ${groqResponse.status} — ${errBody}`);
       return jsonResponse(
         {
           error: {
             code: 'UPSTREAM_ERROR',
-            message:
-              'No se pudo analizar el ticket. Ingresá los datos manualmente.',
+            message: 'No se pudo analizar el ticket. Ingresá los datos manualmente.',
           },
         },
         502,
@@ -384,9 +360,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return jsonResponse({ data: ocrResult }, 200);
   } catch (unexpectedErr: unknown) {
     console.error('[extract-receipt] Unexpected error:', unexpectedErr);
-    return jsonResponse(
-      { error: { code: 'INTERNAL', message: 'Error inesperado.' } },
-      500,
-    );
+    return jsonResponse({ error: { code: 'INTERNAL', message: 'Error inesperado.' } }, 500);
   }
 });

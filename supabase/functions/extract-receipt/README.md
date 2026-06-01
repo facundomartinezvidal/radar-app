@@ -16,9 +16,9 @@ category hint — eliminating manual data entry.
 
 ## Required secret
 
-| Secret          | Description                                        |
-| --------------- | -------------------------------------------------- |
-| `GROQ_API_KEY`  | Groq API key with access to chat-completions (vision) |
+| Secret         | Description                                           |
+| -------------- | ----------------------------------------------------- |
+| `GROQ_API_KEY` | Groq API key with access to chat-completions (vision) |
 
 The Supabase runtime automatically injects `SUPABASE_URL` and
 `SUPABASE_ANON_KEY` — no manual configuration needed for those.
@@ -85,15 +85,15 @@ the user to review all fields manually.
 
 ## Response — errors
 
-| HTTP | `error.code`       | Cause                                                     |
-| ---- | ------------------ | --------------------------------------------------------- |
-| 400  | `BAD_REQUEST`      | `imageBase64` missing or empty                            |
-| 401  | `UNAUTHENTICATED`  | Missing or invalid `Authorization` header                 |
-| 500  | `OCR_CONFIG_ERROR` | `GROQ_API_KEY` secret not set on the project              |
-| 502  | `UPSTREAM_ERROR`   | Groq returned a non-2xx status                            |
-| 502  | `OCR_PARSE_ERROR`  | Groq returned an unexpected or unparseable response       |
-| 504  | `OCR_TIMEOUT`      | Groq did not respond within 20 seconds                    |
-| 500  | `INTERNAL`         | Unhandled error — check Edge Function logs                |
+| HTTP | `error.code`       | Cause                                               |
+| ---- | ------------------ | --------------------------------------------------- |
+| 400  | `BAD_REQUEST`      | `imageBase64` missing or empty                      |
+| 401  | `UNAUTHENTICATED`  | Missing or invalid `Authorization` header           |
+| 500  | `OCR_CONFIG_ERROR` | `GROQ_API_KEY` secret not set on the project        |
+| 502  | `UPSTREAM_ERROR`   | Groq returned a non-2xx status                      |
+| 502  | `OCR_PARSE_ERROR`  | Groq returned an unexpected or unparseable response |
+| 504  | `OCR_TIMEOUT`      | Groq did not respond within 20 seconds              |
+| 500  | `INTERNAL`         | Unhandled error — check Edge Function logs          |
 
 ---
 
@@ -123,13 +123,13 @@ base64 -i receipt.jpg | tr -d '\n'
 
 ## Model details
 
-| Parameter    | Value                                      |
-| ------------ | ------------------------------------------ |
-| Endpoint     | `https://api.groq.com/openai/v1/chat/completions` |
-| Model        | `meta-llama/llama-4-scout-17b-16e-instruct` |
-| Temperature  | `0` (deterministic)                        |
-| Response format | `json_object`                           |
-| Timeout      | 20 seconds                                 |
+| Parameter       | Value                                             |
+| --------------- | ------------------------------------------------- |
+| Endpoint        | `https://api.groq.com/openai/v1/chat/completions` |
+| Model           | `meta-llama/llama-4-scout-17b-16e-instruct`       |
+| Temperature     | `0` (deterministic)                               |
+| Response format | `json_object`                                     |
+| Timeout         | 20 seconds                                        |
 
 ---
 

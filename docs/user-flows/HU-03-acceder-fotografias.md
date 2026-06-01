@@ -2,14 +2,14 @@
 
 ## 1. Identificación
 
-| Campo            | Valor                                                            |
-| ---------------- | ---------------------------------------------------------------- |
-| **ID**           | HU-03                                                            |
-| **Historia**     | Acceder a fotografías del dispositivo                            |
-| **Persona**      | Cualquier usuario autenticado                                    |
-| **Estado**       | MVP                                                              |
-| **Relevancia**   | Media                                                            |
-| **Release**      | Release 2                                                        |
+| Campo            | Valor                                                               |
+| ---------------- | ------------------------------------------------------------------- |
+| **ID**           | HU-03                                                               |
+| **Historia**     | Acceder a fotografías del dispositivo                               |
+| **Persona**      | Cualquier usuario autenticado                                       |
+| **Estado**       | MVP                                                                 |
+| **Relevancia**   | Media                                                               |
+| **Release**      | Release 2                                                           |
 | **Trazabilidad** | `feat(receipt-scan-ocr)` — gallery picker + launchImageLibraryAsync |
 
 ## 2. Historia
@@ -103,22 +103,22 @@ flowchart TD
 
 ## 8. Componentes / archivos
 
-| Componente / hook              | Archivo                                        | Rol                                      |
-| ------------------------------ | ---------------------------------------------- | ---------------------------------------- |
-| Screen principal               | `app/(protected)/(tabs)/camera.tsx`            | Container; aloja botón Galería           |
-| `ImagePicker.launchImageLibraryAsync` | `expo-image-picker` (SDK 54)            | Abre selector nativo de fotos            |
-| Botón **Galería**              | Inline en `camera.tsx`                         | Trigger del picker; ícono `Image` Lucide |
-| `router.push`                  | `expo-router`                                  | Navegar a review con URI                 |
+| Componente / hook                     | Archivo                             | Rol                                      |
+| ------------------------------------- | ----------------------------------- | ---------------------------------------- |
+| Screen principal                      | `app/(protected)/(tabs)/camera.tsx` | Container; aloja botón Galería           |
+| `ImagePicker.launchImageLibraryAsync` | `expo-image-picker` (SDK 54)        | Abre selector nativo de fotos            |
+| Botón **Galería**                     | Inline en `camera.tsx`              | Trigger del picker; ícono `Image` Lucide |
+| `router.push`                         | `expo-router`                       | Navegar a review con URI                 |
 
 ## 9. State matrix
 
-| Estado                        | Trigger                                   | Visual                                                                                                                    |
-| ----------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| **Cámara activa con galería** | `granted === true` (HU-02 completada)     | Igual a HU-02 activo + botón `Image` (Lucide) esquina inferior izquierda, fondo `rgba(0,0,0,0.5)`, borde radius `999px`. |
-| **Selector abierto**          | Tap botón Galería                         | Modal nativo del SO sobre la app; la tab Cámara queda detrás.                                                             |
-| **Cancelado**                 | Usuario cierra selector sin elegir        | Selector se cierra; cámara vuelve a visible. Sin cambio de estado interno.                                                |
-| **Permiso denegado**          | SO rechaza acceso a fotos                 | Mensaje inline en pantalla con ícono `ImageOff` (Lucide, `colors.fg[3]`) y botón `"Abrir configuración"`.                |
-| **Foto seleccionada**         | `result.canceled === false`               | Navegación inmediata a review; este screen deja de renderizarse hasta que el usuario vuelva.                              |
+| Estado                        | Trigger                               | Visual                                                                                                                   |
+| ----------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| **Cámara activa con galería** | `granted === true` (HU-02 completada) | Igual a HU-02 activo + botón `Image` (Lucide) esquina inferior izquierda, fondo `rgba(0,0,0,0.5)`, borde radius `999px`. |
+| **Selector abierto**          | Tap botón Galería                     | Modal nativo del SO sobre la app; la tab Cámara queda detrás.                                                            |
+| **Cancelado**                 | Usuario cierra selector sin elegir    | Selector se cierra; cámara vuelve a visible. Sin cambio de estado interno.                                               |
+| **Permiso denegado**          | SO rechaza acceso a fotos             | Mensaje inline en pantalla con ícono `ImageOff` (Lucide, `colors.fg[3]`) y botón `"Abrir configuración"`.                |
+| **Foto seleccionada**         | `result.canceled === false`           | Navegación inmediata a review; este screen deja de renderizarse hasta que el usuario vuelva.                             |
 
 ## 10. Criterios de aceptación
 
