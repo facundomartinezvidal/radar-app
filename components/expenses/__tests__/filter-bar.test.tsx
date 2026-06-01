@@ -1,30 +1,9 @@
+// react-native-svg is mocked globally in jest.setup.ts
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import type { CategoryRow } from '@/lib/repositories/expenses';
 import { FilterBar, type ExpenseFilters } from '../filter-bar';
-
-jest.mock('react-native-svg', () => {
-  const ReactLib = require('react');
-  const make = (name: string) => {
-    const C = (props: object) => ReactLib.createElement(name, props);
-    C.displayName = name;
-    return C;
-  };
-  return {
-    __esModule: true,
-    default: make('Svg'),
-    Svg: make('Svg'),
-    Circle: make('Circle'),
-    Path: make('Path'),
-    Line: make('Line'),
-    Defs: make('Defs'),
-    Stop: make('Stop'),
-    LinearGradient: make('LinearGradient'),
-    G: make('G'),
-    Text: make('SvgText'),
-  };
-});
 
 const CATEGORIES: CategoryRow[] = [
   {

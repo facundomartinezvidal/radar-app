@@ -75,6 +75,7 @@ const config: ExpoConfig = {
         cameraPermission: 'Permitir que $(PRODUCT_NAME) acceda a la cámara.',
       },
     ],
+    '@react-native-community/datetimepicker',
   ],
   experiments: {
     typedRoutes: true,
