@@ -58,11 +58,7 @@ export interface ReceiptPrefill {
  * Exported so unit tests can exercise it directly.
  */
 export function normalizeName(s: string): string {
-  return s
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .trim();
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 }
 
 /**
@@ -75,10 +71,7 @@ export function normalizeName(s: string): string {
  * Returns the matching category `id`, or `null` when no hint is given or no
  * match is found.
  */
-export function matchCategory(
-  hint: string | null,
-  categories: CategoryRow[],
-): string | null {
+export function matchCategory(hint: string | null, categories: CategoryRow[]): string | null {
   if (!hint || hint.trim() === '') return null;
 
   const normalizedHint = normalizeName(hint);
@@ -113,10 +106,7 @@ export function matchCategory(
  *   The edge fn already strips future dates, but we defend again here.
  * - `lowConfidence`: true when `confidence < 0.5`.
  */
-export function mapOcrToPrefill(
-  result: OcrResult,
-  categories: CategoryRow[],
-): ReceiptPrefill {
+export function mapOcrToPrefill(result: OcrResult, categories: CategoryRow[]): ReceiptPrefill {
   const prefill: ReceiptPrefill = {
     lowConfidence: result.confidence < 0.5,
   };
@@ -136,7 +126,10 @@ export function mapOcrToPrefill(
   if (result.occurredAt !== null) {
     const parsed = new Date(result.occurredAt);
     if (!Number.isNaN(parsed.getTime()) && parsed <= new Date()) {
-      prefill.occurred_at = result.occurredAt;
+      // The edge fn returns a date-only string (YYYY-MM-DD); the expense schema
+      // requires a full ISO 8601 datetime with timezone offset. Normalise here
+      // so the form's zod resolver never sees a bare date string.
+      prefill.occurred_at = parsed.toISOString();
     }
   }
 
@@ -157,10 +150,7 @@ export function mapOcrToPrefill(
  *
  * @throws {OcrError} on network / HTTP / parse failures.
  */
-export async function extractReceipt(
-  imageBase64: string,
-  mimeType: string,
-): Promise<OcrResult> {
+export async function extractReceipt(imageBase64: string, mimeType: string): Promise<OcrResult> {
   const { data: invokeData, error: invokeError } = await supabase.functions.invoke(
     'extract-receipt',
     { body: { imageBase64, mimeType } },
