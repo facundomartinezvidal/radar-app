@@ -57,6 +57,16 @@ jest.mock('expo-image', () => {
   return { Image };
 });
 
+// expo-linear-gradient: render a plain View
+jest.mock('expo-linear-gradient', () => {
+  const ReactLib = require('react');
+  const { View } = require('react-native');
+  const LinearGradient = (props: Record<string, unknown>) =>
+    ReactLib.createElement(View, { testID: 'linear-gradient', ...props });
+  LinearGradient.displayName = 'LinearGradient';
+  return { LinearGradient };
+});
+
 // lib/image: compressForOcr resolves immediately
 jest.mock('@/lib/image', () => ({
   compressForOcr: jest.fn().mockResolvedValue({
@@ -158,11 +168,20 @@ describe('ReviewScreen', () => {
   // Loading state
   // -------------------------------------------------------------------------
 
-  it('shows "Analizando ticket…" while OCR is pending', async () => {
+  it('shows the scan overlay with label "Analizando ticket" while OCR is pending', async () => {
     renderWithProviders();
 
     await waitFor(() => {
-      expect(screen.getByText('Analizando ticket…')).toBeTruthy();
+      // ScanOverlay container carries the accessibilityLabel
+      expect(screen.getByLabelText('Analizando ticket')).toBeTruthy();
+    });
+  });
+
+  it('shows the first ScanStatus message while OCR is pending', async () => {
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByText('Leyendo el ticket…')).toBeTruthy();
     });
   });
 
