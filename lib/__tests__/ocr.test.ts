@@ -322,6 +322,40 @@ describe('extractReceipt', () => {
     await expect(extractReceipt('base64', 'image/jpeg')).rejects.toBeInstanceOf(OcrError);
   });
 
+  it('throws OcrError with code NETWORK_ERROR when invoke returns a FunctionsFetchError by name', async () => {
+    const fetchError = Object.assign(new Error('Failed to fetch'), {
+      name: 'FunctionsFetchError',
+    });
+
+    mockInvoke.mockResolvedValue({
+      data: null,
+      error: fetchError,
+    });
+
+    const err = await extractReceipt('base64', 'image/jpeg').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(OcrError);
+    expect((err as OcrError).code).toBe('NETWORK_ERROR');
+    expect((err as OcrError).message).toMatch(/datos manualmente/);
+  });
+
+  it('throws OcrError with code NETWORK_ERROR when invoke error constructor name is FunctionsFetchError', async () => {
+    class FunctionsFetchError extends Error {
+      constructor(message: string) {
+        super(message);
+        this.name = 'FunctionsFetchError';
+      }
+    }
+
+    mockInvoke.mockResolvedValue({
+      data: null,
+      error: new FunctionsFetchError('network unreachable'),
+    });
+
+    const err = await extractReceipt('base64', 'image/jpeg').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(OcrError);
+    expect((err as OcrError).code).toBe('NETWORK_ERROR');
+  });
+
   it('parses a result where some fields are null (defensive schema)', async () => {
     const partialResult = {
       amount: null,

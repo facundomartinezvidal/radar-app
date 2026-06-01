@@ -12,7 +12,7 @@ import React, { useRef, useState } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Body, Button, Icon } from '@/components/ui';
+import { Body, BodySm, Button, Icon } from '@/components/ui';
 import { colors, radii, spacing, typography } from '@/lib/theme';
 
 // ---------------------------------------------------------------------------
@@ -39,6 +39,9 @@ export default function CameraScreen() {
   // --- preview / post-capture state ---
   const [previewUri, setPreviewUri] = useState<string | null>(null);
 
+  // --- capture / picker error ---
+  const [captureError, setCaptureError] = useState<string | null>(null);
+
   // ---------------------------------------------------------------------------
   // Handlers
   // ---------------------------------------------------------------------------
@@ -49,9 +52,14 @@ export default function CameraScreen() {
   }
 
   async function handleCapture(): Promise<void> {
-    const photo = await cameraRef.current?.takePictureAsync({ quality: 0.8 });
-    if (photo?.uri) {
-      setPreviewUri(photo.uri);
+    try {
+      const photo = await cameraRef.current?.takePictureAsync({ quality: 0.8 });
+      if (photo?.uri) {
+        setCaptureError(null);
+        setPreviewUri(photo.uri);
+      }
+    } catch {
+      setCaptureError('No se pudo capturar la imagen. Intentá nuevamente.');
     }
   }
 
@@ -60,13 +68,18 @@ export default function CameraScreen() {
   }
 
   async function handlePickFromGallery(): Promise<void> {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.8,
-    });
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 0.8,
+      });
 
-    if (!result.canceled && result.assets[0]?.uri) {
-      setPreviewUri(result.assets[0].uri);
+      if (!result.canceled && result.assets[0]?.uri) {
+        setCaptureError(null);
+        setPreviewUri(result.assets[0].uri);
+      }
+    } catch {
+      setCaptureError('No se pudo abrir la galería. Intentá nuevamente.');
     }
   }
 
@@ -231,6 +244,11 @@ export default function CameraScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={styles.container}>
         {renderTabToggle()}
+        {captureError ? (
+          <View style={styles.errorNotice}>
+            <BodySm style={styles.errorNoticeText}>{captureError}</BodySm>
+          </View>
+        ) : null}
         <View style={styles.content}>
           {mode === 'camera' ? renderCameraContent() : renderGalleryContent()}
         </View>
@@ -251,6 +269,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.bg[0],
+  },
+  // --- capture / picker error notice ---
+  errorNotice: {
+    marginHorizontal: spacing[4],
+    marginBottom: spacing[2],
+    backgroundColor: colors.bg[1],
+    borderLeftWidth: 3,
+    borderLeftColor: colors.money.out,
+    borderRadius: radii.sm,
+    padding: spacing[3],
+  },
+  errorNoticeText: {
+    color: colors.fg[2],
   },
   // --- tab toggle ---
   tabToggle: {

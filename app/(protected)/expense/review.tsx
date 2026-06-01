@@ -7,7 +7,7 @@
  */
 import { Image } from 'expo-image';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -43,9 +43,19 @@ export default function ReviewScreen(): React.JSX.Element {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [prefill, setPrefill] = useState<ReceiptPrefill | null>(null);
   const [isCompressing, setIsCompressing] = useState(false);
+  const [compressionError, setCompressionError] = useState<OcrError | null>(null);
 
   // Guard against double-run in StrictMode / re-renders.
   const hasTriggeredRef = useRef(false);
+
+  // Track mount status so async callbacks in handleRetry can bail out after unmount.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!imageUri || hasTriggeredRef.current) return;
@@ -60,17 +70,23 @@ export default function ReviewScreen(): React.JSX.Element {
       try {
         compressed = await compressForOcr(imageUri);
       } catch {
-        // If compression itself fails, fall through to the OCR error state by
-        // calling mutate with a dummy payload that will fail, or set a known
-        // error directly. We reset the guard so "Reintentar" can try again.
-        setIsCompressing(false);
+        // Compression failed: surface a retryable error so the screen renders
+        // the manual-entry form + notice. Reset the guard so "Reintentar" can
+        // trigger a new compression attempt.
         if (!cancelled) {
+          setIsCompressing(false);
+          setCompressionError(
+            new OcrError(
+              'NETWORK_ERROR',
+              'No se pudo procesar la imagen. Ingresá los datos manualmente.',
+            ),
+          );
           hasTriggeredRef.current = false;
         }
         return;
       }
-      setIsCompressing(false);
       if (!cancelled) {
+        setIsCompressing(false);
         extractMutation.mutate({ imageBase64: compressed.base64, mimeType: compressed.mimeType });
       }
     }
@@ -95,11 +111,12 @@ export default function ReviewScreen(): React.JSX.Element {
   // Handlers
   // -------------------------------------------------------------------------
 
-  function handleRetry(): void {
+  const handleRetry = useCallback((): void => {
     if (!imageUri) return;
     hasTriggeredRef.current = false;
     extractMutation.reset();
     setPrefill(null);
+    setCompressionError(null);
 
     void (async () => {
       setIsCompressing(true);
@@ -107,14 +124,25 @@ export default function ReviewScreen(): React.JSX.Element {
       try {
         compressed = await compressForOcr(imageUri);
       } catch {
-        setIsCompressing(false);
+        if (mountedRef.current) {
+          setIsCompressing(false);
+          setCompressionError(
+            new OcrError(
+              'NETWORK_ERROR',
+              'No se pudo procesar la imagen. Ingresá los datos manualmente.',
+            ),
+          );
+        }
         return;
       }
-      setIsCompressing(false);
-      hasTriggeredRef.current = true;
-      extractMutation.mutate({ imageBase64: compressed.base64, mimeType: compressed.mimeType });
+      if (mountedRef.current) {
+        setIsCompressing(false);
+        hasTriggeredRef.current = true;
+        extractMutation.mutate({ imageBase64: compressed.base64, mimeType: compressed.mimeType });
+      }
     })();
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imageUri]);
 
   async function handleSubmit(input: CreateExpenseInput): Promise<void> {
     setSubmitError(null);
@@ -134,7 +162,9 @@ export default function ReviewScreen(): React.JSX.Element {
 
   const isLoading = isCompressing || extractMutation.isPending || categoriesQuery.isLoading;
 
-  const ocrError = extractMutation.error;
+  // compressionError takes priority over the OCR mutation error so both paths
+  // render the same retryable branch (Reintentar + empty form).
+  const ocrError: Error | null = compressionError ?? extractMutation.error;
   const ocrErrorCode = ocrError instanceof OcrError ? ocrError.code : ocrError ? 'UNKNOWN' : null;
   const canRetry = ocrErrorCode !== null && RETRYABLE_CODES.has(ocrErrorCode);
 

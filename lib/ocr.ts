@@ -157,9 +157,22 @@ export async function extractReceipt(imageBase64: string, mimeType: string): Pro
   );
 
   if (invokeError) {
-    // supabase-js FunctionsHttpError / FunctionsFetchError exposes the raw
-    // response body via `.context` (when available). We try to read the edge
-    // function's structured error from there.
+    // supabase-js FunctionsFetchError indicates an offline / network-level
+    // failure (device offline, function unreachable). Treat as retryable.
+    const errorName = (invokeError as unknown as { name?: string }).name;
+    if (
+      errorName === 'FunctionsFetchError' ||
+      (invokeError.constructor && invokeError.constructor.name === 'FunctionsFetchError')
+    ) {
+      throw new OcrError(
+        'NETWORK_ERROR',
+        'No se pudo analizar el ticket. Ingresá los datos manualmente.',
+      );
+    }
+
+    // supabase-js FunctionsHttpError exposes the raw response body via
+    // `.context` (when available). We try to read the edge function's
+    // structured error from there.
     const context = (invokeError as unknown as { context?: unknown }).context;
     if (context && typeof context === 'object') {
       const edgeError = (context as { error?: { code?: string; message?: string } }).error;

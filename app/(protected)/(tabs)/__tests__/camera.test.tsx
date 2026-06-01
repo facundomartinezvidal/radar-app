@@ -208,5 +208,20 @@ describe('CameraScreen', () => {
       // Still shows gallery button (no preview)
       expect(screen.getByText('Seleccionar de la galería')).toBeTruthy();
     });
+
+    it('shows an error notice when the gallery picker rejects', async () => {
+      mockLaunchImageLibrary.mockRejectedValue(new Error('picker failed'));
+
+      renderScreen();
+      fireEvent.press(screen.getByText('Galería'));
+
+      await act(async () => {
+        fireEvent.press(screen.getByText('Seleccionar de la galería'));
+      });
+
+      expect(screen.getByText('No se pudo abrir la galería. Intentá nuevamente.')).toBeTruthy();
+      // No preview or navigation should happen
+      expect(router.push).not.toHaveBeenCalled();
+    });
   });
 });
