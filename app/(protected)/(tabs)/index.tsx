@@ -76,6 +76,7 @@ function buildQuickActions(): QuickAction[] {
       label: 'Escanear',
       iconName: 'Camera',
       accessibilityLabel: 'Escanear comprobante',
+      onPress: () => router.push('/(protected)/(tabs)/camera' as Parameters<typeof router.push>[0]),
     },
     {
       label: 'Más',

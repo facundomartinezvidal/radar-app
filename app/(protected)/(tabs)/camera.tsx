@@ -1,10 +1,10 @@
 /**
- * Camera screen — RADAR (Phase C5)
+ * Camera screen — RADAR (scan → review flow)
  *
- * Restyled to use DS tokens and Lucide icons.
- * Logic kept intact — only visual layer updated.
+ * Captures or picks a receipt image and navigates to the OCR review screen.
+ * No upload happens here; the review screen owns that step.
  */
-import { useMutation } from '@tanstack/react-query';
+import { router } from 'expo-router';
 import { CameraView, useCameraPermissions, type CameraType } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
@@ -12,9 +12,7 @@ import React, { useRef, useState } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Body, Button, Icon, Loader } from '@/components/ui';
-import { useSession } from '@/hooks/use-session';
-import { uploadMediaToSupabase } from '@/lib/storage';
+import { Body, BodySm, Button, Icon } from '@/components/ui';
 import { colors, radii, spacing, typography } from '@/lib/theme';
 
 // ---------------------------------------------------------------------------
@@ -23,18 +21,11 @@ import { colors, radii, spacing, typography } from '@/lib/theme';
 
 type TabMode = 'camera' | 'gallery';
 
-interface UploadArgs {
-  userId: string;
-  fileUri: string;
-}
-
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 export default function CameraScreen() {
-  const { user } = useSession();
-
   // --- permission ---
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
@@ -48,32 +39,8 @@ export default function CameraScreen() {
   // --- preview / post-capture state ---
   const [previewUri, setPreviewUri] = useState<string | null>(null);
 
-  // --- upload feedback ---
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  // --- upload mutation ---
-  const uploadMutation = useMutation({
-    mutationFn: async ({ userId, fileUri }: UploadArgs) => {
-      return uploadMediaToSupabase({
-        userId,
-        fileUri,
-        mimeType: 'image/jpeg',
-      });
-    },
-    onSuccess: (result) => {
-      if (result === null) {
-        setErrorMessage('El bucket de almacenamiento no existe. Créalo en el panel de Supabase.');
-      } else {
-        setSuccessMessage('¡Imagen subida con éxito!');
-        setPreviewUri(null);
-      }
-    },
-    onError: (err: unknown) => {
-      const message = err instanceof Error ? err.message : 'Error al subir la imagen.';
-      setErrorMessage(message);
-    },
-  });
+  // --- capture / picker error ---
+  const [captureError, setCaptureError] = useState<string | null>(null);
 
   // ---------------------------------------------------------------------------
   // Handlers
@@ -82,49 +49,51 @@ export default function CameraScreen() {
   function handleModeChange(newMode: TabMode): void {
     setMode(newMode);
     setPreviewUri(null);
-    setSuccessMessage(null);
-    setErrorMessage(null);
-    uploadMutation.reset();
   }
 
   async function handleCapture(): Promise<void> {
-    setSuccessMessage(null);
-    setErrorMessage(null);
-    uploadMutation.reset();
-
-    const photo = await cameraRef.current?.takePictureAsync({ quality: 0.8 });
-    if (photo?.uri) {
-      setPreviewUri(photo.uri);
+    try {
+      const photo = await cameraRef.current?.takePictureAsync({ quality: 0.8 });
+      if (photo?.uri) {
+        setCaptureError(null);
+        setPreviewUri(photo.uri);
+      }
+    } catch {
+      setCaptureError('No se pudo capturar la imagen. Intentá nuevamente.');
     }
   }
 
   function handleRetake(): void {
     setPreviewUri(null);
-    setSuccessMessage(null);
-    setErrorMessage(null);
-    uploadMutation.reset();
   }
 
   async function handlePickFromGallery(): Promise<void> {
-    setSuccessMessage(null);
-    setErrorMessage(null);
-    uploadMutation.reset();
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 0.8,
+      });
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0]?.uri) {
-      setPreviewUri(result.assets[0].uri);
+      if (!result.canceled && result.assets[0]?.uri) {
+        setCaptureError(null);
+        setPreviewUri(result.assets[0].uri);
+      }
+    } catch {
+      setCaptureError('No se pudo abrir la galería. Intentá nuevamente.');
     }
   }
 
-  function handleUpload(): void {
-    if (!user || !previewUri) return;
-    setSuccessMessage(null);
-    setErrorMessage(null);
-    uploadMutation.mutate({ userId: user.id, fileUri: previewUri });
+  function handleContinue(): void {
+    if (!previewUri) return;
+    // review screen does not exist yet — cast via unknown to satisfy typed-routes until
+    // the file is created; same pattern used for dynamic segments in expenses.tsx.
+    router.push(
+      `/(protected)/expense/review?imageUri=${encodeURIComponent(previewUri)}` as Parameters<
+        typeof router.push
+      >[0],
+    );
+    // Reset preview so returning to this tab starts fresh.
+    setPreviewUri(null);
   }
 
   function handleFlipCamera(): void {
@@ -162,57 +131,32 @@ export default function CameraScreen() {
     );
   }
 
-  function renderFeedback() {
-    if (successMessage) {
-      return (
-        <View style={styles.feedbackContainer}>
-          <Body style={styles.successText}>{successMessage}</Body>
-        </View>
-      );
-    }
-    if (errorMessage) {
-      return (
-        <View style={styles.feedbackContainer}>
-          <Body style={styles.errorText}>{errorMessage}</Body>
-        </View>
-      );
-    }
-    return null;
-  }
-
-  function renderPreviewAndUpload() {
+  function renderPreviewActions() {
     return (
       <View style={styles.previewContainer}>
         <Image source={{ uri: previewUri ?? '' }} style={styles.previewImage} contentFit="cover" />
-        {renderFeedback()}
-        {uploadMutation.isPending ? (
-          <View style={styles.loader}>
-            <Loader size={40} color={colors.brand[500]} strokeWidth={2.5} />
+        <View style={styles.previewActions}>
+          <View style={styles.previewActionButton}>
+            <Button
+              variant="secondary"
+              size="md"
+              onPress={handleRetake}
+              accessibilityLabel="Volver a capturar"
+            >
+              Volver a tomar
+            </Button>
           </View>
-        ) : (
-          <View style={styles.previewActions}>
-            <View style={styles.previewActionButton}>
-              <Button
-                variant="secondary"
-                size="md"
-                onPress={handleRetake}
-                accessibilityLabel="Volver a capturar"
-              >
-                Volver a tomar
-              </Button>
-            </View>
-            <View style={styles.previewActionButton}>
-              <Button
-                variant="primary"
-                size="md"
-                onPress={handleUpload}
-                accessibilityLabel="Subir imagen"
-              >
-                Subir
-              </Button>
-            </View>
+          <View style={styles.previewActionButton}>
+            <Button
+              variant="primary"
+              size="md"
+              onPress={handleContinue}
+              accessibilityLabel="Continuar con esta imagen"
+            >
+              Continuar
+            </Button>
           </View>
-        )}
+        </View>
       </View>
     );
   }
@@ -221,7 +165,7 @@ export default function CameraScreen() {
     if (!cameraPermission) {
       return (
         <View style={styles.centeredContent}>
-          <Loader size={40} color={colors.brand[500]} strokeWidth={2.5} />
+          <Body style={styles.permissionText}>Verificando permisos de cámara...</Body>
         </View>
       );
     }
@@ -243,7 +187,7 @@ export default function CameraScreen() {
     }
 
     if (previewUri) {
-      return renderPreviewAndUpload();
+      return renderPreviewActions();
     }
 
     return (
@@ -260,7 +204,7 @@ export default function CameraScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.captureButton}
-            onPress={handleCapture}
+            onPress={() => void handleCapture()}
             accessibilityRole="button"
             accessibilityLabel="Capturar foto"
           >
@@ -275,12 +219,11 @@ export default function CameraScreen() {
 
   function renderGalleryContent() {
     if (previewUri) {
-      return renderPreviewAndUpload();
+      return renderPreviewActions();
     }
 
     return (
       <View style={styles.centeredContent}>
-        {renderFeedback()}
         <Button
           variant="primary"
           size="md"
@@ -301,6 +244,11 @@ export default function CameraScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={styles.container}>
         {renderTabToggle()}
+        {captureError ? (
+          <View style={styles.errorNotice}>
+            <BodySm style={styles.errorNoticeText}>{captureError}</BodySm>
+          </View>
+        ) : null}
         <View style={styles.content}>
           {mode === 'camera' ? renderCameraContent() : renderGalleryContent()}
         </View>
@@ -321,6 +269,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.bg[0],
+  },
+  // --- capture / picker error notice ---
+  errorNotice: {
+    marginHorizontal: spacing[4],
+    marginBottom: spacing[2],
+    backgroundColor: colors.bg[1],
+    borderLeftWidth: 3,
+    borderLeftColor: colors.money.out,
+    borderRadius: radii.sm,
+    padding: spacing[3],
+  },
+  errorNoticeText: {
+    color: colors.fg[2],
   },
   // --- tab toggle ---
   tabToggle: {
@@ -424,31 +385,5 @@ const styles = StyleSheet.create({
   },
   previewActionButton: {
     flex: 1,
-  },
-  loader: {
-    position: 'absolute',
-    bottom: 40,
-    alignSelf: 'center',
-  },
-  // --- feedback ---
-  feedbackContainer: {
-    position: 'absolute',
-    top: spacing[4],
-    left: spacing[4],
-    right: spacing[4],
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    borderRadius: radii.sm,
-    padding: spacing[3],
-    alignItems: 'center',
-  },
-  successText: {
-    color: colors.money.in,
-    fontFamily: typography.family.semibold,
-    textAlign: 'center',
-  },
-  errorText: {
-    color: colors.money.out,
-    fontFamily: typography.family.semibold,
-    textAlign: 'center',
   },
 });
