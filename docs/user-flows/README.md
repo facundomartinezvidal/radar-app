@@ -27,6 +27,7 @@ spreadsheet; this folder is the engineering interpretation of those rows.
 | HU-12 | Guardar gasto                         | MVP    | Alto       | Release 1 | [HU-12](./HU-12-guardar-gasto.md)            | Implementado             |
 | HU-13 | Sección registro nuevo                | MVP    | Alto       | Release 1 | [HU-13](./HU-13-registro-nuevo.md)           | Implementado             |
 | HU-14 | Registrar cuenta                      | MVP    | Alto       | Release 1 | [HU-14](./HU-14-registrar-cuenta.md)         | Implementado             |
+| HU-18 | Items detallados                      | MVP    | Media      | Entrega 3 | [HU-18](./HU-18-items-detallados.md)         | Implementado             |
 
 ---
 

@@ -187,7 +187,25 @@ See `docs/decisions/2026-05-16-auth-strategy.md`.
 
 - **Tokens** → expo-secure-store (Keychain/Keystore)
 - **Media uploads** → Supabase Storage bucket `media`, path `{userId}/{timestamp}-{rand}.{ext}`, ArrayBuffer (not base64)
-- **DB schema** → not yet created; types stub in `types/supabase.ts`. Regenerate after schema work: `pnpm dlx supabase gen types typescript --project-id miiorhmqxdqsowqxnpii > types/supabase.ts`
+- **DB schema** → live in Supabase (`profiles`, `categories`, `expenses`, `expense_items` + RPCs). Source of truth for history: `supabase/migrations/` (see §7 "Database migrations"). Regenerate types after every schema change via Supabase MCP `generate_typescript_types` (or `pnpm dlx supabase gen types typescript --project-id miiorhmqxdqsowqxnpii > types/supabase.ts`)
+
+### DB schema (current)
+
+| Table           | Purpose                               | RLS                                            |
+| --------------- | ------------------------------------- | ---------------------------------------------- |
+| `profiles`      | 1:1 with auth.users, first/last name  | owner select/insert/update                     |
+| `categories`    | global lookup, 9 seeded rows          | open SELECT (authenticated); service_role muts |
+| `expenses`      | core expense rows, numeric(14,2)      | owner CRUD (`(select auth.uid()) = user_id`)   |
+| `expense_items` | receipt line items (HU-18), ≤50/gasto | owner CRUD, denormalized `user_id`             |
+
+`expense_items`: `name` (1–120), `quantity numeric(14,3) > 0` (kg OK, default 1), `unit_price numeric(14,2)` nullable, `line_total numeric(14,2) >= 0` required (source of truth — OCR often lacks unit price), `position` preserves order, cascade-deletes with the expense.
+
+**Writes with items go through transactional RPCs** (`security invoker`, run under caller RLS):
+
+- `create_expense_with_items(p_amount, p_currency, p_category_id, p_description, p_occurred_at, p_items jsonb)`
+- `update_expense_with_items(p_id, p_patch jsonb, p_items jsonb)` — `p_patch` only-present-keys-updated; `p_items` null = items untouched, array (incl. `[]`) = replace full set (delete-all + reinsert → item ids rotate on every save, known limitation)
+
+Reads use the nested select `'*, category:categories(*), items:expense_items(*)'` sorted client-side by `position`. See `docs/decisions/2026-06-03-expense-line-items-schema.md`.
 
 ### Push notifications
 
@@ -198,6 +216,15 @@ See `docs/decisions/2026-05-16-auth-strategy.md`.
 ---
 
 ## 7. Conventions
+
+### Database migrations (MANDATORY practice)
+
+Every schema change ships as **both**:
+
+1. A SQL file in `supabase/migrations/<version>_<name>.sql` (committed to the repo), AND
+2. The same SQL applied to the remote project via Supabase MCP `apply_migration` with the **same name** — the MCP assigns the version timestamp; rename the local file to match it (`list_migrations` to confirm).
+
+Remote migration history and local files must always be 1:1. The two pre-existing migrations (`20260517025226`, `20260518005107`) are baseline reconstructions — documented in-file, never re-applied. After applying: run `get_advisors` (security) and regenerate `types/supabase.ts`.
 
 ### File naming
 
@@ -407,7 +434,7 @@ Gotchas in SDK 54:
 pnpm format:check   # Prettier
 pnpm lint           # ESLint flat config
 pnpm typecheck      # tsc --noEmit strict
-pnpm test           # jest-expo + RNTL (29 tests baseline)
+pnpm test           # jest-expo + RNTL (468 tests baseline)
 ```
 
 CI enforces these on every push/PR via `.github/workflows/ci.yml`.
@@ -423,6 +450,17 @@ CI enforces these on every push/PR via `.github/workflows/ci.yml`.
 - ❌ Don't put server data in Zustand
 - ❌ Don't write English permission strings — the market is Argentina
 - ❌ Don't add native modules without checking Expo SDK 54 compatibility (Expo Go vs dev build)
+- ❌ Don't apply DB changes without a matching file in `supabase/migrations/` (see §7 "Database migrations")
+- ❌ Don't finish a feature without updating this AGENTS.md — schema tables, business logic, conventions/practices, and §10 shipped/pending MUST reflect the new state before the final PR
+
+### After every feature (MANDATORY)
+
+Update **AGENTS.md** as part of the feature's final PR:
+
+1. §6 DB schema table if the schema changed
+2. §7 conventions if a new practice was introduced
+3. §10 "Already shipped" (add entry with doc links) + "Still pending" (prune/add)
+4. Test baseline count in §9 quality gates
 
 ---
 
@@ -449,6 +487,14 @@ CI enforces these on every push/PR via `.github/workflows/ci.yml`.
   → save. Date picker (`DateField`) shipped as part of this feature.
   See `docs/features/receipt-scan-ocr.md` and
   `docs/decisions/2026-05-31-ocr-groq-edge-function.md`.
+- Receipt line items (HU-18): `expense_items` table + transactional RPCs,
+  OCR extraction of per-line detail (name/qty/unit price/line total, cap 50),
+  full manual CRUD in `ExpenseItemsField` (collapsible "Detalle" section),
+  non-blocking mismatch warning when Σitems ≠ total. Versioned
+  `supabase/migrations/` introduced with this feature. See
+  `docs/features/expense-line-items.md`,
+  `docs/decisions/2026-06-03-expense-line-items-schema.md` and
+  `docs/user-flows/HU-18-items-detallados.md`.
 
 ### Still pending
 
@@ -463,6 +509,14 @@ CI enforces these on every push/PR via `.github/workflows/ci.yml`.
 7. Build the remaining screens from `prototipo-app-brief.md`
    (groups detail, settlement flow, AI insights detail)
 8. Wire AI/insights pipeline (model choice + edge function)
+9. Fix pre-existing security advisor lints: trigger functions
+   (`handle_new_user`, `handle_user_metadata_update`, `set_updated_at`,
+   `rls_auto_enable`) are SECURITY DEFINER and executable by anon/
+   authenticated via PostgREST — revoke EXECUTE. Also enable leaked
+   password protection in Auth settings.
+10. Revisit `expense_items` update strategy (delete-all + reinsert rotates
+    item ids) if a future HU needs stable per-item identity (e.g. AI
+    insights keyed by item)
 
 The expenses CRUD is the first feature with real persistence end-to-end.
 Everything else still depends on the items above.
