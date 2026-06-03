@@ -9,7 +9,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   type CategoryRow,
   type CurrencyTotal,
-  type ExpenseWithCategory,
+  type ExpenseWithItems,
   createExpense,
   deleteExpense,
   getExpense,
@@ -57,7 +57,7 @@ export function useCategories() {
 // ---------------------------------------------------------------------------
 
 export function useExpenses(filter: ExpenseFilter = {}) {
-  return useQuery<ExpenseWithCategory[]>({
+  return useQuery<ExpenseWithItems[]>({
     queryKey: expenseKeys.list(filter),
     queryFn: async () => {
       const { data, error } = await listExpenses(filter);
@@ -68,7 +68,7 @@ export function useExpenses(filter: ExpenseFilter = {}) {
 }
 
 export function useExpense(id: string | undefined) {
-  return useQuery<ExpenseWithCategory | null>({
+  return useQuery<ExpenseWithItems | null>({
     queryKey: expenseKeys.detail(id ?? ''),
     enabled: Boolean(id),
     queryFn: async () => {
@@ -97,7 +97,7 @@ export function useExpenseTotals(range: Pick<ExpenseFilter, 'from' | 'to'> = {})
 
 export function useCreateExpense() {
   const qc = useQueryClient();
-  return useMutation<ExpenseWithCategory, Error, CreateExpenseInput>({
+  return useMutation<ExpenseWithItems, Error, CreateExpenseInput>({
     mutationFn: async (input) => {
       const { data, error } = await createExpense(input);
       if (error || !data) throw error ?? new Error('No se pudo guardar el gasto.');
@@ -111,7 +111,7 @@ export function useCreateExpense() {
 
 export function useUpdateExpense() {
   const qc = useQueryClient();
-  return useMutation<ExpenseWithCategory, Error, { id: string; input: UpdateExpenseInput }>({
+  return useMutation<ExpenseWithItems, Error, { id: string; input: UpdateExpenseInput }>({
     mutationFn: async ({ id, input }) => {
       const { data, error } = await updateExpense(id, input);
       if (error || !data) throw error ?? new Error('No se pudo actualizar el gasto.');
