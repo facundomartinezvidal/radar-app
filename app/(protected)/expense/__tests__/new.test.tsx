@@ -77,7 +77,7 @@ describe('NewExpenseScreen', () => {
 
   it('submits create with parsed amount + selected currency + category', async () => {
     mockedRepo.createExpense.mockResolvedValueOnce({
-      data: { id: 'exp-1' } as repo.ExpenseWithCategory,
+      data: { id: 'exp-1', items: [] } as unknown as repo.ExpenseWithItems,
       error: null,
     });
 

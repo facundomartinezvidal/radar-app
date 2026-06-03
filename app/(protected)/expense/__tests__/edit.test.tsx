@@ -55,7 +55,8 @@ const EXPENSE = {
   created_at: '2026-05-17T20:00:00Z',
   updated_at: '2026-05-17T20:00:00Z',
   category: CATEGORIES[0]!,
-} satisfies repo.ExpenseWithCategory;
+  items: [],
+} satisfies repo.ExpenseWithItems;
 
 function renderScreen(): void {
   const client = new QueryClient({
@@ -90,7 +91,7 @@ describe('ExpenseDetailScreen', () => {
 
   it('saves edits via updateExpense', async () => {
     mockedRepo.updateExpense.mockResolvedValueOnce({
-      data: { ...EXPENSE, description: 'Empanadas' } as repo.ExpenseWithCategory,
+      data: { ...EXPENSE, description: 'Empanadas' } as repo.ExpenseWithItems,
       error: null,
     });
 

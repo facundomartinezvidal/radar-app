@@ -116,6 +116,7 @@ const OCR_RESULT_WITH_DATA: OcrResult = {
   categoryHint: 'comida',
   occurredAt: '2026-05-31',
   confidence: 0.9,
+  items: [],
 };
 
 const OCR_RESULT_EMPTY: OcrResult = {
@@ -125,6 +126,7 @@ const OCR_RESULT_EMPTY: OcrResult = {
   categoryHint: null,
   occurredAt: null,
   confidence: 0.3,
+  items: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -345,7 +347,7 @@ describe('ReviewScreen', () => {
     mockExtract.error = null;
 
     mockedRepo.createExpense.mockResolvedValueOnce({
-      data: { id: 'exp-new' } as repo.ExpenseWithCategory,
+      data: { id: 'exp-new', items: [] } as unknown as repo.ExpenseWithItems,
       error: null,
     });
 

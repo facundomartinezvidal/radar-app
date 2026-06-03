@@ -56,7 +56,9 @@ describe('use-expenses hooks', () => {
   describe('useExpenses', () => {
     it('returns rows from the repo', async () => {
       mocked.listExpenses.mockResolvedValueOnce({
-        data: [{ id: 'e1', amount: 100, currency: 'ARS' } as repo.ExpenseWithCategory],
+        data: [
+          { id: 'e1', amount: 100, currency: 'ARS', items: [] } as unknown as repo.ExpenseWithItems,
+        ],
         error: null,
       });
 
@@ -77,7 +79,7 @@ describe('use-expenses hooks', () => {
 
     it('fetches when id is provided', async () => {
       mocked.getExpense.mockResolvedValueOnce({
-        data: { id: 'e1' } as repo.ExpenseWithCategory,
+        data: { id: 'e1', items: [] } as unknown as repo.ExpenseWithItems,
         error: null,
       });
       const { wrapper } = makeWrapper();
@@ -103,7 +105,12 @@ describe('use-expenses hooks', () => {
   describe('useCreateExpense', () => {
     it('invalidates list + totals queries on success', async () => {
       mocked.createExpense.mockResolvedValueOnce({
-        data: { id: 'e1', amount: 100, currency: 'ARS' } as repo.ExpenseWithCategory,
+        data: {
+          id: 'e1',
+          amount: 100,
+          currency: 'ARS',
+          items: [],
+        } as unknown as repo.ExpenseWithItems,
         error: null,
       });
 
@@ -140,7 +147,12 @@ describe('use-expenses hooks', () => {
   describe('useUpdateExpense', () => {
     it('updates cache for the detail key on success', async () => {
       mocked.updateExpense.mockResolvedValueOnce({
-        data: { id: 'e1', amount: 200, currency: 'ARS' } as repo.ExpenseWithCategory,
+        data: {
+          id: 'e1',
+          amount: 200,
+          currency: 'ARS',
+          items: [],
+        } as unknown as repo.ExpenseWithItems,
         error: null,
       });
       const { wrapper, client } = makeWrapper();

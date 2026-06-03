@@ -10,6 +10,27 @@ export const CURRENCIES = ['ARS', 'USD'] as const;
 export type Currency = (typeof CURRENCIES)[number];
 
 // ---------------------------------------------------------------------------
+// Expense item
+// ---------------------------------------------------------------------------
+
+export const expenseItemInputSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().trim().min(1, 'Ingresá un nombre.').max(120, 'Máximo 120 caracteres.'),
+  quantity: z
+    .number()
+    .positive('La cantidad debe ser mayor a cero.')
+    .max(1_000_000, 'Cantidad demasiado grande.'),
+  unit_price: z
+    .number()
+    .min(0, 'Importe inválido.')
+    .max(1_000_000_000, 'Monto demasiado grande.')
+    .nullable(),
+  line_total: z.number().min(0, 'Importe inválido.').max(1_000_000_000, 'Monto demasiado grande.'),
+});
+
+export type ExpenseItemInput = z.infer<typeof expenseItemInputSchema>;
+
+// ---------------------------------------------------------------------------
 // Create
 // ---------------------------------------------------------------------------
 
@@ -27,6 +48,7 @@ export const createExpenseSchema = z.object({
     .nullable()
     .optional(),
   occurred_at: z.string().datetime({ offset: true }).optional(),
+  items: z.array(expenseItemInputSchema).max(50, 'Máximo 50 ítems.').optional(),
 });
 
 export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
