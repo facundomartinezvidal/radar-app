@@ -171,14 +171,15 @@ export default function ReviewScreen(): React.JSX.Element {
   const canRetry = ocrErrorCode !== null && RETRYABLE_CODES.has(ocrErrorCode);
 
   // Show empty form with softer notice when there are no detected fields
-  // (all fields undefined/null and lowConfidence false means "no data").
+  // (all fields undefined/null, no items, and lowConfidence false means "no data").
   const hasOcrData =
     prefill !== null &&
     (prefill.amount != null ||
       prefill.currency != null ||
       prefill.description != null ||
       prefill.category_id != null ||
-      prefill.occurred_at != null);
+      prefill.occurred_at != null ||
+      (prefill.items != null && prefill.items.length > 0));
 
   // -------------------------------------------------------------------------
   // Render
