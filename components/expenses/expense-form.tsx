@@ -8,14 +8,20 @@ import { Controller, useForm } from 'react-hook-form';
 import { View } from 'react-native';
 
 import { Body, BodySm, Button, Input } from '@/components/ui';
-import { type CreateExpenseInput, createExpenseSchema, type Currency } from '@/lib/schemas/expense';
-import type { CategoryRow, ExpenseWithCategory } from '@/lib/repositories/expenses';
+import {
+  type CreateExpenseInput,
+  type ExpenseItemInput,
+  createExpenseSchema,
+  type Currency,
+} from '@/lib/schemas/expense';
+import type { CategoryRow, ExpenseItemRow, ExpenseWithCategory } from '@/lib/repositories/expenses';
 import { colors, spacing } from '@/lib/theme';
 
 import { AmountInput } from './amount-input';
 import { CategoryPicker } from './category-picker';
 import { CurrencyToggle } from './currency-toggle';
 import { DateField } from './date-field';
+import { ExpenseItemsField } from './expense-items-field';
 
 /** Partial prefill from OCR — used by the review screen when no DB row exists yet. */
 export interface ExpenseFormPrefill {
@@ -24,12 +30,17 @@ export interface ExpenseFormPrefill {
   category_id?: string | null;
   description?: string | null;
   occurred_at?: string;
+  /** OCR-detected line items. */
+  items?: ExpenseItemInput[];
 }
+
+/** Expense row with optional line items (edit mode). */
+export type ExpenseWithItems = ExpenseWithCategory & { items?: ExpenseItemRow[] };
 
 export interface ExpenseFormProps {
   categories: CategoryRow[];
-  /** Optional initial values (edit mode — DB row). Takes precedence over prefill. */
-  initial?: ExpenseWithCategory | null;
+  /** Optional initial values (edit mode — DB row, optionally with items). Takes precedence over prefill. */
+  initial?: ExpenseWithItems | null;
   /**
    * Optional OCR-detected prefill (review mode — no DB row yet).
    * Only used when `initial` is absent/null.
@@ -46,13 +57,14 @@ export interface ExpenseFormProps {
   submitError?: string | null;
 }
 
-interface InternalFields {
+export interface ExpenseFormInternalFields {
   amount: number;
   amountText: string;
   currency: Currency;
   category_id: string | null;
   description: string | null;
   occurred_at: string;
+  items: ExpenseItemInput[];
 }
 
 export function ExpenseForm({
@@ -78,13 +90,26 @@ export function ExpenseForm({
   const resolvedOccurredAt =
     initial?.occurred_at ?? prefill?.occurred_at ?? new Date().toISOString();
 
+  // Map DB items (snake_case, numeric strings) → ExpenseItemInput shape.
+  // Resolution order: initial.items > prefill.items > []
+  const resolvedItems: ExpenseItemInput[] =
+    initial?.items != null && initial.items.length > 0
+      ? initial.items.map((row) => ({
+          id: row.id,
+          name: row.name,
+          quantity: Number(row.quantity),
+          unit_price: row.unit_price !== null ? Number(row.unit_price) : null,
+          line_total: Number(row.line_total),
+        }))
+      : (prefill?.items ?? []);
+
   const {
     control,
     handleSubmit,
     setValue,
     watch,
     formState: { errors },
-  } = useForm<InternalFields>({
+  } = useForm<ExpenseFormInternalFields>({
     // Cast: we add `amountText` as a UI-only field so the user can type
     // partial values; zod validates the numeric `amount`.
     resolver: zodResolver(createExpenseSchema) as never,
@@ -96,6 +121,7 @@ export function ExpenseForm({
       category_id: resolvedCategoryId,
       description: resolvedDescription,
       occurred_at: resolvedOccurredAt,
+      items: resolvedItems,
     },
   });
 
@@ -109,6 +135,8 @@ export function ExpenseForm({
       category_id: data.category_id,
       description: data.description ?? null,
       occurred_at: data.occurred_at,
+      // Always include items so edit mode can clear them ([] is valid).
+      items: data.items,
     });
   });
 
@@ -176,6 +204,16 @@ export function ExpenseForm({
           )}
         />
       </View>
+
+      {/* Line items */}
+      <ExpenseItemsField
+        control={control}
+        watch={watch}
+        setValue={setValue}
+        errors={errors}
+        currency={currency}
+        disabled={isSubmitting}
+      />
 
       {/* Description */}
       <View style={{ gap: spacing[2] }}>
