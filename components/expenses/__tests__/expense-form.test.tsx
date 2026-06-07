@@ -1,6 +1,6 @@
 /**
  * Minimal smoke tests for ExpenseForm — verifies the Fecha (occurred_at) field
- * is rendered in both create and edit modes.
+ * is rendered in both create and edit modes, and the OCR suggestion CTA.
  *
  * react-native-svg is mocked globally in jest.setup.ts.
  *
@@ -31,6 +31,8 @@ jest.mock('@/hooks/use-categories', () => ({
   useUpdateCategory: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
   useDeleteCategory: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
 }));
+
+jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -94,5 +96,59 @@ describe('ExpenseForm', () => {
     expect(screen.getByText('Fecha')).toBeTruthy();
     // "marzo" is the es-AR long month name for March
     expect(screen.getByText(/marzo/i)).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// OCR suggestion CTA
+// ---------------------------------------------------------------------------
+
+describe('ExpenseForm — OCR suggestion CTA', () => {
+  it('renders the suggestion CTA when prefill has suggestedCategoryName and no category is selected', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        prefill={{ suggestedCategoryName: 'Farmacia' }}
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Crear categoría "Farmacia"')).toBeTruthy();
+  });
+
+  it('does NOT render the suggestion CTA when prefill has a matched category_id', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        prefill={{ suggestedCategoryName: 'Farmacia', category_id: 'cat-1' }}
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    expect(screen.queryByText('Crear categoría "Farmacia"')).toBeNull();
+  });
+
+  it('does NOT render the suggestion CTA when prefill has no suggestedCategoryName', () => {
+    render(<ExpenseForm categories={CATEGORIES} prefill={{ amount: 500 }} onSubmit={jest.fn()} />);
+
+    expect(screen.queryByText(/Crear categoría/)).toBeNull();
+  });
+
+  it('does NOT render the suggestion CTA when no prefill is provided', () => {
+    render(<ExpenseForm categories={CATEGORIES} onSubmit={jest.fn()} />);
+
+    expect(screen.queryByText(/Crear categoría/)).toBeNull();
+  });
+
+  it('has accessibilityLabel "Crear categoría sugerida" on the CTA button', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        prefill={{ suggestedCategoryName: 'Farmacia' }}
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText('Crear categoría sugerida')).toBeTruthy();
   });
 });
