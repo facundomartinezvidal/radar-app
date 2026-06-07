@@ -191,12 +191,12 @@ See `docs/decisions/2026-05-16-auth-strategy.md`.
 
 ### DB schema (current)
 
-| Table           | Purpose                               | RLS                                            |
-| --------------- | ------------------------------------- | ---------------------------------------------- |
-| `profiles`      | 1:1 with auth.users, first/last name  | owner select/insert/update                     |
-| `categories`    | global lookup, 9 seeded rows          | open SELECT (authenticated); service_role muts |
-| `expenses`      | core expense rows, numeric(14,2)      | owner CRUD (`(select auth.uid()) = user_id`)   |
-| `expense_items` | receipt line items (HU-18), ≤50/gasto | owner CRUD, denormalized `user_id`             |
+| Table           | Purpose                                                                              | RLS                                                            |
+| --------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| `profiles`      | 1:1 with auth.users, first/last name                                                 | owner select/insert/update                                     |
+| `categories`    | system (user_id null) + per-user custom (user_id = auth.uid()); 9 seeded system rows | SELECT = system ∪ own; INSERT/UPDATE/DELETE = own only (HU-16) |
+| `expenses`      | core expense rows, numeric(14,2)                                                     | owner CRUD (`(select auth.uid()) = user_id`)                   |
+| `expense_items` | receipt line items (HU-18), ≤50/gasto                                                | owner CRUD, denormalized `user_id`                             |
 
 `expense_items`: `name` (1–120), `quantity numeric(14,3) > 0` (kg OK, default 1), `unit_price numeric(14,2)` nullable, `line_total numeric(14,2) >= 0` required (source of truth — OCR often lacks unit price), `position` preserves order, cascade-deletes with the expense.
 
@@ -206,6 +206,8 @@ See `docs/decisions/2026-05-16-auth-strategy.md`.
 - `update_expense_with_items(p_id, p_patch jsonb, p_items jsonb)` — `p_patch` only-present-keys-updated; `p_items` null = items untouched, array (incl. `[]`) = replace full set (delete-all + reinsert → item ids rotate on every save, known limitation)
 
 Reads use the nested select `'*, category:categories(*), items:expense_items(*)'` sorted client-side by `position`. See `docs/decisions/2026-06-03-expense-line-items-schema.md`.
+
+`categories` (HU-16): `user_id` nullable — `null` = system (globally readable), `auth.uid()` = user-owned (full CRUD under RLS). `updated_at` + trigger. Global slug unique replaced by two partial unique indexes (`slug WHERE user_id IS NULL` and `(user_id, slug) WHERE user_id IS NOT NULL`). Name check `btrim(name)` length 1–40. No RPC — direct single-table CRUD. `expenses.category_id` FK is `on delete set null` (unchanged). List order: system (sort_order asc) → custom (name asc). See `docs/decisions/2026-06-07-custom-categories-schema.md`.
 
 ### Push notifications
 
@@ -434,7 +436,7 @@ Gotchas in SDK 54:
 pnpm format:check   # Prettier
 pnpm lint           # ESLint flat config
 pnpm typecheck      # tsc --noEmit strict
-pnpm test           # jest-expo + RNTL (468 tests baseline)
+pnpm test           # jest-expo + RNTL (572 tests baseline)
 ```
 
 CI enforces these on every push/PR via `.github/workflows/ci.yml`.
@@ -495,6 +497,16 @@ Update **AGENTS.md** as part of the feature's final PR:
   `docs/features/expense-line-items.md`,
   `docs/decisions/2026-06-03-expense-line-items-schema.md` and
   `docs/user-flows/HU-18-items-detallados.md`.
+- Custom categories (HU-16): `categories` extended with nullable `user_id`
+  (null = system, own = CRUD), `updated_at`, partial unique slug indexes, and
+  4 ownership-aware RLS policies. Curated icon/color picker, `CategoryForm`
+  with live preview, `CategoryCreateSheet` for inline creation from the
+  expense picker, Perfil → Categorías screen. OCR edge fn v3 accepts dynamic
+  category list and returns `suggestedNewCategory` when no match; review
+  screen surfaces a "Crear categoría '<nombre>'" CTA with manual confirm.
+  Tests: 472 → 572. See `docs/features/custom-categories.md`,
+  `docs/decisions/2026-06-07-custom-categories-schema.md` and
+  `docs/user-flows/HU-16-categorias-personalizadas.md`.
 
 ### Still pending
 
@@ -517,6 +529,9 @@ Update **AGENTS.md** as part of the feature's final PR:
 10. Revisit `expense_items` update strategy (delete-all + reinsert rotates
     item ids) if a future HU needs stable per-item identity (e.g. AI
     insights keyed by item)
+11. Fix system seed: "Hogar" category uses `icon = 'Home'` but
+    `lucide-react-native` v1 exports `House` — icon renders blank. Update
+    the seeded row (direct UPDATE or new migration).
 
 The expenses CRUD is the first feature with real persistence end-to-end.
 Everything else still depends on the items above.
