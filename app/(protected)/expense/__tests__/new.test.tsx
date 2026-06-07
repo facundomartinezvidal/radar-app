@@ -1,6 +1,10 @@
 /**
  * Tests for the new-expense screen — verifies categories are surfaced, the
  * happy-path mutation is wired, and error messages bubble up.
+ *
+ * Category selection now goes through the CategorySelectorSheet:
+ * 1. Press the "Elegir categoría" trigger to open the sheet.
+ * 2. Press "Categoría <Name>" tile in the sheet to select.
  */
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -20,6 +24,14 @@ jest.mock('@react-native-community/datetimepicker', () => {
   Mock.displayName = 'MockDateTimePicker';
   return { __esModule: true, default: Mock };
 });
+
+// CategorySelectorSheet uses these hooks — mock them so we don't need a real
+// Supabase session or query infrastructure for the sheet's internal mutations.
+jest.mock('@/hooks/use-categories', () => ({
+  useCreateCategory: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
+  useUpdateCategory: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
+  useDeleteCategory: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
+}));
 
 const mockedRepo = repo as jest.Mocked<typeof repo>;
 
@@ -60,6 +72,22 @@ function renderWithProviders(): { client: QueryClient } {
   return { client };
 }
 
+// ---------------------------------------------------------------------------
+// Helper: open the category sheet and select a category by name
+// ---------------------------------------------------------------------------
+
+async function openSheetAndSelect(categoryName: string): Promise<void> {
+  // Wait for the trigger to be rendered (categories must be loaded)
+  await waitFor(() => expect(screen.getByLabelText('Elegir categoría')).toBeTruthy());
+
+  // Open the sheet
+  fireEvent.press(screen.getByLabelText('Elegir categoría'));
+
+  // Tap the tile in the sheet
+  await waitFor(() => expect(screen.getByLabelText(`Categoría ${categoryName}`)).toBeTruthy());
+  fireEvent.press(screen.getByLabelText(`Categoría ${categoryName}`));
+}
+
 describe('NewExpenseScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -71,11 +99,21 @@ describe('NewExpenseScreen', () => {
     expect(screen.getByText('Nuevo gasto')).toBeTruthy();
   });
 
-  it('shows seeded categories once loaded', async () => {
+  it('shows the category picker trigger once categories are loaded', async () => {
     renderWithProviders();
+    // Wait for the form to render (categories loaded)
+    await waitFor(() => expect(screen.getByLabelText('Elegir categoría')).toBeTruthy());
+  });
+
+  it('shows seeded categories in the sheet when the trigger is pressed', async () => {
+    renderWithProviders();
+
+    await waitFor(() => expect(screen.getByLabelText('Elegir categoría')).toBeTruthy());
+    fireEvent.press(screen.getByLabelText('Elegir categoría'));
+
     await waitFor(() => {
-      expect(screen.getByText('Comida')).toBeTruthy();
-      expect(screen.getByText('Transporte')).toBeTruthy();
+      expect(screen.getByLabelText('Categoría Comida')).toBeTruthy();
+      expect(screen.getByLabelText('Categoría Transporte')).toBeTruthy();
     });
   });
 
@@ -87,14 +125,13 @@ describe('NewExpenseScreen', () => {
 
     renderWithProviders();
 
-    await waitFor(() => expect(screen.getByText('Comida')).toBeTruthy());
-
     // Amount
+    await waitFor(() => expect(screen.getByLabelText('Monto')).toBeTruthy());
     const amount = screen.getByLabelText('Monto');
     fireEvent.changeText(amount, '12.500,50');
 
-    // Pick category
-    fireEvent.press(screen.getByLabelText('Categoría Comida'));
+    // Pick category via sheet
+    await openSheetAndSelect('Comida');
 
     // Submit
     const submit = screen.getByLabelText('Registrar gasto');
@@ -126,13 +163,12 @@ describe('NewExpenseScreen', () => {
 
     renderWithProviders();
 
-    await waitFor(() => expect(screen.getByText('Comida')).toBeTruthy());
-
     // Amount
+    await waitFor(() => expect(screen.getByLabelText('Monto')).toBeTruthy());
     fireEvent.changeText(screen.getByLabelText('Monto'), '500');
 
-    // Pick category
-    fireEvent.press(screen.getByLabelText('Categoría Comida'));
+    // Pick category via sheet
+    await openSheetAndSelect('Comida');
 
     // Open the items section then add one item
     fireEvent.press(screen.getByLabelText('Mostrar detalle de ítems'));
@@ -166,10 +202,13 @@ describe('NewExpenseScreen', () => {
     });
 
     renderWithProviders();
-    await waitFor(() => expect(screen.getByText('Comida')).toBeTruthy());
 
+    await waitFor(() => expect(screen.getByLabelText('Monto')).toBeTruthy());
     fireEvent.changeText(screen.getByLabelText('Monto'), '100');
-    fireEvent.press(screen.getByLabelText('Categoría Comida'));
+
+    // Pick category via sheet
+    await openSheetAndSelect('Comida');
+
     await act(async () => {
       fireEvent.press(screen.getByLabelText('Registrar gasto'));
     });

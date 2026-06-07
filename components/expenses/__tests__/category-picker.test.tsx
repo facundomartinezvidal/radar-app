@@ -1,12 +1,12 @@
 /**
- * Tests for CategoryPicker (extended with "+ Categoría" chip).
+ * Tests for CategoryPicker — compact trigger + bottom-sheet selector.
  *
  * Covers:
- *   - Renders all category chips
- *   - Pressing a chip calls onChange with the category id
- *   - "Agregar categoría" chip is present
- *   - Pressing "Agregar categoría" opens the create modal (CategoryForm visible)
- *   - Pressing a chip in disabled state does not call onChange
+ *  - Renders trigger with placeholder "Elegir categoría" when value is null
+ *  - Renders trigger with selected category name when a value is set
+ *  - Tapping the trigger opens the CategorySelectorSheet
+ *  - When disabled, tapping the trigger does NOT open the sheet
+ *  - onChange is called when the sheet selects a category
  */
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react-native';
@@ -24,6 +24,14 @@ jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock
 
 jest.mock('@/hooks/use-categories', () => ({
   useCreateCategory: jest.fn(() => ({
+    mutateAsync: jest.fn(),
+    isPending: false,
+  })),
+  useUpdateCategory: jest.fn(() => ({
+    mutateAsync: jest.fn(),
+    isPending: false,
+  })),
+  useDeleteCategory: jest.fn(() => ({
     mutateAsync: jest.fn(),
     isPending: false,
   })),
@@ -74,73 +82,96 @@ function Wrapper({ children }: { children: React.ReactNode }): React.JSX.Element
 // ---------------------------------------------------------------------------
 
 describe('CategoryPicker', () => {
-  it('renders a chip for each category', () => {
+  it('renders trigger with placeholder "Elegir categoría" when value is null', () => {
     render(
       <Wrapper>
         <CategoryPicker categories={CATEGORIES} value={null} onChange={jest.fn()} />
       </Wrapper>,
     );
 
-    expect(screen.getByLabelText('Categoría Comida')).toBeTruthy();
-    expect(screen.getByLabelText('Categoría Transporte')).toBeTruthy();
+    expect(screen.getByText('Elegir categoría')).toBeTruthy();
   });
 
-  it('renders the "+ Categoría" chip with accessibilityLabel "Agregar categoría"', () => {
+  it('renders trigger with the selected category name when a value is set', () => {
+    render(
+      <Wrapper>
+        <CategoryPicker categories={CATEGORIES} value="cat-1" onChange={jest.fn()} />
+      </Wrapper>,
+    );
+
+    expect(screen.getByText('Comida')).toBeTruthy();
+  });
+
+  it('has accessibilityRole="button" and accessibilityLabel="Elegir categoría"', () => {
     render(
       <Wrapper>
         <CategoryPicker categories={CATEGORIES} value={null} onChange={jest.fn()} />
       </Wrapper>,
     );
 
-    expect(screen.getByLabelText('Agregar categoría')).toBeTruthy();
+    expect(screen.getByLabelText('Elegir categoría')).toBeTruthy();
   });
 
-  it('pressing a category chip calls onChange with that category id', () => {
+  it('opens the sheet (renders "Elegir categoría" header) on trigger press', () => {
+    render(
+      <Wrapper>
+        <CategoryPicker categories={CATEGORIES} value={null} onChange={jest.fn()} />
+      </Wrapper>,
+    );
+
+    fireEvent.press(screen.getByLabelText('Elegir categoría'));
+
+    // The sheet header text (H2) should now appear
+    // The heading + placeholder text both say "Elegir categoría"; at least one must be in a sheet context
+    // We can verify the search input appears as a signal the sheet opened
+    expect(screen.getByPlaceholderText('Buscar categoría')).toBeTruthy();
+  });
+
+  it('does not open the sheet when disabled', () => {
+    render(
+      <Wrapper>
+        <CategoryPicker categories={CATEGORIES} value={null} onChange={jest.fn()} disabled />
+      </Wrapper>,
+    );
+
+    fireEvent.press(screen.getByLabelText('Elegir categoría'));
+
+    expect(screen.queryByPlaceholderText('Buscar categoría')).toBeNull();
+  });
+
+  it('calls onChange with the selected category id when a tile is tapped in the sheet', () => {
     const onChange = jest.fn();
+
     render(
       <Wrapper>
         <CategoryPicker categories={CATEGORIES} value={null} onChange={onChange} />
       </Wrapper>,
     );
 
+    // Open the sheet
+    fireEvent.press(screen.getByLabelText('Elegir categoría'));
+
+    // Tap the Comida tile in the sheet
     fireEvent.press(screen.getByLabelText('Categoría Comida'));
+
     expect(onChange).toHaveBeenCalledWith('cat-1');
   });
 
-  it('pressing the selected chip deselects (calls onChange with null)', () => {
+  it('calls onChange with null when "Sin categoría" is tapped in the sheet', () => {
     const onChange = jest.fn();
+
     render(
       <Wrapper>
         <CategoryPicker categories={CATEGORIES} value="cat-1" onChange={onChange} />
       </Wrapper>,
     );
 
-    fireEvent.press(screen.getByLabelText('Categoría Comida'));
+    // Open the sheet
+    fireEvent.press(screen.getByLabelText('Elegir categoría'));
+
+    // Tap "Sin categoría"
+    fireEvent.press(screen.getByLabelText('Sin categoría'));
+
     expect(onChange).toHaveBeenCalledWith(null);
-  });
-
-  it('pressing "+ Categoría" opens the modal (CategoryForm with "Crear categoría" button becomes visible)', () => {
-    render(
-      <Wrapper>
-        <CategoryPicker categories={CATEGORIES} value={null} onChange={jest.fn()} />
-      </Wrapper>,
-    );
-
-    fireEvent.press(screen.getByLabelText('Agregar categoría'));
-
-    // CategoryForm renders in the modal with the default submit button label
-    expect(screen.getByText('Crear categoría')).toBeTruthy();
-  });
-
-  it('does not call onChange when disabled', () => {
-    const onChange = jest.fn();
-    render(
-      <Wrapper>
-        <CategoryPicker categories={CATEGORIES} value={null} onChange={onChange} disabled />
-      </Wrapper>,
-    );
-
-    fireEvent.press(screen.getByLabelText('Categoría Comida'));
-    expect(onChange).not.toHaveBeenCalled();
   });
 });
