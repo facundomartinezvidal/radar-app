@@ -107,6 +107,7 @@ export function ExpenseForm({
     control,
     handleSubmit,
     setValue,
+    getValues,
     watch,
     formState: { errors },
   } = useForm<ExpenseFormInternalFields>({
@@ -208,8 +209,8 @@ export function ExpenseForm({
       {/* Line items */}
       <ExpenseItemsField
         control={control}
-        watch={watch}
         setValue={setValue}
+        getValues={getValues}
         errors={errors}
         currency={currency}
         disabled={isSubmitting}
