@@ -329,6 +329,102 @@ describe('ExpenseItemsField (via ExpenseForm)', () => {
     });
   });
 
+  describe('Controller-based input stability (focus fix)', () => {
+    it('updates name field value through Controller onChange without remount', async () => {
+      const onSubmit = jest.fn();
+      render(
+        <ExpenseForm
+          categories={CATEGORIES}
+          prefill={{ items: [{ name: 'Café', quantity: 1, unit_price: 500, line_total: 500 }] }}
+          onSubmit={onSubmit}
+          submitLabel="Registrar gasto"
+        />,
+      );
+
+      const nameInput = screen.getByLabelText('Nombre del ítem 1');
+
+      // Simulate typing keystroke-by-keystroke — value should accumulate, no remount
+      fireEvent.changeText(nameInput, 'C');
+      fireEvent.changeText(nameInput, 'Ca');
+      fireEvent.changeText(nameInput, 'Café nuevo');
+
+      // Input should hold the latest value (not reset after each keystroke)
+      expect(nameInput.props.value).toBe('Café nuevo');
+    });
+
+    it('does not show validation error mid-typing (only after blur/submit)', async () => {
+      render(
+        <ExpenseForm
+          categories={CATEGORIES}
+          prefill={{ items: [{ name: 'Café', quantity: 1, unit_price: 500, line_total: 500 }] }}
+          onSubmit={jest.fn()}
+        />,
+      );
+
+      const nameInput = screen.getByLabelText('Nombre del ítem 1');
+
+      // Clear the name (make it invalid) by typing empty — but no blur yet
+      fireEvent.changeText(nameInput, '');
+
+      // Error should NOT appear mid-typing (validation deferred to blur/submit)
+      // We check that no 'name' error text appears in the visible output
+      expect(screen.queryByText(/nombre/i)).toBeNull();
+    });
+
+    it('still recomputes line_total through Controller when quantity changes', async () => {
+      render(
+        <ExpenseForm
+          categories={CATEGORIES}
+          prefill={{ items: [{ name: 'Café', quantity: 2, unit_price: 300, line_total: 600 }] }}
+          onSubmit={jest.fn()}
+        />,
+      );
+
+      const qtyInput = screen.getByLabelText('Cantidad del ítem 1');
+      fireEvent.changeText(qtyInput, '5');
+
+      await waitFor(() => {
+        const totalInput = screen.getByLabelText('Total del ítem 1');
+        expect(totalInput.props.value).toBe('1500');
+      });
+
+      // Quantity input should still hold the entered value — re-query after waitFor
+      // to get a fresh reference (RNTL refs can go stale after async re-renders).
+      expect(screen.getByLabelText('Cantidad del ítem 1').props.value).toBe('5');
+    });
+
+    it('includes updated name in submit payload after Controller typing', async () => {
+      const onSubmit = jest.fn();
+      render(
+        <ExpenseForm
+          categories={CATEGORIES}
+          prefill={{
+            amount: 500,
+            currency: 'ARS',
+            items: [{ name: 'Café', quantity: 1, unit_price: 500, line_total: 500 }],
+          }}
+          onSubmit={onSubmit}
+          submitLabel="Registrar gasto"
+        />,
+      );
+
+      const nameInput = screen.getByLabelText('Nombre del ítem 1');
+      fireEvent.changeText(nameInput, 'Medialunas');
+
+      const submitBtn = screen.getByRole('button', { name: 'Registrar gasto' });
+      await act(async () => {
+        fireEvent.press(submitBtn);
+      });
+
+      await waitFor(() => {
+        expect(onSubmit).toHaveBeenCalled();
+      });
+
+      const payload = onSubmit.mock.calls[0][0] as { items?: ExpenseItemInput[] };
+      expect(payload.items?.[0]?.name).toBe('Medialunas');
+    });
+  });
+
   describe('submit payload', () => {
     it('includes items array when submitting with a valid item', async () => {
       const onSubmit = jest.fn();
