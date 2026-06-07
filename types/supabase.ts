@@ -20,6 +20,8 @@ export type Database = {
           name: string;
           slug: string;
           sort_order: number;
+          updated_at: string;
+          user_id: string | null;
         };
         Insert: {
           color: string;
@@ -29,6 +31,8 @@ export type Database = {
           name: string;
           slug: string;
           sort_order?: number;
+          updated_at?: string;
+          user_id?: string | null;
         };
         Update: {
           color?: string;
@@ -38,6 +42,8 @@ export type Database = {
           name?: string;
           slug?: string;
           sort_order?: number;
+          updated_at?: string;
+          user_id?: string | null;
         };
         Relationships: [];
       };

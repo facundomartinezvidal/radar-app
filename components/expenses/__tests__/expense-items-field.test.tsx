@@ -41,6 +41,8 @@ const CATEGORIES: CategoryRow[] = [
     color: '#F59E0B',
     sort_order: 10,
     created_at: '2026-01-01',
+    updated_at: '2026-01-01',
+    user_id: null,
   },
 ];
 
