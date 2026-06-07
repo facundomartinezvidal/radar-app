@@ -125,6 +125,47 @@ describe('ocrResultSchema — items', () => {
 });
 
 // ---------------------------------------------------------------------------
+// ocrResultSchema — suggestedNewCategory field
+// ---------------------------------------------------------------------------
+
+describe('ocrResultSchema — suggestedNewCategory', () => {
+  const BASE_PAYLOAD = {
+    amount: 1000,
+    currency: 'ARS',
+    occurredAt: '2026-05-01',
+    merchant: 'Farmacia Norte',
+    categoryHint: null,
+    confidence: 0.7,
+    items: [],
+  };
+
+  it('parses suggestedNewCategory when present as a string', () => {
+    const result = ocrResultSchema.parse({ ...BASE_PAYLOAD, suggestedNewCategory: 'Farmacia' });
+    expect(result.suggestedNewCategory).toBe('Farmacia');
+  });
+
+  it('defaults suggestedNewCategory to null when missing from payload (catch)', () => {
+    const result = ocrResultSchema.parse(BASE_PAYLOAD);
+    expect(result.suggestedNewCategory).toBeNull();
+  });
+
+  it('coerces an off-spec value (number) to null via catch', () => {
+    const result = ocrResultSchema.parse({ ...BASE_PAYLOAD, suggestedNewCategory: 42 });
+    expect(result.suggestedNewCategory).toBeNull();
+  });
+
+  it('coerces an off-spec value (boolean) to null via catch', () => {
+    const result = ocrResultSchema.parse({ ...BASE_PAYLOAD, suggestedNewCategory: true });
+    expect(result.suggestedNewCategory).toBeNull();
+  });
+
+  it('preserves null when explicitly null', () => {
+    const result = ocrResultSchema.parse({ ...BASE_PAYLOAD, suggestedNewCategory: null });
+    expect(result.suggestedNewCategory).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // mapOcrItems
 // ---------------------------------------------------------------------------
 
@@ -320,6 +361,7 @@ describe('mapOcrToPrefill', () => {
       occurredAt: PAST_DATE,
       merchant: 'Burguer Palace',
       categoryHint: 'Comida',
+      suggestedNewCategory: null,
       confidence: 0.9,
       items: [],
       ...overrides,
@@ -429,6 +471,42 @@ describe('mapOcrToPrefill', () => {
     const prefill = mapOcrToPrefill(result, CATEGORIES);
     expect(prefill.items).toBeUndefined();
   });
+
+  it('does not set suggestedCategoryName when categoryHint matches a category', () => {
+    // categoryHint = 'Comida' matches CATEGORIES[0], so category_id is set
+    const result = makeResult({ categoryHint: 'Comida', suggestedNewCategory: 'Farmacia' });
+    const prefill = mapOcrToPrefill(result, CATEGORIES);
+    expect(prefill.category_id).toBe('1');
+    expect(prefill.suggestedCategoryName).toBeUndefined();
+  });
+
+  it('sets suggestedCategoryName when no match AND suggestedNewCategory is present', () => {
+    // categoryHint does not match anything, suggestedNewCategory is returned
+    const result = makeResult({
+      categoryHint: 'Belleza',
+      suggestedNewCategory: 'Peluquería',
+    });
+    const prefill = mapOcrToPrefill(result, CATEGORIES);
+    expect(prefill.category_id).toBeNull();
+    expect(prefill.suggestedCategoryName).toBe('Peluquería');
+  });
+
+  it('does not set suggestedCategoryName when no match and suggestedNewCategory is null', () => {
+    const result = makeResult({
+      categoryHint: 'Belleza',
+      suggestedNewCategory: null,
+    });
+    const prefill = mapOcrToPrefill(result, CATEGORIES);
+    expect(prefill.category_id).toBeNull();
+    expect(prefill.suggestedCategoryName).toBeUndefined();
+  });
+
+  it('does not set suggestedCategoryName when categoryHint is null and suggestedNewCategory is null', () => {
+    const result = makeResult({ categoryHint: null, suggestedNewCategory: null });
+    const prefill = mapOcrToPrefill(result, CATEGORIES);
+    expect(prefill.category_id).toBeNull();
+    expect(prefill.suggestedCategoryName).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -446,6 +524,7 @@ describe('extractReceipt', () => {
     occurredAt: '2024-03-10',
     merchant: 'Supermercado Día',
     categoryHint: 'Supermercado',
+    suggestedNewCategory: null,
     confidence: 0.85,
     items: [],
   };
@@ -469,7 +548,34 @@ describe('extractReceipt', () => {
     await extractReceipt('mybase64', 'image/png');
 
     expect(mockInvoke).toHaveBeenCalledWith('extract-receipt', {
-      body: { imageBase64: 'mybase64', mimeType: 'image/png' },
+      body: { imageBase64: 'mybase64', mimeType: 'image/png', categories: [] },
+    });
+  });
+
+  it('forwards categoryNames as categories in the invoke body', async () => {
+    mockInvoke.mockResolvedValue({
+      data: { data: VALID_OCR_RESULT },
+      error: null,
+    });
+
+    const names = ['Comida', 'Transporte', 'Mascotas'];
+    await extractReceipt('base64string', 'image/jpeg', names);
+
+    expect(mockInvoke).toHaveBeenCalledWith('extract-receipt', {
+      body: { imageBase64: 'base64string', mimeType: 'image/jpeg', categories: names },
+    });
+  });
+
+  it('sends categories as empty array when categoryNames is omitted (default)', async () => {
+    mockInvoke.mockResolvedValue({
+      data: { data: VALID_OCR_RESULT },
+      error: null,
+    });
+
+    await extractReceipt('base64string', 'image/jpeg');
+
+    expect(mockInvoke).toHaveBeenCalledWith('extract-receipt', {
+      body: expect.objectContaining({ categories: [] }),
     });
   });
 
