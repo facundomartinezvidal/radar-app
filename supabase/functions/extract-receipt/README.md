@@ -72,14 +72,32 @@ Supported MIME types: `image/jpeg`, `image/png`, `image/webp`.
     "occurredAt": "2026-05-28",
     "merchant": "Supermercado Día",
     "categoryHint": "Supermercado",
-    "confidence": 0.92
+    "confidence": 0.92,
+    "items": [
+      { "name": "Leche La Serenísima 1L", "quantity": 2, "unitPrice": 850.0, "lineTotal": 1700.0 },
+      { "name": "Pan lactal Bimbo", "quantity": 1, "unitPrice": 620.5, "lineTotal": 620.5 }
+    ]
   }
 }
 ```
 
-Any field the model could not read is returned as `null`.  
+Any scalar field the model could not read is returned as `null`.  
 `confidence` is a number between 0 and 1 — values below ~0.5 should prompt
 the user to review all fields manually.
+
+### `items` array
+
+Each element in `items` represents one line of the receipt detail:
+
+| Field       | Type             | Description                                                                                                                    |
+| ----------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `name`      | `string`         | Item description as printed on the ticket (max 120 chars)                                                                      |
+| `quantity`  | `number \| null` | Quantity (supports decimals for weight, e.g. `0.75`). `null` if not printed.                                                   |
+| `unitPrice` | `number \| null` | Unit price without thousands separators. `null` if not printed.                                                                |
+| `lineTotal` | `number \| null` | Line total. Derived as `quantity × unitPrice` (rounded to 2 decimals) if not printed directly. `null` if neither is available. |
+
+If the ticket does not show line-item detail, `items` is an empty array `[]`.  
+Maximum 50 items are returned; additional rows are silently dropped.
 
 ---
 

@@ -116,6 +116,7 @@ const OCR_RESULT_WITH_DATA: OcrResult = {
   categoryHint: 'comida',
   occurredAt: '2026-05-31',
   confidence: 0.9,
+  items: [],
 };
 
 const OCR_RESULT_EMPTY: OcrResult = {
@@ -125,6 +126,35 @@ const OCR_RESULT_EMPTY: OcrResult = {
   categoryHint: null,
   occurredAt: null,
   confidence: 0.3,
+  items: [],
+};
+
+/** OCR result that returns line items alongside the standard fields. */
+const OCR_RESULT_WITH_ITEMS: OcrResult = {
+  amount: 2000,
+  currency: 'ARS',
+  merchant: 'Supermercado Norte',
+  categoryHint: 'comida',
+  occurredAt: '2026-05-31',
+  confidence: 0.85,
+  items: [
+    { name: 'Leche entera', quantity: 2, unitPrice: 500, lineTotal: 1000 },
+    { name: 'Pan lactal', quantity: 1, unitPrice: 1000, lineTotal: 1000 },
+  ],
+};
+
+/**
+ * OCR result with items but NO scalar fields (amount / currency / etc. all null).
+ * Exercises the `hasOcrData` path that used to drop items before the fix.
+ */
+const OCR_RESULT_ITEMS_ONLY: OcrResult = {
+  amount: null,
+  currency: null,
+  merchant: null,
+  categoryHint: null,
+  occurredAt: null,
+  confidence: 0.6,
+  items: [{ name: 'Producto', quantity: 1, unitPrice: 200, lineTotal: 200 }],
 };
 
 // ---------------------------------------------------------------------------
@@ -345,7 +375,7 @@ describe('ReviewScreen', () => {
     mockExtract.error = null;
 
     mockedRepo.createExpense.mockResolvedValueOnce({
-      data: { id: 'exp-new' } as repo.ExpenseWithCategory,
+      data: { id: 'exp-new', items: [] } as unknown as repo.ExpenseWithItems,
       error: null,
     });
 
@@ -400,6 +430,74 @@ describe('ReviewScreen', () => {
     await waitFor(() => {
       expect(screen.getByText('No se pudo guardar el gasto.')).toBeTruthy();
     });
+  });
+
+  // -------------------------------------------------------------------------
+  // HU-18: OCR result with line items — items must survive to the form
+  // -------------------------------------------------------------------------
+
+  it('renders item names when OCR detects line items', async () => {
+    mockExtract.isPending = false;
+    mockExtract.data = OCR_RESULT_WITH_ITEMS;
+    mockExtract.error = null;
+
+    renderWithProviders();
+
+    // The detail section starts expanded when items are present.
+    // Item names must be visible.
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Leche entera')).toBeTruthy();
+      expect(screen.getByDisplayValue('Pan lactal')).toBeTruthy();
+    });
+  });
+
+  it('passes items to createExpense when submitting an OCR-prefilled form', async () => {
+    mockExtract.isPending = false;
+    mockExtract.data = OCR_RESULT_WITH_ITEMS;
+    mockExtract.error = null;
+
+    mockedRepo.createExpense.mockResolvedValueOnce({
+      data: { id: 'exp-items', items: [] } as unknown as repo.ExpenseWithItems,
+      error: null,
+    });
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('2000')).toBeTruthy();
+    });
+
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('Registrar gasto'));
+    });
+
+    await waitFor(() => {
+      expect(mockedRepo.createExpense).toHaveBeenCalledWith(
+        expect.objectContaining({
+          items: expect.arrayContaining([
+            expect.objectContaining({ name: 'Leche entera', quantity: 2, line_total: 1000 }),
+            expect.objectContaining({ name: 'Pan lactal', quantity: 1, line_total: 1000 }),
+          ]),
+        }),
+      );
+    });
+  });
+
+  it('shows prefilled form (not "no data" notice) when OCR returns only items and no scalar fields', async () => {
+    mockExtract.isPending = false;
+    mockExtract.data = OCR_RESULT_ITEMS_ONLY;
+    mockExtract.error = null;
+
+    renderWithProviders();
+
+    // Wait for the item row to be visible — the items section expands automatically
+    // when pre-populated. This also proves we didn't fall into the "no data" branch.
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Producto')).toBeTruthy();
+    });
+
+    // Confirm the "no data" notice is absent.
+    expect(screen.queryByText('No se detectaron datos. Completá manualmente.')).toBeNull();
   });
 
   // -------------------------------------------------------------------------

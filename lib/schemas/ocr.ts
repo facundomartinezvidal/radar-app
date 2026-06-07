@@ -9,6 +9,19 @@ import { z } from 'zod';
 
 import { CURRENCIES } from '@/lib/schemas/expense';
 
+/**
+ * A single line item returned by the OCR edge function.
+ * Fields are camelCase (edge function convention) and defensively coerced.
+ */
+export const ocrItemSchema = z.object({
+  name: z.string().catch(''),
+  quantity: z.number().nullable().catch(null),
+  unitPrice: z.number().nullable().catch(null),
+  lineTotal: z.number().nullable().catch(null),
+});
+
+export type OcrItem = z.infer<typeof ocrItemSchema>;
+
 export const ocrResultSchema = z.object({
   /** Total amount extracted from the receipt. Null when not found. */
   amount: z.number().nullable().catch(null),
@@ -31,6 +44,11 @@ export const ocrResultSchema = z.object({
    * Defaults to 0 on parse failure.
    */
   confidence: z.number().min(0).max(1).catch(0),
+  /**
+   * Line items detected in the receipt. Empty array when none found or on
+   * parse failure (defensive via `.catch([])`).
+   */
+  items: z.array(ocrItemSchema).catch([]),
 });
 
 export type OcrResult = z.infer<typeof ocrResultSchema>;

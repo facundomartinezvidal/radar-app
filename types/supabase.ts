@@ -41,6 +41,53 @@ export type Database = {
         };
         Relationships: [];
       };
+      expense_items: {
+        Row: {
+          created_at: string;
+          expense_id: string;
+          id: string;
+          line_total: number;
+          name: string;
+          position: number;
+          quantity: number;
+          unit_price: number | null;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          expense_id: string;
+          id?: string;
+          line_total: number;
+          name: string;
+          position?: number;
+          quantity?: number;
+          unit_price?: number | null;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          expense_id?: string;
+          id?: string;
+          line_total?: number;
+          name?: string;
+          position?: number;
+          quantity?: number;
+          unit_price?: number | null;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'expense_items_expense_id_fkey';
+            columns: ['expense_id'];
+            isOneToOne: false;
+            referencedRelation: 'expenses';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       expenses: {
         Row: {
           amount: number;
@@ -120,7 +167,53 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      create_expense_with_items: {
+        Args: {
+          p_amount: number;
+          p_category_id: string;
+          p_currency: string;
+          p_description: string;
+          p_items?: Json;
+          p_occurred_at: string;
+        };
+        Returns: {
+          amount: number;
+          category_id: string | null;
+          created_at: string;
+          currency: string;
+          description: string | null;
+          id: string;
+          occurred_at: string;
+          updated_at: string;
+          user_id: string;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'expenses';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      update_expense_with_items: {
+        Args: { p_id: string; p_items?: Json; p_patch?: Json };
+        Returns: {
+          amount: number;
+          category_id: string | null;
+          created_at: string;
+          currency: string;
+          description: string | null;
+          id: string;
+          occurred_at: string;
+          updated_at: string;
+          user_id: string;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'expenses';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
     };
     Enums: {
       [_ in never]: never;

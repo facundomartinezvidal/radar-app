@@ -77,7 +77,7 @@ describe('NewExpenseScreen', () => {
 
   it('submits create with parsed amount + selected currency + category', async () => {
     mockedRepo.createExpense.mockResolvedValueOnce({
-      data: { id: 'exp-1' } as repo.ExpenseWithCategory,
+      data: { id: 'exp-1', items: [] } as unknown as repo.ExpenseWithItems,
       error: null,
     });
 
@@ -108,6 +108,51 @@ describe('NewExpenseScreen', () => {
       );
     });
     expect(router.back).toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // HU-18: manual item entry
+  // -------------------------------------------------------------------------
+
+  it('passes items to createExpense when user adds an item manually', async () => {
+    mockedRepo.createExpense.mockResolvedValueOnce({
+      data: { id: 'exp-new', items: [] } as unknown as repo.ExpenseWithItems,
+      error: null,
+    });
+
+    renderWithProviders();
+
+    await waitFor(() => expect(screen.getByText('Comida')).toBeTruthy());
+
+    // Amount
+    fireEvent.changeText(screen.getByLabelText('Monto'), '500');
+
+    // Pick category
+    fireEvent.press(screen.getByLabelText('Categoría Comida'));
+
+    // Open the items section then add one item
+    fireEvent.press(screen.getByLabelText('Mostrar detalle de ítems'));
+    fireEvent.press(screen.getByLabelText('Agregar ítem'));
+
+    // Fill the item name (first item = index 0)
+    fireEvent.changeText(screen.getByLabelText('Nombre del ítem 1'), 'Medialunas');
+
+    // Fill line_total
+    fireEvent.changeText(screen.getByLabelText('Total del ítem 1'), '500');
+
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('Registrar gasto'));
+    });
+
+    await waitFor(() => {
+      expect(mockedRepo.createExpense).toHaveBeenCalledWith(
+        expect.objectContaining({
+          items: expect.arrayContaining([
+            expect.objectContaining({ name: 'Medialunas', line_total: 500 }),
+          ]),
+        }),
+      );
+    });
   });
 
   it('shows error message when create fails', async () => {

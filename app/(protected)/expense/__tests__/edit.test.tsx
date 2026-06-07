@@ -55,7 +55,44 @@ const EXPENSE = {
   created_at: '2026-05-17T20:00:00Z',
   updated_at: '2026-05-17T20:00:00Z',
   category: CATEGORIES[0]!,
-} satisfies repo.ExpenseWithCategory;
+  items: [],
+} satisfies repo.ExpenseWithItems;
+
+/** Expense fixture that includes saved line items. */
+const EXPENSE_WITH_ITEMS: repo.ExpenseWithItems = {
+  id: 'exp-2',
+  user_id: 'u-1',
+  amount: 3000,
+  currency: 'ARS',
+  category_id: 'cat-1',
+  description: 'Supermercado',
+  occurred_at: '2026-05-20T10:00:00Z',
+  created_at: '2026-05-20T10:00:00Z',
+  updated_at: '2026-05-20T10:00:00Z',
+  category: CATEGORIES[0]!,
+  items: [
+    {
+      id: 'item-1',
+      expense_id: 'exp-2',
+      name: 'Arroz',
+      quantity: '2',
+      unit_price: '500',
+      line_total: '1000',
+      position: 0,
+      created_at: '2026-05-20T10:00:00Z',
+    } as unknown as repo.ExpenseItemRow,
+    {
+      id: 'item-2',
+      expense_id: 'exp-2',
+      name: 'Fideos',
+      quantity: '1',
+      unit_price: '2000',
+      line_total: '2000',
+      position: 1,
+      created_at: '2026-05-20T10:00:00Z',
+    } as unknown as repo.ExpenseItemRow,
+  ],
+};
 
 function renderScreen(): void {
   const client = new QueryClient({
@@ -90,7 +127,7 @@ describe('ExpenseDetailScreen', () => {
 
   it('saves edits via updateExpense', async () => {
     mockedRepo.updateExpense.mockResolvedValueOnce({
-      data: { ...EXPENSE, description: 'Empanadas' } as repo.ExpenseWithCategory,
+      data: { ...EXPENSE, description: 'Empanadas' } as repo.ExpenseWithItems,
       error: null,
     });
 
@@ -110,6 +147,49 @@ describe('ExpenseDetailScreen', () => {
       );
     });
     expect(router.back).toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // HU-18: expense with line items
+  // -------------------------------------------------------------------------
+
+  it('shows existing line-item names when expense has items', async () => {
+    mockedRepo.getExpense.mockResolvedValue({ data: EXPENSE_WITH_ITEMS, error: null });
+
+    renderScreen();
+
+    // Items section starts expanded when items are pre-populated.
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Arroz')).toBeTruthy();
+      expect(screen.getByDisplayValue('Fideos')).toBeTruthy();
+    });
+  });
+
+  it('passes items to updateExpense on submit when expense has items', async () => {
+    mockedRepo.getExpense.mockResolvedValue({ data: EXPENSE_WITH_ITEMS, error: null });
+    mockedRepo.updateExpense.mockResolvedValueOnce({
+      data: EXPENSE_WITH_ITEMS,
+      error: null,
+    });
+
+    renderScreen();
+    await waitFor(() => expect(screen.getByDisplayValue('Arroz')).toBeTruthy());
+
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('Guardar cambios'));
+    });
+
+    await waitFor(() => {
+      expect(mockedRepo.updateExpense).toHaveBeenCalledWith(
+        'exp-1',
+        expect.objectContaining({
+          items: expect.arrayContaining([
+            expect.objectContaining({ name: 'Arroz', quantity: 2, line_total: 1000 }),
+            expect.objectContaining({ name: 'Fideos', quantity: 1, line_total: 2000 }),
+          ]),
+        }),
+      );
+    });
   });
 
   it('confirms then calls deleteExpense', async () => {

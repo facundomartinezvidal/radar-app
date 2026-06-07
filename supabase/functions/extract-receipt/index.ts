@@ -26,6 +26,13 @@ interface RequestBody {
   mimeType?: string;
 }
 
+interface OcrItem {
+  name: string;
+  quantity: number | null;
+  unitPrice: number | null;
+  lineTotal: number | null;
+}
+
 interface OcrResult {
   amount: number | null;
   currency: 'ARS' | 'USD' | null;
@@ -33,6 +40,7 @@ interface OcrResult {
   merchant: string | null;
   categoryHint: string | null;
   confidence: number;
+  items: OcrItem[];
 }
 
 interface GroqMessage {
@@ -85,6 +93,75 @@ function jsonResponse(
 }
 
 // ---------------------------------------------------------------------------
+// Helper: line-item normaliser
+//
+// Validates the raw "items" array returned by the LLM and coerces each entry
+// into the expected OcrItem shape.  Non-array input is silently treated as an
+// empty list so existing callers that omit the field are not broken.
+// ---------------------------------------------------------------------------
+
+const MAX_ITEMS = 50;
+
+function normaliseItems(raw: unknown): OcrItem[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  return raw.slice(0, MAX_ITEMS).reduce<OcrItem[]>((acc, entry: unknown) => {
+    if (entry === null || typeof entry !== 'object') {
+      return acc;
+    }
+
+    const item = entry as Record<string, unknown>;
+
+    // name: must be a non-empty string after trim; truncate to 120 chars
+    if (typeof item.name !== 'string') {
+      return acc;
+    }
+    const trimmedName = item.name.trim();
+    if (trimmedName === '') {
+      return acc;
+    }
+    const name = trimmedName.length > 120 ? trimmedName.slice(0, 120) : trimmedName;
+
+    // quantity: coerce to finite positive number; 0 → null
+    let quantity: number | null = null;
+    if (item.quantity !== null && item.quantity !== undefined) {
+      const coerced = Number(item.quantity);
+      if (Number.isFinite(coerced) && coerced > 0) {
+        quantity = coerced;
+      }
+    }
+
+    // unitPrice: coerce to finite non-negative number; negative → null
+    let unitPrice: number | null = null;
+    if (item.unitPrice !== null && item.unitPrice !== undefined) {
+      const coerced = Number(item.unitPrice);
+      if (Number.isFinite(coerced) && coerced >= 0) {
+        unitPrice = coerced;
+      }
+    }
+
+    // lineTotal: coerce to finite non-negative number; negative → null
+    let lineTotal: number | null = null;
+    if (item.lineTotal !== null && item.lineTotal !== undefined) {
+      const coerced = Number(item.lineTotal);
+      if (Number.isFinite(coerced) && coerced >= 0) {
+        lineTotal = coerced;
+      }
+    }
+
+    // Derive lineTotal from quantity × unitPrice when missing
+    if (lineTotal === null && quantity !== null && unitPrice !== null) {
+      lineTotal = Math.round(quantity * unitPrice * 100) / 100;
+    }
+
+    acc.push({ name, quantity, unitPrice, lineTotal });
+    return acc;
+  }, []);
+}
+
+// ---------------------------------------------------------------------------
 // Helper: OCR result validator/normaliser
 //
 // Validates the raw object returned by the LLM and coerces fields into the
@@ -133,7 +210,10 @@ function normaliseOcrResult(raw: Record<string, unknown>): OcrResult {
     confidence = Math.min(1, Math.max(0, raw.confidence));
   }
 
-  return { amount, currency, occurredAt, merchant, categoryHint, confidence };
+  // items: delegate to normaliseItems; falls back to [] if field is absent or invalid
+  const items = normaliseItems(raw.items);
+
+  return { amount, currency, occurredAt, merchant, categoryHint, confidence, items };
 }
 
 // ---------------------------------------------------------------------------
@@ -150,7 +230,9 @@ Respondé ÚNICAMENTE con un objeto JSON válido con las siguientes claves:
 - "merchant": nombre del comercio o empresa emisora del ticket (string). Si no se ve, devolvé null.
 - "categoryHint": categoría del gasto en español, una de: "Comida", "Supermercado", "Transporte", "Salud", "Entretenimiento", "Servicios", "Ropa", "Tecnología", "Educación", "Otro". Si no podés determinarlo, devolvé null.
 - "confidence": número entre 0 y 1 indicando tu confianza en la extracción (1 = muy seguro, 0 = no pudiste leer nada).
+- "items": array de objetos, uno por cada renglón del detalle del ticket. Cada objeto: {"name": descripción del ítem (string), "quantity": cantidad como número decimal (admite peso, ej 0.75), o null si no figura, "unitPrice": precio unitario como número sin separadores de miles, o null, "lineTotal": importe total del renglón como número, o null}. Máximo 50 ítems. Si el ticket no muestra detalle de renglones, devolvé un array vacío [].
 
+No inventes ítems: incluí únicamente los renglones legibles del ticket.
 Si la imagen NO es un ticket o comprobante, establecé todos los campos en null y "confidence" en 0.
 No incluyas explicaciones ni texto fuera del JSON.`;
 

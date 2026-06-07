@@ -7,8 +7,8 @@
  * - `extractReceipt`    — calls the `extract-receipt` edge function via supabase-js.
  */
 import type { CategoryRow } from '@/lib/repositories/expenses';
-import type { Currency } from '@/lib/schemas/expense';
-import { type OcrResult, ocrResultSchema } from '@/lib/schemas/ocr';
+import type { Currency, ExpenseItemInput } from '@/lib/schemas/expense';
+import { type OcrItem, type OcrResult, ocrResultSchema } from '@/lib/schemas/ocr';
 import { supabase } from '@/lib/supabase';
 
 // ---------------------------------------------------------------------------
@@ -45,6 +45,52 @@ export interface ReceiptPrefill {
   occurred_at?: string;
   /** True when `confidence < 0.5` — the UI should warn the user to verify. */
   lowConfidence: boolean;
+  /** Mapped line items from OCR. Omitted when none detected. */
+  items?: ExpenseItemInput[];
+}
+
+// ---------------------------------------------------------------------------
+// OCR item helpers
+// ---------------------------------------------------------------------------
+
+const MAX_ITEMS = 50;
+
+/** Round a number to 2 decimal places. */
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/**
+ * Map OCR line items to `ExpenseItemInput` records ready for the expense form.
+ *
+ * Rules:
+ * - Drop items whose name is empty/whitespace (edge fn already does this, but
+ *   `ocrItemSchema` uses `.catch('')` so a garbage name coerces to '').
+ * - `quantity`: use detected value when > 0; default to 1 otherwise.
+ * - `unit_price`: pass through as-is (nullable).
+ * - `line_total`: use detected value when non-null; else compute
+ *   `round2(quantity * unitPrice)` when both are available; else 0.
+ * - Cap result at 50 items.
+ */
+export function mapOcrItems(ocrItems: OcrItem[]): ExpenseItemInput[] {
+  return ocrItems
+    .filter((item) => item.name.trim().length > 0)
+    .slice(0, MAX_ITEMS)
+    .map((item) => {
+      const quantity = item.quantity !== null && item.quantity > 0 ? item.quantity : 1;
+      const unit_price = item.unitPrice;
+
+      let line_total: number;
+      if (item.lineTotal !== null) {
+        line_total = item.lineTotal;
+      } else if (unit_price !== null) {
+        line_total = round2(quantity * unit_price);
+      } else {
+        line_total = 0;
+      }
+
+      return { name: item.name.trim(), quantity, unit_price, line_total };
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -131,6 +177,11 @@ export function mapOcrToPrefill(result: OcrResult, categories: CategoryRow[]): R
       // so the form's zod resolver never sees a bare date string.
       prefill.occurred_at = parsed.toISOString();
     }
+  }
+
+  const mappedItems = mapOcrItems(result.items);
+  if (mappedItems.length > 0) {
+    prefill.items = mappedItems;
   }
 
   return prefill;

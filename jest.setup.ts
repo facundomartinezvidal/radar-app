@@ -96,5 +96,10 @@ jest.mock('@/lib/supabase', () => ({
     from: jest.fn(() => ({
       upsert: jest.fn().mockResolvedValue({ data: null, error: null }),
     })),
+    // RPC mock — individual tests override via mockResolvedValueOnce
+    rpc: jest.fn().mockResolvedValue({ data: null, error: null }),
+    functions: {
+      invoke: jest.fn(),
+    },
   },
 }));

@@ -13,10 +13,16 @@ import type { Tables, TablesUpdate } from '@/types/supabase';
 
 export type CategoryRow = Tables<'categories'>;
 export type ExpenseRow = Tables<'expenses'>;
+export type ExpenseItemRow = Tables<'expense_items'>;
 
 /** Expense row joined with its category (left-join — `category` may be null). */
 export interface ExpenseWithCategory extends ExpenseRow {
   category: CategoryRow | null;
+}
+
+/** Expense row joined with category + line items (items sorted by position asc). */
+export interface ExpenseWithItems extends ExpenseWithCategory {
+  items: ExpenseItemRow[];
 }
 
 interface RepoResult<T> {
@@ -28,7 +34,12 @@ interface RepoResult<T> {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const EXPENSE_WITH_CATEGORY_SELECT = '*, category:categories(*)';
+const EXPENSE_WITH_CATEGORY_SELECT = '*, category:categories(*), items:expense_items(*)';
+
+/** Sort items by position ascending (defensive — DB should return them ordered). */
+function normalizeItems(row: ExpenseWithItems): ExpenseWithItems {
+  return { ...row, items: [...row.items].sort((a, b) => a.position - b.position) };
+}
 
 async function requireUserId(): Promise<string> {
   const { data, error } = await supabase.auth.getUser();
@@ -56,7 +67,7 @@ export async function listCategories(): Promise<RepoResult<CategoryRow[]>> {
 
 export async function listExpenses(
   filter: ExpenseFilter = {},
-): Promise<RepoResult<ExpenseWithCategory[]>> {
+): Promise<RepoResult<ExpenseWithItems[]>> {
   let query = supabase
     .from('expenses')
     .select(EXPENSE_WITH_CATEGORY_SELECT)
@@ -84,36 +95,75 @@ export async function listExpenses(
   query = query.range(offset, offset + limit - 1);
 
   const { data, error } = await query;
-  return { data: data as ExpenseWithCategory[] | null, error };
+  const rows = data as ExpenseWithItems[] | null;
+  return { data: rows ? rows.map(normalizeItems) : null, error };
 }
 
-export async function getExpense(id: string): Promise<RepoResult<ExpenseWithCategory>> {
+export async function getExpense(id: string): Promise<RepoResult<ExpenseWithItems>> {
   const { data, error } = await supabase
     .from('expenses')
     .select(EXPENSE_WITH_CATEGORY_SELECT)
     .eq('id', id)
     .maybeSingle();
-  return { data: data as ExpenseWithCategory | null, error };
+  const row = data as ExpenseWithItems | null;
+  return { data: row ? normalizeItems(row) : null, error };
+}
+
+/** Map `ExpenseItemInput` fields to the RPC jsonb item shape (no `id`). */
+function toRpcItem(item: {
+  name: string;
+  quantity: number;
+  unit_price: number | null;
+  line_total: number;
+  id?: string;
+}): { name: string; quantity: number; unit_price: number | null; line_total: number } {
+  return {
+    name: item.name,
+    quantity: item.quantity,
+    unit_price: item.unit_price,
+    line_total: item.line_total,
+  };
 }
 
 export async function createExpense(
   input: CreateExpenseInput,
-): Promise<RepoResult<ExpenseWithCategory>> {
+): Promise<RepoResult<ExpenseWithItems>> {
   try {
     const userId = await requireUserId();
-    const { data, error } = await supabase
+
+    const rpcItems = (input.items ?? []).map(toRpcItem);
+
+    const { data: rpcData, error: rpcError } = await supabase.rpc('create_expense_with_items', {
+      p_amount: input.amount,
+      p_currency: input.currency,
+      // RPC signature declares p_category_id as string; pass empty string when null
+      // (the DB function handles null via the json patch; the RPC type is imprecise).
+      p_category_id: (input.category_id ?? '') as string,
+      p_description: (input.description ?? null) as string,
+      p_occurred_at: input.occurred_at ?? new Date().toISOString(),
+      p_items: rpcItems as unknown as import('@/types/supabase').Json,
+    });
+
+    if (rpcError) return { data: null, error: rpcError };
+
+    // Re-fetch the full row with nested relations so the returned shape is
+    // consistent with all other repo functions.
+    const createdId = (rpcData as { id?: string } | null)?.id;
+    if (!createdId) {
+      return { data: null, error: new Error('No se pudo recuperar el gasto creado.') };
+    }
+
+    const { data: fetched, error: fetchError } = await supabase
       .from('expenses')
-      .insert({
-        user_id: userId,
-        amount: input.amount,
-        currency: input.currency,
-        category_id: input.category_id,
-        description: input.description ?? null,
-        occurred_at: input.occurred_at ?? new Date().toISOString(),
-      })
       .select(EXPENSE_WITH_CATEGORY_SELECT)
-      .single();
-    return { data: data as ExpenseWithCategory | null, error };
+      .eq('id', createdId)
+      .maybeSingle();
+
+    if (fetchError) return { data: null, error: fetchError };
+    const row = fetched as ExpenseWithItems | null;
+    // Guard: if the userId is needed but unused at this level, suppress the lint warning.
+    void userId;
+    return { data: row ? normalizeItems(row) : null, error: null };
   } catch (e) {
     return { data: null, error: e as Error };
   }
@@ -122,7 +172,43 @@ export async function createExpense(
 export async function updateExpense(
   id: string,
   input: UpdateExpenseInput,
-): Promise<RepoResult<ExpenseWithCategory>> {
+): Promise<RepoResult<ExpenseWithItems>> {
+  if (input.items !== undefined) {
+    // Route through the RPC when items are explicitly provided (array or []).
+    // p_items null = leave untouched; array (incl. []) = replace full set.
+    const p_items = input.items.map(toRpcItem);
+
+    // Build p_patch with only the column fields that are present (defined) in
+    // input. Include keys with null values when explicitly set (e.g. clearing
+    // category_id). Exclude keys whose value is undefined.
+    const p_patch: Record<string, unknown> = {};
+    if (input.amount !== undefined) p_patch.amount = input.amount;
+    if (input.currency !== undefined) p_patch.currency = input.currency;
+    if (input.category_id !== undefined) p_patch.category_id = input.category_id;
+    if (input.description !== undefined) p_patch.description = input.description;
+    if (input.occurred_at !== undefined) p_patch.occurred_at = input.occurred_at;
+
+    const { data: rpcData, error: rpcError } = await supabase.rpc('update_expense_with_items', {
+      p_id: id,
+      p_patch: p_patch as unknown as import('@/types/supabase').Json,
+      p_items: p_items as unknown as import('@/types/supabase').Json,
+    });
+
+    if (rpcError) return { data: null, error: rpcError };
+
+    const updatedId = (rpcData as { id?: string } | null)?.id ?? id;
+    const { data: fetched, error: fetchError } = await supabase
+      .from('expenses')
+      .select(EXPENSE_WITH_CATEGORY_SELECT)
+      .eq('id', updatedId)
+      .maybeSingle();
+
+    if (fetchError) return { data: null, error: fetchError };
+    const row = fetched as ExpenseWithItems | null;
+    return { data: row ? normalizeItems(row) : null, error: null };
+  }
+
+  // No items in input — use the column-update path (preserves existing items).
   const patch: TablesUpdate<'expenses'> = {};
   if (input.amount !== undefined) patch.amount = input.amount;
   if (input.currency !== undefined) patch.currency = input.currency;
@@ -136,7 +222,8 @@ export async function updateExpense(
     .eq('id', id)
     .select(EXPENSE_WITH_CATEGORY_SELECT)
     .single();
-  return { data: data as ExpenseWithCategory | null, error };
+  const row = data as ExpenseWithItems | null;
+  return { data: row ? normalizeItems(row) : null, error };
 }
 
 export async function deleteExpense(id: string): Promise<RepoResult<{ id: string }>> {
