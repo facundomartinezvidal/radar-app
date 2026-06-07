@@ -28,6 +28,12 @@ jest.mock('@react-native-community/datetimepicker', () => {
   return { __esModule: true, default: Mock };
 });
 
+jest.mock('@/hooks/use-categories', () => ({
+  useCreateCategory: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
+  useUpdateCategory: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
+  useDeleteCategory: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
+}));
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------

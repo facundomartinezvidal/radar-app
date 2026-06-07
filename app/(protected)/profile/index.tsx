@@ -79,6 +79,17 @@ export default function ProfileScreen(): React.JSX.Element {
               <Body style={styles.listRowLabel}>Editar nombre</Body>
               <Icon name="ChevronRight" size={20} color={colors.fg[3]} strokeWidth={1.5} />
             </Pressable>
+            <View style={styles.rowDivider} />
+            <Pressable
+              onPress={() => router.push('/(protected)/profile/categories')}
+              accessibilityRole="button"
+              accessibilityLabel="Categorías"
+              style={styles.listRow}
+              testID="categories-row"
+            >
+              <Body style={styles.listRowLabel}>Categorías</Body>
+              <Icon name="ChevronRight" size={20} color={colors.fg[3]} strokeWidth={1.5} />
+            </Pressable>
           </Card>
         </View>
 
@@ -173,6 +184,11 @@ const styles = StyleSheet.create({
   },
   listRowLabel: {
     color: colors.fg[1],
+  },
+  rowDivider: {
+    height: 1,
+    backgroundColor: colors.line[1],
+    marginHorizontal: spacing[4],
   },
   destructiveLabel: {
     color: colors.money.out,
