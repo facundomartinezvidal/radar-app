@@ -32,6 +32,8 @@ const FIXTURE_CATEGORIES = [
     color: '#F59E0B',
     sort_order: 10,
     created_at: '2026-01-01',
+    updated_at: '2026-01-01',
+    user_id: null,
   },
   {
     id: 'cat-2',
@@ -41,6 +43,8 @@ const FIXTURE_CATEGORIES = [
     color: '#4FB3DC',
     sort_order: 30,
     created_at: '2026-01-01',
+    updated_at: '2026-01-01',
+    user_id: null,
   },
 ] satisfies repo.CategoryRow[];
 
