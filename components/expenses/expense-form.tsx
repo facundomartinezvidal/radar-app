@@ -3,11 +3,12 @@
  * onSubmit with a validated payload. Parent screen wires the mutation.
  */
 import { zodResolver } from '@hookform/resolvers/zod';
-import React from 'react';
+import React, { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { Body, BodySm, Button, Input } from '@/components/ui';
+import { CategoryCreateSheet } from '@/components/categories/category-create-sheet';
 import {
   type CreateExpenseInput,
   type ExpenseItemInput,
@@ -15,7 +16,7 @@ import {
   type Currency,
 } from '@/lib/schemas/expense';
 import type { CategoryRow, ExpenseItemRow, ExpenseWithCategory } from '@/lib/repositories/expenses';
-import { colors, spacing } from '@/lib/theme';
+import { colors, radii, spacing } from '@/lib/theme';
 
 import { AmountInput } from './amount-input';
 import { CategoryPicker } from './category-picker';
@@ -32,6 +33,8 @@ export interface ExpenseFormPrefill {
   occurred_at?: string;
   /** OCR-detected line items. */
   items?: ExpenseItemInput[];
+  /** Suggested new-category name when OCR found no matching category. */
+  suggestedCategoryName?: string | null;
 }
 
 /** Expense row with optional line items (edit mode). */
@@ -128,6 +131,9 @@ export function ExpenseForm({
 
   const currency = watch('currency');
   const amountText = watch('amountText');
+  const categoryId = watch('category_id');
+
+  const [suggestionSheetVisible, setSuggestionSheetVisible] = useState(false);
 
   const submit = handleSubmit(async (data) => {
     await onSubmit({
@@ -204,6 +210,45 @@ export function ExpenseForm({
             />
           )}
         />
+
+        {/* OCR suggestion CTA — visible only when a name was suggested and no category is selected */}
+        {prefill?.suggestedCategoryName != null &&
+          prefill.suggestedCategoryName.length > 0 &&
+          categoryId == null && (
+            <>
+              <BodySm color={colors.fg[3]}>
+                El ticket sugiere una categoría que no existe todavía.
+              </BodySm>
+              <Pressable
+                onPress={() => setSuggestionSheetVisible(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Crear categoría sugerida"
+                style={({ pressed }) => ({
+                  alignSelf: 'flex-start',
+                  paddingVertical: spacing[2],
+                  paddingHorizontal: spacing[3],
+                  borderRadius: radii.md,
+                  borderWidth: 1,
+                  borderColor: colors.amber[500],
+                  backgroundColor: pressed ? `${colors.amber[500]}1A` : colors.bg[2],
+                })}
+              >
+                <BodySm color={colors.amber[500]} style={{ fontWeight: '600' }}>
+                  {`Crear categoría "${prefill.suggestedCategoryName}"`}
+                </BodySm>
+              </Pressable>
+
+              <CategoryCreateSheet
+                visible={suggestionSheetVisible}
+                defaultName={prefill.suggestedCategoryName}
+                onClose={() => setSuggestionSheetVisible(false)}
+                onCreated={(id) => {
+                  setValue('category_id', id, { shouldValidate: true, shouldDirty: true });
+                  setSuggestionSheetVisible(false);
+                }}
+              />
+            </>
+          )}
       </View>
 
       {/* Line items */}

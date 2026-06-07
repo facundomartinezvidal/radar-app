@@ -60,7 +60,7 @@ export default function ReviewScreen(): React.JSX.Element {
   }, []);
 
   useEffect(() => {
-    if (!imageUri || hasTriggeredRef.current) return;
+    if (!imageUri || categoriesQuery.isLoading || hasTriggeredRef.current) return;
     hasTriggeredRef.current = true;
 
     let cancelled = false;
@@ -89,7 +89,11 @@ export default function ReviewScreen(): React.JSX.Element {
       }
       if (!cancelled) {
         setIsCompressing(false);
-        extractMutation.mutate({ imageBase64: compressed.base64, mimeType: compressed.mimeType });
+        extractMutation.mutate({
+          imageBase64: compressed.base64,
+          mimeType: compressed.mimeType,
+          categoryNames: categoriesQuery.data?.map((c) => c.name) ?? [],
+        });
       }
     }
 
@@ -99,7 +103,7 @@ export default function ReviewScreen(): React.JSX.Element {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [imageUri]);
+  }, [imageUri, categoriesQuery.isLoading, categoriesQuery.data]);
 
   // Map OCR result → prefill once data arrives.
   useEffect(() => {
@@ -140,7 +144,11 @@ export default function ReviewScreen(): React.JSX.Element {
       if (mountedRef.current) {
         setIsCompressing(false);
         hasTriggeredRef.current = true;
-        extractMutation.mutate({ imageBase64: compressed.base64, mimeType: compressed.mimeType });
+        extractMutation.mutate({
+          imageBase64: compressed.base64,
+          mimeType: compressed.mimeType,
+          categoryNames: categoriesQuery.data?.map((c) => c.name) ?? [],
+        });
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps

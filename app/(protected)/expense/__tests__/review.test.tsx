@@ -507,6 +507,26 @@ describe('ReviewScreen', () => {
   });
 
   // -------------------------------------------------------------------------
+  // Task C: categoryNames are forwarded to the OCR mutation
+  // -------------------------------------------------------------------------
+
+  it('calls extractMutation.mutate with categoryNames from loaded categories', async () => {
+    // Categories are already loaded via mockedRepo.listCategories in beforeEach.
+    // OCR mutation stays pending so we can inspect the mutate call.
+    mockExtract.isPending = true;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(mockExtract.mutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          categoryNames: expect.arrayContaining(['Comida']),
+        }),
+      );
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // Fix 2: compression failure → manual notice + Reintentar + form (not blank)
   // -------------------------------------------------------------------------
 
