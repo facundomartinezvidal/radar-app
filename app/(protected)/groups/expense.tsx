@@ -13,7 +13,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ExpenseForm, type SharedExpenseSubmitPayload } from '@/components/expenses/expense-form';
-import { Body, H1, Icon, Loader } from '@/components/ui';
+import { Body, H2, Icon, Loader } from '@/components/ui';
 import { useCategories } from '@/hooks/use-expenses';
 import { useGroup, useCreateSharedExpense } from '@/hooks/use-groups';
 import { useAuthStore } from '@/stores/auth-store';
@@ -96,7 +96,9 @@ export default function NewSharedExpenseScreen(): React.JSX.Element {
             >
               <Icon name="ChevronLeft" size={24} color={colors.fg[1]} />
             </Pressable>
-            <H1>Nuevo gasto compartido</H1>
+            <H2 style={{ flex: 1 }} numberOfLines={1}>
+              Nuevo gasto compartido
+            </H2>
           </View>
 
           {isLoading ? (

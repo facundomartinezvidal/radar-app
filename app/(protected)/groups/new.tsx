@@ -17,7 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { GroupFormValues } from '@/components/groups/group-form';
 import { GroupForm } from '@/components/groups/group-form';
-import { H1, Icon } from '@/components/ui';
+import { H2, Icon } from '@/components/ui';
 import { useCreateGroup, useInviteMember } from '@/hooks/use-groups';
 import { colors, spacing } from '@/lib/theme';
 
@@ -95,7 +95,9 @@ export default function NewGroupScreen(): React.JSX.Element {
             >
               <Icon name="ChevronLeft" size={24} color={colors.fg[1]} strokeWidth={1.5} />
             </Pressable>
-            <H1>Nuevo grupo</H1>
+            <H2 style={{ flex: 1 }} numberOfLines={1}>
+              Nuevo grupo
+            </H2>
           </View>
 
           {/* Form */}
