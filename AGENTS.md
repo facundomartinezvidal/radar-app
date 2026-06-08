@@ -436,7 +436,7 @@ Gotchas in SDK 54:
 pnpm format:check   # Prettier
 pnpm lint           # ESLint flat config
 pnpm typecheck      # tsc --noEmit strict
-pnpm test           # jest-expo + RNTL (594 tests baseline)
+pnpm test           # jest-expo + RNTL (603 tests baseline)
 ```
 
 CI enforces these on every push/PR via `.github/workflows/ci.yml`.
@@ -506,8 +506,12 @@ Update **AGENTS.md** as part of the feature's final PR:
   with a grid of all categories + inline create/edit/delete of custom ones
   (system rows read-only). OCR edge fn v4 accepts a dynamic category list,
   matches conservatively by rubro, and returns `suggestedNewCategory` when no
-  match; review screen surfaces a "Crear categoría '<nombre>'" CTA with manual
-  confirm. Tests: 472 → 594. See `docs/features/custom-categories.md`,
+  match (edge fn v5: always suggests when none fit + returns a one-line
+  `suggestedNewCategoryReason`); the review form shows a recommendation card
+  (name + why + one-tap create). Home quick-action "Categorías" opens the
+  management screen (scanning lives on the Cámara tab); the selector sheet is
+  select+create only, with a "Gestionar categorías" link. Tests: 472 → 603.
+  See `docs/features/custom-categories.md`,
   `docs/decisions/2026-06-07-custom-categories-schema.md` and
   `docs/user-flows/HU-16-categorias-personalizadas.md`.
 
