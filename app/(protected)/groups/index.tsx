@@ -12,10 +12,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { GroupCard } from '@/components/groups/group-card';
 import { Body, Button, H2, Icon, Loader } from '@/components/ui';
 import { useGroups } from '@/hooks/use-groups';
+import { useSession } from '@/hooks/use-session';
 import { colors, spacing } from '@/lib/theme';
 
 export default function GroupsScreen(): React.JSX.Element {
   const { data: groups, isLoading } = useGroups();
+  const { user } = useSession();
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -53,6 +55,7 @@ export default function GroupsScreen(): React.JSX.Element {
               <GroupCard
                 key={group.id}
                 group={group}
+                currentUserId={user?.id ?? null}
                 onPress={(id) =>
                   router.push(`/(protected)/groups/${id}` as Parameters<typeof router.push>[0])
                 }

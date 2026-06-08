@@ -31,8 +31,18 @@ jest.mock('@/hooks/use-groups', () => ({
   useGroups: (...args: unknown[]) => mockUseGroups(...args),
   useGroup: jest.fn(() => ({ data: null, isLoading: false })),
   useGroupExpenses: jest.fn(() => ({ data: [], isLoading: false })),
+  useGroupBalances: jest.fn(() => ({ data: [], isLoading: false })),
   useCreateGroup: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
   useDeleteGroup: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
+}));
+
+jest.mock('@/hooks/use-session', () => ({
+  useSession: jest.fn(() => ({
+    user: { id: 'u1' },
+    session: {},
+    isLoading: false,
+    isAuthenticated: true,
+  })),
 }));
 
 const MOCK_GROUP: GroupWithMembers = {

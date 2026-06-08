@@ -6,13 +6,22 @@
  *   - Renders expense list when expenses exist
  *   - Shows "No hay gastos registrados" when expenses list is empty
  *   - Pressing ··· opens options and confirming delete calls useDeleteGroup
+ *   - Tab switch shows Saldos tab
+ *   - Saldos tab: renders "Tu situación" + who-owes rows
+ *   - Saldos tab: Saldar confirm → calls useCreateSettlement
+ *   - Saldos tab: empty → "No hay saldos pendientes."
  */
 import React from 'react';
 import { Alert } from 'react-native';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 
 import GroupDetailScreen from '../[id]';
-import type { GroupWithMembers, GroupExpense, GroupMemberRow } from '@/hooks/use-groups';
+import type {
+  GroupWithMembers,
+  GroupExpense,
+  GroupMemberRow,
+  GroupBalance,
+} from '@/hooks/use-groups';
 
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
 
@@ -34,26 +43,43 @@ jest.mock('expo-router', () => ({
   useLocalSearchParams: jest.fn().mockReturnValue({ id: 'g1' }),
 }));
 
+// Session mock — user u1 is a member of the group
+jest.mock('@/hooks/use-session', () => ({
+  useSession: jest.fn(() => ({
+    user: { id: 'u1' },
+    session: {},
+    isLoading: false,
+    isAuthenticated: true,
+  })),
+}));
+
 const mockUseGroup = jest.fn();
 const mockUseGroupExpenses = jest.fn();
+const mockUseGroupBalances = jest.fn();
 const mockDeleteMutateAsync = jest.fn().mockResolvedValue({ id: 'g1' });
+const mockSettleMutateAsync = jest.fn().mockResolvedValue({});
 
 jest.mock('@/hooks/use-groups', () => ({
   useGroups: jest.fn(() => ({ data: [], isLoading: false })),
   useGroup: (...args: unknown[]) => mockUseGroup(...args),
   useGroupExpenses: (...args: unknown[]) => mockUseGroupExpenses(...args),
+  useGroupBalances: (...args: unknown[]) => mockUseGroupBalances(...args),
   useCreateGroup: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
   useDeleteGroup: jest.fn(() => ({
     mutateAsync: mockDeleteMutateAsync,
     isPending: false,
   })),
+  useCreateSettlement: jest.fn(() => ({
+    mutateAsync: mockSettleMutateAsync,
+    isPending: false,
+  })),
 }));
 
-function makeMember(id: string, displayName: string): GroupMemberRow {
+function makeMember(id: string, displayName: string, userId: string | null = null): GroupMemberRow {
   return {
     id,
     group_id: 'g1',
-    user_id: null,
+    user_id: userId,
     display_name: displayName,
     role: 'member',
     status: 'active',
@@ -63,6 +89,7 @@ function makeMember(id: string, displayName: string): GroupMemberRow {
   } satisfies GroupMemberRow;
 }
 
+// m1 is the current user (u1), m2 is another member
 const MOCK_GROUP: GroupWithMembers = {
   id: 'g1',
   name: 'Depto',
@@ -71,7 +98,7 @@ const MOCK_GROUP: GroupWithMembers = {
   created_by: 'u1',
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
-  members: [makeMember('m1', 'Facundo Martinez'), makeMember('m2', 'Jonathan Mayan')],
+  members: [makeMember('m1', 'Facundo Martinez', 'u1'), makeMember('m2', 'Jonathan Mayan')],
 } as GroupWithMembers;
 
 const MOCK_EXPENSE: GroupExpense = {
@@ -90,11 +117,23 @@ const MOCK_EXPENSE: GroupExpense = {
   splits: [],
 } as unknown as GroupExpense;
 
+// m1 is owed 1500 ARS, m2 owes 1500 ARS
+const MOCK_BALANCES: GroupBalance[] = [
+  { member_id: 'm1', currency: 'ARS', net: 1500 },
+  { member_id: 'm2', currency: 'ARS', net: -1500 },
+];
+
 describe('GroupDetailScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockDeleteMutateAsync.mockResolvedValue({ id: 'g1' });
+    mockSettleMutateAsync.mockResolvedValue({});
+    mockUseGroupBalances.mockReturnValue({ data: [], isLoading: false });
   });
+
+  // ---------------------------------------------------------------------------
+  // Existing Gastos tab tests
+  // ---------------------------------------------------------------------------
 
   it('renders group name', () => {
     mockUseGroup.mockReturnValue({ data: MOCK_GROUP, isLoading: false });
@@ -162,6 +201,103 @@ describe('GroupDetailScreen', () => {
 
     await waitFor(() => {
       expect(mockDeleteMutateAsync).toHaveBeenCalledWith('g1');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Tab switcher
+  // ---------------------------------------------------------------------------
+
+  it('renders the Gastos and Saldos tabs', () => {
+    mockUseGroup.mockReturnValue({ data: MOCK_GROUP, isLoading: false });
+    mockUseGroupExpenses.mockReturnValue({ data: [], isLoading: false });
+
+    render(<GroupDetailScreen />);
+    expect(screen.getByLabelText('Gastos')).toBeTruthy();
+    expect(screen.getByLabelText('Saldos')).toBeTruthy();
+  });
+
+  it('switching to Saldos tab shows the Saldos view', () => {
+    mockUseGroup.mockReturnValue({ data: MOCK_GROUP, isLoading: false });
+    mockUseGroupExpenses.mockReturnValue({ data: [], isLoading: false });
+    mockUseGroupBalances.mockReturnValue({ data: [], isLoading: false });
+
+    render(<GroupDetailScreen />);
+    fireEvent.press(screen.getByLabelText('Saldos'));
+
+    expect(screen.getByTestId('no-pending-balances')).toBeTruthy();
+  });
+
+  // ---------------------------------------------------------------------------
+  // Saldos tab — empty state
+  // ---------------------------------------------------------------------------
+
+  it('shows "No hay saldos pendientes." when balances are empty', () => {
+    mockUseGroup.mockReturnValue({ data: MOCK_GROUP, isLoading: false });
+    mockUseGroupExpenses.mockReturnValue({ data: [], isLoading: false });
+    mockUseGroupBalances.mockReturnValue({ data: [], isLoading: false });
+
+    render(<GroupDetailScreen />);
+    fireEvent.press(screen.getByLabelText('Saldos'));
+
+    expect(screen.getByText('No hay saldos pendientes.')).toBeTruthy();
+  });
+
+  // ---------------------------------------------------------------------------
+  // Saldos tab — with balances
+  // ---------------------------------------------------------------------------
+
+  it('renders "Tu situación" section with balances present', () => {
+    mockUseGroup.mockReturnValue({ data: MOCK_GROUP, isLoading: false });
+    mockUseGroupExpenses.mockReturnValue({ data: [], isLoading: false });
+    mockUseGroupBalances.mockReturnValue({ data: MOCK_BALANCES, isLoading: false });
+
+    render(<GroupDetailScreen />);
+    fireEvent.press(screen.getByLabelText('Saldos'));
+
+    expect(screen.getByText('Tu situación')).toBeTruthy();
+  });
+
+  it('renders "Quién le debe a quién" section with balance rows', () => {
+    mockUseGroup.mockReturnValue({ data: MOCK_GROUP, isLoading: false });
+    mockUseGroupExpenses.mockReturnValue({ data: [], isLoading: false });
+    mockUseGroupBalances.mockReturnValue({ data: MOCK_BALANCES, isLoading: false });
+
+    render(<GroupDetailScreen />);
+    fireEvent.press(screen.getByLabelText('Saldos'));
+
+    expect(screen.getByText('Quién le debe a quién')).toBeTruthy();
+    // BalanceRow should be rendered
+    expect(screen.getByTestId('balance-row')).toBeTruthy();
+  });
+
+  it('pressing Saldar shows confirmation alert and calls useCreateSettlement on confirm', async () => {
+    mockUseGroup.mockReturnValue({ data: MOCK_GROUP, isLoading: false });
+    mockUseGroupExpenses.mockReturnValue({ data: [], isLoading: false });
+    mockUseGroupBalances.mockReturnValue({ data: MOCK_BALANCES, isLoading: false });
+
+    jest.spyOn(Alert, 'alert').mockImplementation((_title, _msg, buttons) => {
+      const confirmBtn = (buttons ?? []).find((b) => b.text === 'Confirmar');
+      confirmBtn?.onPress?.();
+    });
+
+    render(<GroupDetailScreen />);
+    fireEvent.press(screen.getByLabelText('Saldos'));
+
+    // Press the Saldar button (first one)
+    const saldarBtn = screen.getByLabelText('Saldar deuda');
+    fireEvent.press(saldarBtn);
+
+    await waitFor(() => {
+      expect(mockSettleMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          group_id: 'g1',
+          from_member_id: 'm2',
+          to_member_id: 'm1',
+          amount: 1500,
+          currency: 'ARS',
+        }),
+      );
     });
   });
 });
