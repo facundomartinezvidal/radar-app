@@ -371,6 +371,26 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      add_group_member: {
+        Args: { p_display_name: string; p_group_id: string };
+        Returns: {
+          created_at: string;
+          display_name: string | null;
+          group_id: string;
+          id: string;
+          invited_by: string | null;
+          joined_at: string | null;
+          role: string;
+          status: string;
+          user_id: string | null;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'group_members';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       create_expense_with_items: {
         Args: {
           p_amount: number;
@@ -400,9 +420,121 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      create_group: {
+        Args: {
+          p_color?: string;
+          p_icon?: string;
+          p_name: string;
+          p_placeholders?: Json;
+        };
+        Returns: {
+          color: string;
+          created_at: string;
+          created_by: string;
+          icon: string;
+          id: string;
+          name: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'groups';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      create_settlement: {
+        Args: {
+          p_amount: number;
+          p_currency: string;
+          p_from_member_id: string;
+          p_group_id: string;
+          p_to_member_id: string;
+        };
+        Returns: {
+          amount: number;
+          created_by: string;
+          currency: string;
+          from_member_id: string;
+          group_id: string;
+          id: string;
+          settled_at: string;
+          to_member_id: string;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'group_settlements';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      create_shared_expense: {
+        Args: {
+          p_amount: number;
+          p_category_id: string;
+          p_currency: string;
+          p_description: string;
+          p_group_id: string;
+          p_items: Json;
+          p_occurred_at: string;
+          p_paid_by_member_id: string;
+          p_splits: Json;
+        };
+        Returns: {
+          amount: number;
+          category_id: string | null;
+          created_at: string;
+          currency: string;
+          description: string | null;
+          group_id: string | null;
+          id: string;
+          occurred_at: string;
+          paid_by_member_id: string | null;
+          updated_at: string;
+          user_id: string;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'expenses';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      get_group_balances: {
+        Args: { p_group_id: string };
+        Returns: {
+          currency: string;
+          member_id: string;
+          net: number;
+        }[];
+      };
+      invite_group_member: {
+        Args: { p_email: string; p_group_id: string };
+        Returns: Json;
+      };
       is_group_member: {
         Args: { p_group_id: string; p_user_id: string };
         Returns: boolean;
+      };
+      respond_group_invite: {
+        Args: { p_accept: boolean; p_member_id: string };
+        Returns: {
+          created_at: string;
+          display_name: string | null;
+          group_id: string;
+          id: string;
+          invited_by: string | null;
+          joined_at: string | null;
+          role: string;
+          status: string;
+          user_id: string | null;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'group_members';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
       };
       seed_default_categories: {
         Args: { p_user_id: string };
