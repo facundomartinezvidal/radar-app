@@ -35,6 +35,8 @@ export interface ExpenseFormPrefill {
   items?: ExpenseItemInput[];
   /** Suggested new-category name when OCR found no matching category. */
   suggestedCategoryName?: string | null;
+  /** One-sentence reason why the suggested category deserves its own slot. */
+  suggestedCategoryReason?: string | null;
 }
 
 /** Expense row with optional line items (edit mode). */
@@ -211,32 +213,49 @@ export function ExpenseForm({
           )}
         />
 
-        {/* OCR suggestion CTA — visible only when a name was suggested and no category is selected */}
+        {/* OCR recommendation card — visible only when a name was suggested and no category is selected */}
         {prefill?.suggestedCategoryName != null &&
           prefill.suggestedCategoryName.length > 0 &&
           categoryId == null && (
             <>
-              <BodySm color={colors.fg[3]}>
-                El ticket sugiere una categoría que no existe todavía.
-              </BodySm>
-              <Pressable
-                onPress={() => setSuggestionSheetVisible(true)}
-                accessibilityRole="button"
-                accessibilityLabel="Crear categoría sugerida"
-                style={({ pressed }) => ({
-                  alignSelf: 'flex-start',
-                  paddingVertical: spacing[2],
-                  paddingHorizontal: spacing[3],
+              <View
+                style={{
                   borderRadius: radii.md,
                   borderWidth: 1,
-                  borderColor: colors.amber[500],
-                  backgroundColor: pressed ? `${colors.amber[500]}1A` : colors.bg[2],
-                })}
+                  borderColor: `${colors.amber[500]}4D`,
+                  backgroundColor: `${colors.amber[500]}0D`,
+                  padding: spacing[3],
+                  gap: spacing[2],
+                }}
               >
-                <BodySm color={colors.amber[500]} style={{ fontWeight: '600' }}>
-                  {`Crear categoría "${prefill.suggestedCategoryName}"`}
+                <BodySm color={colors.fg[1]} style={{ fontWeight: '600' }}>
+                  {`Categoría recomendada: ${prefill.suggestedCategoryName}`}
                 </BodySm>
-              </Pressable>
+                <BodySm color={colors.fg[2]}>
+                  {prefill.suggestedCategoryReason != null &&
+                  prefill.suggestedCategoryReason.length > 0
+                    ? prefill.suggestedCategoryReason
+                    : 'Este gasto no encaja en tus categorías actuales.'}
+                </BodySm>
+                <Pressable
+                  onPress={() => setSuggestionSheetVisible(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Crear categoría sugerida"
+                  style={({ pressed }) => ({
+                    alignSelf: 'flex-start',
+                    paddingVertical: spacing[2],
+                    paddingHorizontal: spacing[3],
+                    borderRadius: radii.md,
+                    borderWidth: 1,
+                    borderColor: colors.amber[500],
+                    backgroundColor: pressed ? `${colors.amber[500]}1A` : 'transparent',
+                  })}
+                >
+                  <BodySm color={colors.amber[500]} style={{ fontWeight: '600' }}>
+                    {`Crear categoría "${prefill.suggestedCategoryName}"`}
+                  </BodySm>
+                </Pressable>
+              </View>
 
               <CategoryCreateSheet
                 visible={suggestionSheetVisible}
