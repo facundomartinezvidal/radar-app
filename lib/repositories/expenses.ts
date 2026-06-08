@@ -66,12 +66,18 @@ async function requireUserId(): Promise<string> {
 // Categories
 // ---------------------------------------------------------------------------
 
-export async function listCategories(): Promise<RepoResult<CategoryRow[]>> {
-  const { data, error } = await supabase
+export async function listCategories(kind?: string): Promise<RepoResult<CategoryRow[]>> {
+  let query = supabase
     .from('categories')
     .select('*')
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true });
+
+  if (kind !== undefined) {
+    query = query.eq('kind', kind);
+  }
+
+  const { data, error } = await query;
   return { data, error };
 }
 
