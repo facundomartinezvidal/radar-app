@@ -179,9 +179,7 @@ describe('createRecurrenceSchema — REJECT: date validation', () => {
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(firstIssue(result)).toBe(
-        'La fecha de fin debe ser posterior o igual a la de inicio.',
-      );
+      expect(firstIssue(result)).toBe('La fecha de fin debe ser posterior o igual a la de inicio.');
     }
   });
 });
@@ -269,9 +267,7 @@ describe('updateRecurrenceSchema — REJECT', () => {
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(firstIssue(result)).toBe(
-        'La fecha de fin debe ser posterior o igual a la de inicio.',
-      );
+      expect(firstIssue(result)).toBe('La fecha de fin debe ser posterior o igual a la de inicio.');
     }
   });
 });

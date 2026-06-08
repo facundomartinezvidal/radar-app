@@ -7,11 +7,7 @@
  *
  * No Supabase dependency — these are pure functions.
  */
-import {
-  advanceOccurrence,
-  dayOfMonthFrom,
-  firstFutureOccurrence,
-} from '../income-recurrence';
+import { advanceOccurrence, dayOfMonthFrom, firstFutureOccurrence } from '../income-recurrence';
 
 // ---------------------------------------------------------------------------
 // dayOfMonthFrom

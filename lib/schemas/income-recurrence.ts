@@ -56,9 +56,7 @@ export const updateRecurrenceSchema = z
       .positive('El monto tiene que ser mayor a cero.')
       .max(1_000_000_000, 'Monto demasiado grande.')
       .optional(),
-    currency: z
-      .enum(['ARS', 'USD'] as const, { message: 'Seleccioná ARS o USD.' })
-      .optional(),
+    currency: z.enum(['ARS', 'USD'] as const, { message: 'Seleccioná ARS o USD.' }).optional(),
     category_id: z.string().uuid('Categoría inválida.').nullable().optional(),
     description: z
       .string()
@@ -66,9 +64,7 @@ export const updateRecurrenceSchema = z
       .transform((v) => v.trim())
       .nullable()
       .optional(),
-    frequency: z
-      .enum(FREQUENCIES, { message: 'Seleccioná una frecuencia válida.' })
-      .optional(),
+    frequency: z.enum(FREQUENCIES, { message: 'Seleccioná una frecuencia válida.' }).optional(),
     start_date: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha de inicio debe tener formato YYYY-MM-DD.')
@@ -80,10 +76,7 @@ export const updateRecurrenceSchema = z
       .optional(),
   })
   .refine(
-    (data) =>
-      data.end_date == null ||
-      data.start_date == null ||
-      data.end_date >= data.start_date,
+    (data) => data.end_date == null || data.start_date == null || data.end_date >= data.start_date,
     'La fecha de fin debe ser posterior o igual a la de inicio.',
   );
 
