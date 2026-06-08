@@ -2,16 +2,16 @@
 
 ## 1. Identificación
 
-| Campo            | Valor                                                                                                                                                                                                                   |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **ID**           | HU-17                                                                                                                                                                                                                   |
-| **Historia**     | Gastos compartidos                                                                                                                                                                                                      |
-| **Persona**      | El estudiante (comparte depto, divide alquiler/super con roommates) · El joven profesional (salidas/viajes con amigos)                                                                                                  |
-| **Estado**       | MVP                                                                                                                                                                                                                     |
-| **Relevancia**   | Alta                                                                                                                                                                                                                    |
-| **Complejidad**  | Media                                                                                                                                                                                                                   |
-| **Release**      | Entrega 3                                                                                                                                                                                                               |
-| **Trazabilidad** | `feat/shared-expenses` — migraciones `20260608012650`, `20260608013250`, `20260608013859`; `lib/split-math.ts`, `lib/group-balance.ts`, `lib/repositories/groups.ts`, `components/groups/*`, `app/(protected)/groups/*` |
+| Campo            | Valor                                                                                                                                                                                                                                                                                           |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **ID**           | HU-17                                                                                                                                                                                                                                                                                           |
+| **Historia**     | Gastos compartidos                                                                                                                                                                                                                                                                              |
+| **Persona**      | El estudiante (comparte depto, divide alquiler/super con roommates) · El joven profesional (salidas/viajes con amigos)                                                                                                                                                                          |
+| **Estado**       | MVP                                                                                                                                                                                                                                                                                             |
+| **Relevancia**   | Alta                                                                                                                                                                                                                                                                                            |
+| **Complejidad**  | Media                                                                                                                                                                                                                                                                                           |
+| **Release**      | Entrega 3                                                                                                                                                                                                                                                                                       |
+| **Trazabilidad** | `feat/shared-expenses` — migraciones `20260608012650`, `20260608013250`, `20260608013859`, `20260608033734`, `20260608042550`, `20260608050920`, `20260608052600`; `lib/split-math.ts`, `lib/group-balance.ts`, `lib/repositories/groups.ts`, `components/groups/*`, `app/(protected)/groups/*` |
 
 ---
 
@@ -29,13 +29,18 @@
 - Las tablas `groups`, `group_members`, `expense_splits` y `group_settlements` existen
   con RLS habilitado.
 - La función helper `is_group_member(group_id, user_id)` SECURITY DEFINER está
-  desplegada (REVOKE de anon/authenticated/public) — rompe la recursión RLS.
+  desplegada (REVOKE de anon/public; `authenticated` CONSERVA EXECUTE) — rompe la
+  recursión RLS. Revocar `authenticated` rompe todas las consultas de grupo (403).
 - Los RPCs transaccionales `create_group`, `add_group_member`, `invite_group_member`,
-  `respond_group_invite`, `create_shared_expense`, `create_settlement` y
-  `get_group_balances` están definidos.
+  `respond_group_invite`, `create_shared_expense`, `create_settlement`,
+  `get_group_balances`, `user_exists_by_email`, `get_personal_totals` y
+  `update_shared_expense` están definidos.
 - La tabla `expenses` tiene las columnas `group_id` y `paid_by_member_id` (nullable).
 - La política `expenses_select_own_or_group` permite a los miembros `active` leer
   los gastos del grupo (insert/update/delete siguen siendo del creador).
+- `is_group_member(group_id, user_id)` tiene EXECUTE otorgado a `authenticated` (no
+  solo a service_role): la RLS evalúa las funciones en el rol del caller; revocar
+  de `authenticated` rompe todas las consultas de gastos/grupos (403).
 
 ---
 
@@ -67,52 +72,89 @@ Escenario: el estudiante divide el alquiler mensual con sus tres roommates.
    - **Nombre** (texto, requerido, 1–60 caracteres).
    - **Ícono** (selector Lucide curado, mismo set que categorías).
    - **Color** (selector paleta DS).
-   - **Miembros** — sección de placeholders: el usuario escribe nombres sin cuenta
-     (roommates no registrados en RADAR).
+   - **Miembros** — en un mismo paso: participantes sin cuenta (placeholders, nombre
+     solamente) Y participantes con cuenta (correo electrónico validado en blur con
+     `user_exists_by_email`). Los correos inexistentes bloquean el botón "Crear grupo"
+     con el mensaje "No existe una cuenta con ese correo electrónico.".
 4. El usuario completa el nombre "Depto 2026", elige ícono y color, agrega los nombres
-   "Jonathan" y "Iñaki" como placeholders.
+   "Jonathan" e "Iñaki" como placeholders y el correo de un cuarto miembro registrado.
 5. Presiona **"Crear grupo"**. `create_group` RPC inserta el grupo, el owner como
-   `active` y los dos placeholders como `active` sin `user_id`.
+   `active`, los placeholders como `active` sin `user_id`, y los correos validados como
+   `pending` (invitación pendiente de aceptación).
 6. La app navega a la pantalla de detalle del grupo `groups/[id].tsx`, que muestra:
    - Header con nombre, ícono y color del grupo.
    - Lista de miembros (avatares iniciales + nombres).
    - Tab **Gastos** (vacío inicialmente).
    - Tab **Saldos** (vacío).
-7. El usuario toca **"Invitar miembro"** para agregar a un cuarto roommate registrado.
-   Ingresa el correo electrónico exacto. `invite_group_member` RPC hace el lookup en
-   `auth.users` (SECURITY DEFINER) y crea la fila `pending`.
+   - Botón **"Gestionar miembros"** (solo owner): abre `MemberManageSheet` para
+     renombrar placeholders o eliminar miembros (cascade sobre sus splits/settlements).
+7. El usuario puede invitar miembros adicionales con correo electrónico exacto desde el
+   detalle del grupo. `invite_group_member` RPC hace el lookup en `auth.users`
+   (SECURITY DEFINER) y crea la fila `pending`.
 8. El invitado ve el badge de invitaciones pendientes en Home (o en Perfil). Abre la
    pantalla de invitaciones, lee los detalles del grupo y presiona **"Aceptar"**.
    `respond_group_invite(p_accept=true)` actualiza `status='active'` y `joined_at=now()`.
-9. Ahora hay cuatro miembros `active`. El usuario navega al tab **Gastos** del grupo
-   y presiona **"Registrar gasto compartido"**.
-10. Se abre `groups/expense.tsx`, que monta el `ExpenseForm` completo (monto, moneda,
-    categoría, fecha, ítems/OCR) extendido con:
-    - **¿Quién pagó?** — selector de miembro (`MemberSelectorSheet`).
-    - **División** — `SplitEditor` con tres modos:
-      - **Partes iguales**: `computeShares(amount, members)` divide con el remainder al
-        último miembro.
+9. Ahora hay cuatro miembros `active`. El usuario puede registrar un gasto compartido
+   de dos formas: (a) desde el tab **Gastos** del grupo (botón **"Registrar gasto
+   compartido"**), o (b) desde el formulario estándar de gasto / pantalla de revisión
+   OCR activando el toggle **"¿Gasto compartido?"** y seleccionando el grupo en línea.
+   El toggle aparece incluso sin grupos (muestra CTA **"Crear grupo"**).
+10. Se abre `groups/expense.tsx` (o el `ExpenseForm` estándar extendido), que monta el
+    formulario completo (monto, moneda, categoría, fecha, ítems/OCR) más:
+    - **¿Quién pagó?** — selector de miembro (`MemberSelectorSheet`); el miembro actual
+      se etiqueta **"Vos"**.
+    - **División** — `SplitEditor` con tres modos y selección de subconjunto:
+      cada miembro tiene un toggle "incluir / excluir"; los excluidos no reciben parte
+      del gasto. El miembro actual se etiqueta **"Vos"** en las filas de división.
+      - **Partes iguales**: `computeShares(amount, included)` divide con el remainder al
+        último miembro incluido.
       - **Montos custom**: el usuario asigna cada `share_amount` manualmente; UI valida
-        Σ == monto.
+        Σ (incluidos) == monto.
       - **Porcentaje**: el usuario asigna porcentajes; UI valida Σ == 100% antes de
         convertir a montos.
-11. El usuario selecciona "Jonathan" como quien pagó, elige "Partes iguales" y presiona
-    **"Registrar gasto"**.
+11. El usuario selecciona "Jonathan" como quien pagó, elige "Partes iguales" e incluye
+    a los cuatro miembros. Presiona **"Registrar gasto"**.
 12. `create_shared_expense` RPC valida: caller `active`, `paid_by_member_id` pertenece
     al grupo, Σsplits ≠ amount (tolerancia 0.01) → rechaza; si pasa → inserta `expenses`
     - `expense_items` + `expense_splits` atómicamente.
-13. El gasto aparece en el tab Gastos del grupo. El tab **Saldos** muestra los balances
+13. El gasto aparece en el tab Gastos del grupo con el indicador `Users` + "Compartido".
+    En el Home y en la lista de gastos personales, el usuario ve su **parte** del gasto
+    (calculada con `get_personal_totals`), no el total. El tab **Saldos** muestra los balances
     netos por miembro y moneda: Jonathan "te deben $ X,XX ARS", los demás "debés $ X,XX ARS".
 14. Un miembro toca el balance, ve el desglose "quién le debe a quién" generado por
     `simplifyDebts` (greedy pairwise) y presiona **"Saldar"**. Se abre el flujo de
     saldo: monto pre-llenado, confirmación. `create_settlement` RPC registra el
     `group_settlement`. Los balances se actualizan.
+15. El owner puede editar un gasto compartido existente (monto, categoría, ítems, quién
+    pagó, splits) mediante `update_shared_expense` RPC, que valida y reemplaza los
+    splits atómicamente. La conversión personal ↔ compartido está fuera de alcance.
 
 ---
 
 ## 6. Flujos alternativos
 
-### 6.a — Invitación a correo inexistente
+### 6.a — Registro de gasto compartido desde el formulario estándar (toggle)
+
+- El usuario abre el formulario de nuevo gasto (o la pantalla de revisión OCR) sin
+  necesidad de ir a un grupo.
+- Activa el toggle **"¿Gasto compartido?"**. Si no tiene grupos, se muestra CTA
+  **"Crear grupo"** en lugar del selector.
+- Con grupos disponibles, elige el grupo en línea; aparecen los campos "¿Quién pagó?"
+  y el `SplitEditor` directamente en el mismo formulario.
+- Al guardar se llama a `create_shared_expense`; el flujo de éxito/error es idéntico
+  al del formulario in-group.
+
+### 6.b — Renombrar placeholder / eliminar miembro (manage members)
+
+- El owner presiona **"Gestionar miembros"** en el detalle del grupo.
+- Se abre `MemberManageSheet` con la lista de miembros.
+- Para un **placeholder**: el owner puede renombrarlo (llama a `updateMember`).
+- Para cualquier miembro: el owner puede eliminarlo (llama a `removeMember`). CASCADE
+  borra sus filas en `expense_splits` y `group_settlements`. El owner recibe aviso:
+  "Se eliminarán todos los registros de división y saldo de este miembro."
+- El owner no puede eliminarse a sí mismo.
+
+### 6.c — Invitación a correo inexistente
 
 - El usuario ingresa un correo que no corresponde a ninguna cuenta en RADAR.
 - `invite_group_member` retorna `{status: 'not_found'}`.
@@ -120,38 +162,38 @@ Escenario: el estudiante divide el alquiler mensual con sus tres roommates.
   persona como participante sin cuenta."
 - Ofrece CTA para agregar como placeholder (nombre).
 
-### 6.b — Invitación a miembro ya existente
+### 6.d — Invitación a miembro ya existente
 
 - El correo ingresado ya tiene una fila `active` o `pending` en el grupo.
 - `invite_group_member` retorna `{status: 'already_member'}`.
 - La UI muestra: "Esta persona ya es miembro del grupo."
 - No se crea fila duplicada (unique index `(group_id, user_id) WHERE user_id IS NOT NULL`).
 
-### 6.c — Reinvitar a un miembro que rechazó
+### 6.e — Reinvitar a un miembro que rechazó
 
 - El invitado rechazó con `status='declined'`. El owner lo invita de nuevo con el mismo correo.
 - `invite_group_member` detecta la fila `declined` y la actualiza a `pending` (re-invite).
 - Retorna `{status: 'invited', member_id: ...}`.
 - El invitado vuelve a recibir la invitación in-app.
 
-### 6.d — Invitado `pending` intenta ver gastos del grupo
+### 6.f — Invitado `pending` intenta ver gastos del grupo
 
 - B fue invitado pero no aceptó. Consulta `expenses` o `expense_splits` del grupo.
 - RLS usa `status='active'`; B no ve nada.
 - B sí ve su propia fila `group_members` (para poder aceptar/rechazar).
 
-### 6.e — Otro usuario responde una invitación ajena
+### 6.g — Otro usuario responde una invitación ajena
 
 - C llama a `respond_group_invite(p_member_id)` donde la fila pertenece a B.
 - El RPC filtra `user_id = auth.uid() AND status='pending'`; no hace nada.
 - Lanza excepción `'invite not found or not pending'`.
 
-### 6.f — Tercero ajeno intenta ver el grupo
+### 6.h — Tercero ajeno intenta ver el grupo
 
 - C sin ninguna membresía consulta `groups`, `expenses` o `expense_splits` del grupo.
 - `is_group_member(group_id, C.uid)` retorna false → RLS niega → resultado vacío.
 
-### 6.g — Σsplits ≠ monto del gasto
+### 6.i — Σsplits ≠ monto del gasto
 
 - El usuario entra montos custom que suman distinto al total del gasto.
 - La UI bloquea el botón "Registrar gasto" y muestra el delta en rojo mientras la
@@ -159,36 +201,41 @@ Escenario: el estudiante divide el alquiler mensual con sus tres roommates.
 - Si el cliente igualmente envía el request, `create_shared_expense` rechaza con
   `'splits must sum to amount'`.
 
-### 6.h — División igual con remainder (no divisible exactamente)
+### 6.j — División igual con remainder (no divisible exactamente)
 
 - $100 / 3 miembros → `computeShares` asigna 33.34 / 33.33 / 33.33 (remainder al
   último). Σ == 100.00 exacto.
 
-### 6.i — Porcentajes que no suman 100
+### 6.k — Porcentajes que no suman 100
 
 - El usuario ingresa porcentajes que suman 90 o 110.
 - `SplitEditor` muestra el total acumulado en rojo y deshabilita el submit.
 
-### 6.j — División en gasto con un solo miembro activo
+### 6.l — Sin participantes incluidos en el subconjunto
+
+- El usuario deshabilita todos los toggles de participantes en el `SplitEditor`.
+- La UI muestra: "Elegí al menos un participante." y deshabilita el submit.
+
+### 6.m — División en gasto con un solo miembro activo
 
 - El grupo fue recién creado; solo existe el owner como `active`.
 - Split trivial: 100% al owner. Balance neto 0.
 - La UI puede mostrar: "Agregá miembros para dividir el gasto." (informativo, no bloqueante).
 
-### 6.k — Balances en ARS y USD en el mismo grupo
+### 6.n — Balances en ARS y USD en el mismo grupo
 
 - El grupo tiene gastos en ARS y en USD.
 - `get_group_balances` retorna filas separadas por `(member_id, currency)`.
 - La UI muestra dos filas de balance por miembro cuando aplica; nunca convierte ni mezcla monedas.
 
-### 6.l — Borrar grupo con gastos existentes
+### 6.o — Borrar grupo con gastos existentes
 
 - El owner borra el grupo.
 - CASCADE: `group_members`, `expense_splits`, `group_settlements` se borran.
 - `expenses.group_id` → `ON DELETE SET NULL` — el gasto sobrevive como gasto personal del creador.
 - La UI pide confirmación: "¿Confirmás que querés eliminar este grupo? Los gastos registrados quedarán como gastos personales."
 
-### 6.m — Falla de persistencia en `create_shared_expense`
+### 6.p — Falla de persistencia en `create_shared_expense`
 
 - Un constraint DB o error de red interrumpe la transacción.
 - Rollback completo: ni el `expenses` ni los splits/items quedan en la DB.
@@ -253,21 +300,22 @@ flowchart TD
 
 ## 8. Pantallas involucradas
 
-| Pantalla                                      | Rol en HU-17                                                         |
-| --------------------------------------------- | -------------------------------------------------------------------- |
-| `app/(protected)/groups/_layout.tsx`          | Stack navigator del módulo de grupos                                 |
-| `app/(protected)/groups/index.tsx`            | Lista de grupos del usuario + empty state                            |
-| `app/(protected)/groups/new.tsx`              | Formulario crear grupo (nombre, ícono, color, placeholders)          |
-| `app/(protected)/groups/[id].tsx`             | Detalle del grupo: tabs Gastos / Saldos, lista de miembros, invitar  |
-| `app/(protected)/groups/expense.tsx`          | Formulario gasto compartido (ExpenseForm + quién pagó + SplitEditor) |
-| `components/groups/group-form.tsx`            | Formulario reutilizable de grupo con vista previa                    |
-| `components/groups/group-card.tsx`            | Card de grupo en la lista (ícono, color, nombre, balance resumido)   |
-| `components/groups/member-avatars-row.tsx`    | Fila de avatares con iniciales + colores por hash                    |
-| `components/groups/split-editor.tsx`          | Editor de división: iguales / custom / porcentaje                    |
-| `components/groups/balance-row.tsx`           | Fila de balance (verde "te deben" / rojo "debés" / neutro)           |
-| `components/groups/member-selector-sheet.tsx` | Bottom sheet para seleccionar "quién pagó"                           |
-| `lib/split-math.ts`                           | `computeShares`, `simplifyDebts` — lógica de división y neteo        |
-| `lib/group-balance.ts`                        | `getGroupBalances` — agrega resultados de `get_group_balances` RPC   |
+| Pantalla                                      | Rol en HU-17                                                               |
+| --------------------------------------------- | -------------------------------------------------------------------------- |
+| `app/(protected)/groups/_layout.tsx`          | Stack navigator del módulo de grupos                                       |
+| `app/(protected)/groups/index.tsx`            | Lista de grupos del usuario + empty state                                  |
+| `app/(protected)/groups/new.tsx`              | Formulario crear grupo (nombre, ícono, color, placeholders)                |
+| `app/(protected)/groups/[id].tsx`             | Detalle del grupo: tabs Gastos / Saldos, lista de miembros, invitar        |
+| `app/(protected)/groups/expense.tsx`          | Formulario gasto compartido (ExpenseForm + quién pagó + SplitEditor)       |
+| `components/groups/group-form.tsx`            | Formulario reutilizable: nombre, ícono, color, miembros (con y sin cuenta) |
+| `components/groups/group-card.tsx`            | Card de grupo en la lista (ícono, color, nombre, balance resumido)         |
+| `components/groups/member-avatars-row.tsx`    | Fila de avatares con iniciales + colores por hash                          |
+| `components/groups/split-editor.tsx`          | Editor de división: iguales / custom / porcentaje + subconjunto            |
+| `components/groups/balance-row.tsx`           | Fila de balance (verde "te deben" / rojo "debés" / neutro)                 |
+| `components/groups/member-selector-sheet.tsx` | Bottom sheet para seleccionar "quién pagó" (con "Vos" label)               |
+| `components/groups/member-manage-sheet.tsx`   | Bottom sheet owner: renombrar placeholders + eliminar miembros             |
+| `lib/split-math.ts`                           | `computeShares`, `simplifyDebts` — lógica de división y neteo              |
+| `lib/group-balance.ts`                        | `getGroupBalances` — agrega resultados de `get_group_balances` RPC         |
 
 ---
 
@@ -275,6 +323,8 @@ flowchart TD
 
 | Estado                                       | Trigger                                                                  | Visual                                                                                            |
 | -------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| **Toggle "¿Gasto compartido?" — sin grupos** | Usuario activa el toggle en el formulario estándar; no tiene grupos      | CTA "Crear grupo" inline; selector de grupo deshabilitado.                                        |
+| **Toggle "¿Gasto compartido?" — con grupos** | Usuario activa el toggle; tiene al menos un grupo                        | Selector de grupo visible; campos "¿Quién pagó?" y división se muestran al elegir grupo.          |
 | **Lista de grupos vacía**                    | Usuario sin grupos                                                       | Empty state: "No hay grupos." + CTA "Nuevo grupo".                                                |
 | **Lista de grupos con invitaciones**         | Al menos una fila `group_members` con `status='pending'` para el usuario | Badge numérico sobre el ícono de grupos o en Home.                                                |
 | **Formulario de grupo — inválido**           | Nombre vacío o > 60 caracteres                                           | Campo Nombre con borde rojo; botón "Crear grupo" deshabilitado.                                   |
@@ -282,9 +332,13 @@ flowchart TD
 | **Miembro pending**                          | Fila `group_members` con `status='pending'`                              | Avatar con indicador de reloj / pending; no participa en splits ni balances.                      |
 | **Miembro active**                           | Fila `group_members` con `status='active'`                               | Avatar normal; participa en splits y balances.                                                    |
 | **Miembro declined**                         | Fila `group_members` con `status='declined'`                             | Avatar con indicador de rechazo; no participa.                                                    |
-| **SplitEditor — iguales válido**             | `computeShares` produce Σ == monto                                       | Montos pre-llenados por miembro; botón habilitado.                                                |
+| **SplitEditor — iguales válido**             | `computeShares` produce Σ == monto                                       | Montos pre-llenados por miembro incluido; botón habilitado.                                       |
 | **SplitEditor — custom inválido**            | Σ montos ingresados ≠ monto del gasto                                    | Contador de diferencia en rojo; botón "Registrar gasto" deshabilitado.                            |
 | **SplitEditor — porcentaje inválido**        | Σ porcentajes ≠ 100                                                      | Contador de porcentaje en rojo; botón deshabilitado.                                              |
+| **SplitEditor — sin participantes**          | Todos los toggles de participantes desactivados                          | "Elegí al menos un participante." + botón deshabilitado.                                          |
+| **Gasto compartido en lista personal**       | `get_personal_totals` devuelve la parte del usuario                      | Indicador `Users` + "Compartido"; monto es la parte (no el total).                                |
+| **MemberManageSheet — renombrar**            | Owner toca lápiz sobre un placeholder                                    | Input de nombre editable; guarda con `updateMember`.                                              |
+| **MemberManageSheet — eliminar miembro**     | Owner toca eliminar sobre un miembro                                     | Confirmación destructiva; cascade borra splits/settlements del miembro.                           |
 | **Tab Saldos — sin gastos**                  | Grupo sin gastos compartidos registrados                                 | "No hay gastos registrados en este grupo."                                                        |
 | **Tab Saldos — balance positivo (te deben)** | `net > 0` en `get_group_balances` para el miembro                        | Monto en verde con etiqueta "te deben".                                                           |
 | **Tab Saldos — balance negativo (debés)**    | `net < 0` en `get_group_balances` para el miembro                        | Monto en rojo con etiqueta "debés".                                                               |
@@ -318,10 +372,17 @@ flowchart TD
 - [ ] `create_shared_expense` es atómica: un error en items o splits revierte el gasto completo.
 - [ ] `get_group_balances` calcula net = paid - share + settle_out - settle_in, por (member_id, currency).
 - [ ] `create_settlement` rechaza si `from_member_id == to_member_id`, si monto <= 0, o si currency no es ARS/USD.
-- [ ] UI: crear grupo, agregar placeholder, invitar por correo, ver pending, aceptar invitación, registrar gasto compartido (los tres modos de split), ver balances, saldar.
+- [ ] UI: crear grupo (con y sin cuenta en un paso), agregar placeholder, invitar por correo, ver pending, aceptar invitación, registrar gasto compartido (los tres modos de split), ver balances, saldar.
+- [ ] Toggle "¿Gasto compartido?" visible en el formulario estándar y en la pantalla de revisión OCR; muestra CTA "Crear grupo" si no hay grupos.
+- [ ] El participante actual se etiqueta "Vos" en "¿Quién pagó?" y en las filas del `SplitEditor`.
+- [ ] Subconjunto de participantes: toggle por miembro; al menos uno incluido para habilitar submit.
+- [ ] `get_personal_totals` devuelve la parte del usuario para gastos compartidos; el Home y la lista muestran esa parte con indicador "Compartido".
+- [ ] `update_shared_expense` edita monto, categoría, ítems, quién pagó y splits de un gasto compartido; validaciones idénticas a `create_shared_expense`.
+- [ ] `MemberManageSheet`: renombrar placeholder (solo nombre) + eliminar miembro (cascade sobre splits/settlements; owner bloqueado de auto-eliminarse).
+- [ ] `user_exists_by_email` valida correos en blur en `GroupForm` e `InviteForm`; bloquea submit mientras el correo no existe.
 - [ ] Al borrar el grupo: cascade borra members/splits/settlements; `expenses.group_id` → null (el gasto sobrevive como personal).
 - [ ] Todo el microcopy está en español rioplatense formal y sin emoji.
-- [ ] Gates verdes (format + lint + typecheck + 834 tests).
+- [ ] Gates verdes (format + lint + typecheck + 996 tests, 68 suites).
 
 ---
 
@@ -337,20 +398,23 @@ flowchart TD
 
 ### RLS y helper
 
-- `is_group_member(p_group_id, p_user_id)` — SECURITY DEFINER, REVOKE de `anon`, `public`, `authenticated`. Centraliza el chequeo `status='active'`; se usa desde RLS policies de `groups`, `group_members`, `expense_splits`, `group_settlements` y `expenses`. Sin esta función DEFINER existiría recursión RLS infinita (una policy de `group_members` llamaría a otra policy de `group_members`).
+- `is_group_member(p_group_id, p_user_id)` — SECURITY DEFINER, REVOKE de `anon`, `public`. **`authenticated` DEBE retener EXECUTE**: las RLS policies se evalúan en el rol del caller; revocar de `authenticated` hace fallar con 403 toda consulta de gastos/grupos. (Lección aprendida: migración `20260608013250` lo revocó y rompió todo; `20260608033734` lo restableció.) El lint `authenticated_security_definer_function_executable` es un **falso positivo aceptado** — la función es un chequeo booleano de membresía. Centraliza el chequeo `status='active'`; se usa desde RLS policies de `groups`, `group_members`, `expense_splits`, `group_settlements` y `expenses`.
 - RLS de `expenses` SELECT extendida: `user_id = auth.uid() OR (group_id IS NOT NULL AND is_group_member(group_id, auth.uid()))`. INSERT/UPDATE/DELETE siguen siendo owner-only.
 
 ### RPCs
 
-| RPC                     | Security    | Descripción                                                                                                                                                                                                                                                   |
-| ----------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `create_group`          | INVOKER     | Crea grupo + owner + placeholders en una transacción.                                                                                                                                                                                                         |
-| `add_group_member`      | INVOKER     | Agrega placeholder a un grupo existente. RLS valida caller.                                                                                                                                                                                                   |
-| `invite_group_member`   | **DEFINER** | Lookup de `auth.users` por correo (imposible con INVOKER). Tiene su propia guarda `is_group_member`. REVOKE de anon/public; authenticated puede llamarla. El lint `authenticated_security_definer_function_executable` es **intencional** (ver §7 AGENTS.md). |
-| `respond_group_invite`  | INVOKER     | Acepta o rechaza la propia invitación; filtra `user_id = auth.uid()`.                                                                                                                                                                                         |
-| `create_shared_expense` | INVOKER     | Valida membership + paid_by + Σsplits; inserta expense + items + splits atómicamente.                                                                                                                                                                         |
-| `create_settlement`     | INVOKER     | Valida membership + from/to del grupo; inserta `group_settlements`.                                                                                                                                                                                           |
-| `get_group_balances`    | INVOKER     | CTE agregada: paid - share + settle_out - settle_in por (member_id, currency). Non-members reciben vacío vía RLS.                                                                                                                                             |
+| RPC                     | Security    | Descripción                                                                                                                                                                                                                                                                 |
+| ----------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create_group`          | INVOKER     | Crea grupo + owner + placeholders + invitados `pending` en una transacción.                                                                                                                                                                                                 |
+| `add_group_member`      | INVOKER     | Agrega placeholder a un grupo existente. RLS valida caller.                                                                                                                                                                                                                 |
+| `invite_group_member`   | **DEFINER** | Lookup de `auth.users` por correo (imposible con INVOKER). Tiene su propia guarda `is_group_member`. REVOKE de anon/public; authenticated puede llamarla. El lint `authenticated_security_definer_function_executable` es **intencional** (ver §7 AGENTS.md).               |
+| `respond_group_invite`  | INVOKER     | Acepta o rechaza la propia invitación; filtra `user_id = auth.uid()`.                                                                                                                                                                                                       |
+| `create_shared_expense` | INVOKER     | Valida membership + paid_by + Σsplits; inserta expense + items + splits atómicamente.                                                                                                                                                                                       |
+| `update_shared_expense` | INVOKER     | Edición owner-only de gasto compartido: `p_patch` (campos expense), `p_items` (reemplaza ítem set), `p_paid_by_member_id`, `p_splits` (reemplaza splits). Valida Σsplits == amount. Migración `20260608052600`.                                                             |
+| `create_settlement`     | INVOKER     | Valida membership + from/to del grupo; inserta `group_settlements`.                                                                                                                                                                                                         |
+| `get_group_balances`    | INVOKER     | CTE agregada: paid - share + settle_out - settle_in por (member_id, currency). Non-members reciben vacío vía RLS.                                                                                                                                                           |
+| `user_exists_by_email`  | **DEFINER** | Comprueba si un correo electrónico existe en `auth.users`. REVOKE de anon/public; GRANT a authenticated. Usado para validación on-blur en formularios de grupo. Trade-off: permite enumeración de correos por usuarios autenticados (aceptado). Migración `20260608042550`. |
+| `get_personal_totals`   | INVOKER     | Agrega el total personal del usuario en el rango de fechas `p_from`/`p_to`: para gastos personales usa el monto completo; para compartidos usa solo la parte (`share_amount`) del usuario. Devuelve `(currency, total, count)`. Migración `20260608050920`.                 |
 
 ### Split math (TypeScript)
 
@@ -374,11 +438,15 @@ flowchart TD
 
 ### Migraciones
 
-| Archivo                                                                       | Contenido                                                |
-| ----------------------------------------------------------------------------- | -------------------------------------------------------- |
-| `supabase/migrations/20260608012650_shared_expenses_schema.sql`               | Tablas + columnas en expenses + `is_group_member` + RLS  |
-| `supabase/migrations/20260608013250_revoke_is_group_member_authenticated.sql` | REVOKE adicional de `authenticated` en `is_group_member` |
-| `supabase/migrations/20260608013859_shared_expenses_rpcs.sql`                 | Los 7 RPCs de grupos y gastos compartidos                |
+| Archivo                                                                       | Contenido                                                                     |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `supabase/migrations/20260608012650_shared_expenses_schema.sql`               | Tablas + columnas en expenses + `is_group_member` + RLS                       |
+| `supabase/migrations/20260608013250_revoke_is_group_member_authenticated.sql` | REVOKE de `authenticated` en `is_group_member` (roto — ver siguiente)         |
+| `supabase/migrations/20260608013859_shared_expenses_rpcs.sql`                 | Los 7 RPCs originales de grupos y gastos compartidos                          |
+| `supabase/migrations/20260608033734_grant_is_group_member_execute.sql`        | Re-GRANT de EXECUTE a `authenticated` en `is_group_member` (corrige `013250`) |
+| `supabase/migrations/20260608042550_user_exists_by_email.sql`                 | RPC `user_exists_by_email` SECURITY DEFINER                                   |
+| `supabase/migrations/20260608050920_get_personal_totals.sql`                  | RPC `get_personal_totals` SECURITY INVOKER                                    |
+| `supabase/migrations/20260608052600_update_shared_expense.sql`                | RPC `update_shared_expense` SECURITY INVOKER                                  |
 
 ### Tests
 
@@ -387,4 +455,4 @@ flowchart TD
 - `lib/repositories/__tests__/groups.test.ts` — CRUD grupos, invite RPC mocks.
 - `components/groups/__tests__/split-editor.test.tsx` — validaciones de los tres modos.
 - `app/(protected)/groups/__tests__/` — pantallas index, new, [id], expense.
-- Baseline: **834 tests, 64 suites**.
+- Baseline: **996 tests, 68 suites**.

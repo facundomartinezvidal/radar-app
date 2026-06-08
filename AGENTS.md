@@ -213,7 +213,7 @@ Reads use the nested select `'*, category:categories(*), items:expense_items(*)'
 
 `categories` (HU-16 + seed migration): `user_id` is always set — no more system/null rows. Every user owns exactly 9 default rows (seeded on signup via `on_auth_user_created_seed_categories` trigger → `seed_default_categories(uuid)` SECURITY DEFINER fn with REVOKE; existing users backfilled). `updated_at` + trigger. Two partial unique indexes: `(slug) WHERE user_id IS NULL` (now dead) and `(user_id, slug) WHERE user_id IS NOT NULL`. Name check `btrim(name)` length 1–40. No RPC — direct single-table CRUD. `expenses.category_id` FK is `on delete set null` (unchanged). Existing expenses re-pointed from the old global rows to each user's copy by slug. Hogar icon corrected to `House` (was `Home`). See `docs/decisions/2026-06-07-custom-categories-schema.md`.
 
-**Shared expenses (HU-17):** Groups are accessed from Home (no new tab). Registered users are invited by exact email → `pending` → accept in-app → `active`; only `active` members appear in splits and balances. Non-registered participants are placeholders (`user_id null`, `status active`). `is_group_member(group_id, user_id)` is a SECURITY DEFINER helper (REVOKE from anon/public; `authenticated` MUST keep EXECUTE — RLS policies call it as the querying role) that breaks the RLS recursion that would occur if `group_members` policies referenced `group_members`. All group RPCs are `security invoker` except `invite_group_member` (DEFINER, needed for `auth.users` email lookup — see §7). Shared expenses reuse `expenses` + two nullable columns (`group_id`, `paid_by_member_id`); `expenses` SELECT extended to active members. Split math (`computeShares`, `simplifyDebts`) lives in TypeScript (`lib/split-math.ts`); DB validates Σsplits == amount (±0.01). Balances are per (member_id, currency) — ARS and USD never mixed. See `docs/decisions/2026-06-07-shared-expenses-schema.md`.
+**Shared expenses (HU-17):** Groups are accessed from Home (no new tab) and via the `¿Gasto compartido?` toggle in the standard `ExpenseForm` and OCR review screen (toggle visible even with no groups — shows CTA "Crear grupo"). Registered users are invited by exact email → `pending` → accept in-app → `active`; only `active` members appear in splits and balances. Non-registered participants are placeholders (`user_id null`, `status active`). Group create adds both con-cuenta (email invites, validated on blur via `user_exists_by_email` RPC) and sin-cuenta (placeholders) in one step. Owner can rename placeholders and remove members via `MemberManageSheet` (`updateMember`/`removeMember` RPCs; cascade on splits/settlements). `is_group_member(group_id, user_id)` is a SECURITY DEFINER helper (REVOKE from anon/public; `authenticated` MUST keep EXECUTE — RLS policies call it as the querying role; revoking breaks all group/expense queries with 403) that breaks the RLS recursion on `group_members`. RPCs beyond the original 7: `update_shared_expense` (INVOKER, owner-only shared expense edit — replaces splits atomically), `user_exists_by_email` (DEFINER, on-blur email existence check, intentional advisor lint + accepted email-enumeration trade-off), `get_personal_totals` (INVOKER, per-currency personal totals using split share for shared expenses + full amount for personal — used by dashboard "Este mes"). Split math (`computeShares`, `simplifyDebts`, `resolveIncluded`) lives in TypeScript (`lib/split-math.ts`); SplitEditor supports per-member include/exclude toggles; current user labeled "Vos" in who-paid and split rows. Dashboard and personal expense list show the user's share for shared expenses (not the full ticket); shared expenses marked with `Users` icon + "Compartido" label. Balances are per (member_id, currency) — ARS and USD never mixed. See `docs/decisions/2026-06-07-shared-expenses-schema.md`.
 
 ### Push notifications
 
@@ -252,7 +252,7 @@ RADAR uses two patterns for SECURITY DEFINER functions:
 
 1. **Helper functions called only from triggers/other functions** (`seed_default_categories`): REVOKE EXECUTE from anon, public, authenticated. Never invoked by a client or inside an RLS policy evaluated as the client role. Supabase advisor does not flag these.
 2. **DEFINER functions invoked from RLS policies** (`is_group_member`): MUST retain EXECUTE for `authenticated`. RLS policies that call a function are evaluated as the _querying_ role, so Postgres checks EXECUTE on `authenticated` even though the function is SECURITY DEFINER. Revoking it makes every query on `expenses`/`groups`/`group_members`/`expense_splits`/`group_settlements` fail with 403 (permission denied for function). REVOKE from anon/public only. The advisor `authenticated_security_definer_function_executable` lint is an **accepted false positive** — the function is a pure boolean membership check. (Learned the hard way: migration `20260608013250` revoked it and broke all expense reads/writes; `20260608033734` re-granted it.)
-3. **RPCs callable by authenticated but DEFINER by necessity** (`invite_group_member`): needs to read `auth.users` by email — impossible with INVOKER. REVOKE from anon/public; `authenticated` retains EXECUTE. The Supabase advisor flags `authenticated_security_definer_function_executable` for this function. **This lint is intentional and accepted by design.** The function contains its own `is_group_member` authorization guard. Document any future DEFINER RPC that follows this pattern with a comment in the migration file and an entry here.
+3. **RPCs callable by authenticated but DEFINER by necessity** (`invite_group_member`, `user_exists_by_email`): need to read `auth.users` by email — impossible with INVOKER. REVOKE from anon/public; `authenticated` retains EXECUTE. The Supabase advisor flags `authenticated_security_definer_function_executable` for these functions. **This lint is intentional and accepted by design.** `invite_group_member` contains its own `is_group_member` authorization guard. `user_exists_by_email` is a pure boolean check used for on-blur form validation; it intentionally permits email enumeration by authenticated users (same information already leaks via `invite_group_member` status codes). Document any future DEFINER RPC that follows this pattern with a comment in the migration file and an entry here.
 
 ### Commits
 
@@ -450,7 +450,7 @@ Gotchas in SDK 54:
 pnpm format:check   # Prettier
 pnpm lint           # ESLint flat config
 pnpm typecheck      # tsc --noEmit strict
-pnpm test           # jest-expo + RNTL (906 tests baseline)
+pnpm test           # jest-expo + RNTL (996 tests, 68 suites baseline)
 ```
 
 CI enforces these on every push/PR via `.github/workflows/ci.yml`.
@@ -537,43 +537,28 @@ Update **AGENTS.md** as part of the feature's final PR:
   `20260608004254_seed_default_categories_per_user.sql`.
 - Shared expenses (HU-17): `groups`, `group_members`, `expense_splits`,
   `group_settlements` tables + RLS; `expenses` extended with `group_id` +
-  `paid_by_member_id`; `is_group_member()` SECURITY DEFINER breaks RLS
-  recursion; 7 transactional RPCs (`create_group`, `add_group_member`,
-  `invite_group_member` DEFINER, `respond_group_invite`, `create_shared_expense`,
-  `create_settlement`, `get_group_balances`); consent model (pending → active);
-  split math in TS (`computeShares`, `simplifyDebts`); balances per currency
-  (ARS/USD separate); Group screens + SplitEditor + BalanceRow + Home wiring.
-  Tests: 603 → 834. See `docs/features/shared-expenses.md`,
+  `paid_by_member_id`; `is_group_member()` SECURITY DEFINER breaks RLS recursion
+  (`authenticated` MUST retain EXECUTE); 10 RPCs total — `create_group`,
+  `add_group_member`, `invite_group_member` DEFINER, `respond_group_invite`,
+  `create_shared_expense`, `update_shared_expense` (owner edit), `create_settlement`,
+  `get_group_balances`, `user_exists_by_email` DEFINER (on-blur email check, intentional
+  lint, accepted email-enumeration trade-off), `get_personal_totals` (per-currency share
+  accounting); consent model (pending → active); group create adds con-cuenta + sin-cuenta
+  in one step; `¿Gasto compartido?` toggle in standard `ExpenseForm` + OCR review screen;
+  participant subset in `SplitEditor` (include/exclude per member); current user labeled
+  "Vos" in who-paid + split rows; dashboard/list show user's share for shared expenses
+  (not full ticket) via `get_personal_totals`, with `Users` + "Compartido" indicator;
+  owner can rename placeholders + remove members via `MemberManageSheet` (cascade on
+  splits/settlements); split math in TS (`computeShares`, `simplifyDebts`,
+  `resolveIncluded`); balances per currency (ARS/USD separate). Tests: 603 → 996
+  (68 suites). See `docs/features/shared-expenses.md`,
   `docs/decisions/2026-06-07-shared-expenses-schema.md` and
   `docs/user-flows/HU-17-gastos-compartidos.md`.
-- Member-invite email validation + keyboard-aware sheet: `user_exists_by_email`
-  SECURITY DEFINER RPC (migration `20260608042550`) with REVOKE from anon/public
-  and GRANT to authenticated (intentional — mirrors `invite_group_member`
-  not_found pattern; allows authenticated email enumeration, accepted
-  trade-off). `checkUserExists` repo fn + `useCheckUserExists` useMutation hook.
-  On-blur existence check in both `InviteForm` (MemberSelectorSheet) and invite
-  rows in `GroupForm`: shows "Verificando…" while pending, inline error
-  "No existe una cuenta con ese correo electrónico." when false, blocks
-  Invitar/Crear grupo. `MemberSelectorSheet` wrapped in `KeyboardAvoidingView`
-  - `ScrollView` so the input, feedback, and action button stay visible above
-    the on-screen keyboard. Tests: 834 → 888.
-- HU-17 split-participant UX (atomic feat/shared-expenses-split-participants):
-  (1) Current-user labeling — `currentMemberId` prop added to `SplitEditor`;
-  when a member's id matches it is displayed as "Vos" in the División rows and
-  the "¿Quién pagó?" selector in `ExpenseForm` (no DB changes). (2) Participant
-  subset — `SplitState.includedMemberIds: string[]` field; empty = all included
-  (backward-compat default). Per-member checkbox toggle in each `MemberRow`;
-  excluded members are grayed out and omitted from rightSlot inputs.
-  `resolveIncluded` helper exported for tests. `deriveShares` runs over included
-  subset only; final `splits` payload contains only included members. Guard:
-  zero-included renders "Elegí al menos un participante." and blocks submit.
-  No constraint on who paid vs who participates (payer may be excluded). Tests:
-  888 → 906.
 
 ### Still pending
 
-1. Create `device_tokens` table with RLS for push notification registration
-   (groups/group_members/splits tables now shipped as HU-17)
+1. Create `device_tokens` table with RLS for push notification registration; wire
+   push reminders for shared expenses ("Recordar a X") — HU-17 deferred scope
 2. Create Supabase Storage bucket `media` with RLS for per-user folders
 3. Configure custom SMTP in Supabase (Resend recommended) — shared SMTP
    is capped at 2 emails/hour and breaks even basic testing
