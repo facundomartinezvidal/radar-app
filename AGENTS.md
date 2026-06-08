@@ -191,12 +191,16 @@ See `docs/decisions/2026-05-16-auth-strategy.md`.
 
 ### DB schema (current)
 
-| Table           | Purpose                                                                          | RLS                                                        |
-| --------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `profiles`      | 1:1 with auth.users, first/last name                                             | owner select/insert/update                                 |
-| `categories`    | fully per-user; each user owns 9 default rows (editable/deletable) + custom rows | SELECT = own only; INSERT/UPDATE/DELETE = own only (HU-16) |
-| `expenses`      | core expense rows, numeric(14,2)                                                 | owner CRUD (`(select auth.uid()) = user_id`)               |
-| `expense_items` | receipt line items (HU-18), ≤50/gasto                                            | owner CRUD, denormalized `user_id`                         |
+| Table               | Purpose                                                                                                                                       | RLS                                                                                                              |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `profiles`          | 1:1 with auth.users, first/last name                                                                                                          | owner select/insert/update                                                                                       |
+| `categories`        | fully per-user; each user owns 9 default rows (editable/deletable) + custom rows                                                              | SELECT = own only; INSERT/UPDATE/DELETE = own only (HU-16)                                                       |
+| `expenses`          | core expense rows, numeric(14,2); `group_id` + `paid_by_member_id` nullable (HU-17)                                                           | owner CRUD; SELECT extended to active group members via `is_group_member` (HU-17)                                |
+| `expense_items`     | receipt line items (HU-18), ≤50/gasto                                                                                                         | owner CRUD, denormalized `user_id`                                                                               |
+| `groups`            | shared-expense groups: name (1–60), icon, color, created_by (HU-17)                                                                           | select: active member or creator; insert: own; update/delete: creator                                            |
+| `group_members`     | group membership: user_id nullable (null = placeholder), role (owner/member), status (active/pending/declined), invited_by, joined_at (HU-17) | select: own row or active membership; insert: active member or creator; update: self or creator; delete: creator |
+| `expense_splits`    | per-member share of a shared expense: share_amount numeric(14,2) ≥ 0 (HU-17)                                                                  | select + all writes: active group membership via `is_group_member`                                               |
+| `group_settlements` | debt settlement records: from/to member, amount > 0, currency (ARS/USD) (HU-17)                                                               | select + all writes: active group membership via `is_group_member`                                               |
 
 `expense_items`: `name` (1–120), `quantity numeric(14,3) > 0` (kg OK, default 1), `unit_price numeric(14,2)` nullable, `line_total numeric(14,2) >= 0` required (source of truth — OCR often lacks unit price), `position` preserves order, cascade-deletes with the expense.
 
@@ -208,6 +212,8 @@ See `docs/decisions/2026-05-16-auth-strategy.md`.
 Reads use the nested select `'*, category:categories(*), items:expense_items(*)'` sorted client-side by `position`. See `docs/decisions/2026-06-03-expense-line-items-schema.md`.
 
 `categories` (HU-16 + seed migration): `user_id` is always set — no more system/null rows. Every user owns exactly 9 default rows (seeded on signup via `on_auth_user_created_seed_categories` trigger → `seed_default_categories(uuid)` SECURITY DEFINER fn with REVOKE; existing users backfilled). `updated_at` + trigger. Two partial unique indexes: `(slug) WHERE user_id IS NULL` (now dead) and `(user_id, slug) WHERE user_id IS NOT NULL`. Name check `btrim(name)` length 1–40. No RPC — direct single-table CRUD. `expenses.category_id` FK is `on delete set null` (unchanged). Existing expenses re-pointed from the old global rows to each user's copy by slug. Hogar icon corrected to `House` (was `Home`). See `docs/decisions/2026-06-07-custom-categories-schema.md`.
+
+**Shared expenses (HU-17):** Groups are accessed from Home (no new tab). Registered users are invited by exact email → `pending` → accept in-app → `active`; only `active` members appear in splits and balances. Non-registered participants are placeholders (`user_id null`, `status active`). `is_group_member(group_id, user_id)` is a SECURITY DEFINER helper (REVOKE from anon/public/authenticated) that breaks the RLS recursion that would occur if `group_members` policies referenced `group_members`. All group RPCs are `security invoker` except `invite_group_member` (DEFINER, needed for `auth.users` email lookup — see §7). Shared expenses reuse `expenses` + two nullable columns (`group_id`, `paid_by_member_id`); `expenses` SELECT extended to active members. Split math (`computeShares`, `simplifyDebts`) lives in TypeScript (`lib/split-math.ts`); DB validates Σsplits == amount (±0.01). Balances are per (member_id, currency) — ARS and USD never mixed. See `docs/decisions/2026-06-07-shared-expenses-schema.md`.
 
 ### Push notifications
 
@@ -239,6 +245,13 @@ Remote migration history and local files must always be 1:1. The two pre-existin
 
 - Always use `@/` alias for in-repo imports: `import { supabase } from '@/lib/supabase'`
 - Group order: react/RN, third-party, `@/` internal, relative
+
+### SECURITY DEFINER RPCs — intentional advisor lints
+
+RADAR uses two patterns for SECURITY DEFINER functions:
+
+1. **Helper functions revoked from all roles** (`is_group_member`, `seed_default_categories`): REVOKE EXECUTE from anon, public, authenticated. Called only from within RLS policies or other functions, never from the client. Supabase advisor does not flag these.
+2. **RPCs callable by authenticated but DEFINER by necessity** (`invite_group_member`): needs to read `auth.users` by email — impossible with INVOKER. REVOKE from anon/public; `authenticated` retains EXECUTE. The Supabase advisor flags `authenticated_security_definer_function_executable` for this function. **This lint is intentional and accepted by design.** The function contains its own `is_group_member` authorization guard. Document any future DEFINER RPC that follows this pattern with a comment in the migration file and an entry here.
 
 ### Commits
 
@@ -436,7 +449,7 @@ Gotchas in SDK 54:
 pnpm format:check   # Prettier
 pnpm lint           # ESLint flat config
 pnpm typecheck      # tsc --noEmit strict
-pnpm test           # jest-expo + RNTL (603 tests baseline)
+pnpm test           # jest-expo + RNTL (834 tests baseline)
 ```
 
 CI enforces these on every push/PR via `.github/workflows/ci.yml`.
@@ -521,11 +534,22 @@ Update **AGENTS.md** as part of the feature's final PR:
   backfilled; existing expenses re-pointed from global rows to the owner's copy
   by slug. Hogar icon corrected to `House`. Applied as migration
   `20260608004254_seed_default_categories_per_user.sql`.
+- Shared expenses (HU-17): `groups`, `group_members`, `expense_splits`,
+  `group_settlements` tables + RLS; `expenses` extended with `group_id` +
+  `paid_by_member_id`; `is_group_member()` SECURITY DEFINER breaks RLS
+  recursion; 7 transactional RPCs (`create_group`, `add_group_member`,
+  `invite_group_member` DEFINER, `respond_group_invite`, `create_shared_expense`,
+  `create_settlement`, `get_group_balances`); consent model (pending → active);
+  split math in TS (`computeShares`, `simplifyDebts`); balances per currency
+  (ARS/USD separate); Group screens + SplitEditor + BalanceRow + Home wiring.
+  Tests: 603 → 834. See `docs/features/shared-expenses.md`,
+  `docs/decisions/2026-06-07-shared-expenses-schema.md` and
+  `docs/user-flows/HU-17-gastos-compartidos.md`.
 
 ### Still pending
 
-1. Create Supabase tables for shared / groups (`groups`, `group_members`,
-   `splits`, `device_tokens`) with RLS
+1. Create `device_tokens` table with RLS for push notification registration
+   (groups/group_members/splits tables now shipped as HU-17)
 2. Create Supabase Storage bucket `media` with RLS for per-user folders
 3. Configure custom SMTP in Supabase (Resend recommended) — shared SMTP
    is capped at 2 emails/hour and breaks even basic testing
