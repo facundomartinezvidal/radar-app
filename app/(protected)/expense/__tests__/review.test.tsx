@@ -106,6 +106,8 @@ const CATEGORIES: CategoryRow[] = [
     color: '#F59E0B',
     sort_order: 10,
     created_at: '2026-01-01',
+    updated_at: '2026-01-01',
+    user_id: null,
   },
 ];
 
@@ -115,6 +117,8 @@ const OCR_RESULT_WITH_DATA: OcrResult = {
   merchant: "McDonald's",
   categoryHint: 'comida',
   occurredAt: '2026-05-31',
+  suggestedNewCategory: null,
+  suggestedNewCategoryReason: null,
   confidence: 0.9,
   items: [],
 };
@@ -125,6 +129,8 @@ const OCR_RESULT_EMPTY: OcrResult = {
   merchant: null,
   categoryHint: null,
   occurredAt: null,
+  suggestedNewCategory: null,
+  suggestedNewCategoryReason: null,
   confidence: 0.3,
   items: [],
 };
@@ -136,6 +142,8 @@ const OCR_RESULT_WITH_ITEMS: OcrResult = {
   merchant: 'Supermercado Norte',
   categoryHint: 'comida',
   occurredAt: '2026-05-31',
+  suggestedNewCategory: null,
+  suggestedNewCategoryReason: null,
   confidence: 0.85,
   items: [
     { name: 'Leche entera', quantity: 2, unitPrice: 500, lineTotal: 1000 },
@@ -153,6 +161,8 @@ const OCR_RESULT_ITEMS_ONLY: OcrResult = {
   merchant: null,
   categoryHint: null,
   occurredAt: null,
+  suggestedNewCategory: null,
+  suggestedNewCategoryReason: null,
   confidence: 0.6,
   items: [{ name: 'Producto', quantity: 1, unitPrice: 200, lineTotal: 200 }],
 };
@@ -498,6 +508,26 @@ describe('ReviewScreen', () => {
 
     // Confirm the "no data" notice is absent.
     expect(screen.queryByText('No se detectaron datos. Completá manualmente.')).toBeNull();
+  });
+
+  // -------------------------------------------------------------------------
+  // Task C: categoryNames are forwarded to the OCR mutation
+  // -------------------------------------------------------------------------
+
+  it('calls extractMutation.mutate with categoryNames from loaded categories', async () => {
+    // Categories are already loaded via mockedRepo.listCategories in beforeEach.
+    // OCR mutation stays pending so we can inspect the mutate call.
+    mockExtract.isPending = true;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(mockExtract.mutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          categoryNames: expect.arrayContaining(['Comida']),
+        }),
+      );
+    });
   });
 
   // -------------------------------------------------------------------------

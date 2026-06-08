@@ -25,7 +25,7 @@ export interface ExpenseWithItems extends ExpenseWithCategory {
   items: ExpenseItemRow[];
 }
 
-interface RepoResult<T> {
+export interface RepoResult<T> {
   data: T | null;
   error: PostgrestError | Error | null;
 }
@@ -57,7 +57,8 @@ export async function listCategories(): Promise<RepoResult<CategoryRow[]>> {
   const { data, error } = await supabase
     .from('categories')
     .select('*')
-    .order('sort_order', { ascending: true });
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true });
   return { data, error };
 }
 

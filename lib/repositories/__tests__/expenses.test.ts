@@ -122,25 +122,31 @@ describe('expenses repository', () => {
   });
 
   describe('listCategories', () => {
-    it('orders by sort_order asc', async () => {
-      const handle = makeChain({
-        data: [{ id: 'c1', slug: 'comida' }],
-        error: null,
-      });
+    it('orders by sort_order asc then name asc', async () => {
+      const DATA = [{ id: 'c1', slug: 'comida' }];
+      const handle = makeChain({ data: DATA, error: null });
       (supabase.from as jest.Mock).mockReturnValueOnce(handle.chain);
-      // categories.select doesn't end on range — make select+order the terminal thenable
-      handle.chain.order.mockImplementationOnce((...args: unknown[]) => {
-        handle.calls.push({ method: 'order', args });
-        return Promise.resolve({ data: [{ id: 'c1', slug: 'comida' }], error: null });
-      });
+
+      // listCategories chains two .order() calls.
+      // The first returns the chain (non-terminal), the second is the terminal thenable.
+      handle.chain.order
+        .mockImplementationOnce((...args: unknown[]) => {
+          handle.calls.push({ method: 'order', args });
+          return handle.chain; // continue chaining
+        })
+        .mockImplementationOnce((...args: unknown[]) => {
+          handle.calls.push({ method: 'order', args });
+          return Promise.resolve({ data: DATA, error: null }); // terminal
+        });
 
       const result = await repo.listCategories();
       expect(result.error).toBeNull();
-      expect(result.data).toEqual([{ id: 'c1', slug: 'comida' }]);
-      expect(handle.calls.find((c) => c.method === 'order')?.args).toEqual([
-        'sort_order',
-        { ascending: true },
-      ]);
+      expect(result.data).toEqual(DATA);
+
+      const orderCalls = handle.calls.filter((c) => c.method === 'order');
+      expect(orderCalls).toHaveLength(2);
+      expect(orderCalls[0]?.args).toEqual(['sort_order', { ascending: true }]);
+      expect(orderCalls[1]?.args).toEqual(['name', { ascending: true }]);
     });
   });
 

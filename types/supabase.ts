@@ -20,6 +20,8 @@ export type Database = {
           name: string;
           slug: string;
           sort_order: number;
+          updated_at: string;
+          user_id: string | null;
         };
         Insert: {
           color: string;
@@ -29,6 +31,8 @@ export type Database = {
           name: string;
           slug: string;
           sort_order?: number;
+          updated_at?: string;
+          user_id?: string | null;
         };
         Update: {
           color?: string;
@@ -38,6 +42,8 @@ export type Database = {
           name?: string;
           slug?: string;
           sort_order?: number;
+          updated_at?: string;
+          user_id?: string | null;
         };
         Relationships: [];
       };
@@ -167,6 +173,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      seed_default_categories: {
+        Args: { p_user_id: string };
+        Returns: undefined;
+      };
       create_expense_with_items: {
         Args: {
           p_amount: number;

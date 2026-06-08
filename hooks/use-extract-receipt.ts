@@ -15,10 +15,12 @@ import type { OcrResult } from '@/lib/schemas/ocr';
 interface ExtractReceiptVariables {
   imageBase64: string;
   mimeType: string;
+  categoryNames?: string[];
 }
 
 export function useExtractReceipt() {
   return useMutation<OcrResult, Error, ExtractReceiptVariables>({
-    mutationFn: ({ imageBase64, mimeType }) => extractReceipt(imageBase64, mimeType),
+    mutationFn: ({ imageBase64, mimeType, categoryNames }) =>
+      extractReceipt(imageBase64, mimeType, categoryNames ?? []),
   });
 }

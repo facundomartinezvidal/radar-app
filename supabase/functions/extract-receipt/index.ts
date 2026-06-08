@@ -24,6 +24,7 @@ import { corsHeaders } from '../_shared/cors.ts';
 interface RequestBody {
   imageBase64: string;
   mimeType?: string;
+  categories?: string[];
 }
 
 interface OcrItem {
@@ -39,6 +40,8 @@ interface OcrResult {
   occurredAt: string | null;
   merchant: string | null;
   categoryHint: string | null;
+  suggestedNewCategory: string | null;
+  suggestedNewCategoryReason: string | null;
   confidence: number;
   items: OcrItem[];
 }
@@ -210,17 +213,72 @@ function normaliseOcrResult(raw: Record<string, unknown>): OcrResult {
     confidence = Math.min(1, Math.max(0, raw.confidence));
   }
 
+  // suggestedNewCategory: string, trimmed, non-empty, truncated to 40 chars, else null
+  let suggestedNewCategory: string | null = null;
+  if (typeof raw.suggestedNewCategory === 'string') {
+    const trimmed = raw.suggestedNewCategory.trim();
+    if (trimmed !== '') {
+      suggestedNewCategory = trimmed.length > 40 ? trimmed.slice(0, 40) : trimmed;
+    }
+  }
+
+  // suggestedNewCategoryReason: string, trimmed, non-empty, truncated to 160 chars, else null
+  // Only meaningful when suggestedNewCategory is non-null.
+  let suggestedNewCategoryReason: string | null = null;
+  if (typeof raw.suggestedNewCategoryReason === 'string') {
+    const trimmed = raw.suggestedNewCategoryReason.trim();
+    if (trimmed !== '') {
+      suggestedNewCategoryReason = trimmed.length > 160 ? trimmed.slice(0, 160) : trimmed;
+    }
+  }
+
   // items: delegate to normaliseItems; falls back to [] if field is absent or invalid
   const items = normaliseItems(raw.items);
 
-  return { amount, currency, occurredAt, merchant, categoryHint, confidence, items };
+  return {
+    amount,
+    currency,
+    occurredAt,
+    merchant,
+    categoryHint,
+    suggestedNewCategory,
+    suggestedNewCategoryReason,
+    confidence,
+    items,
+  };
 }
 
 // ---------------------------------------------------------------------------
-// System prompt for the OCR LLM
+// System prompt builder for the OCR LLM
 // ---------------------------------------------------------------------------
 
-const SYSTEM_PROMPT = `Sos un asistente especializado en leer tickets y facturas comerciales argentinas.
+/**
+ * Builds the OCR system prompt dynamically using the caller's category list.
+ *
+ * When `categoryNames` is empty the fallback is the 9 system categories that
+ * are seeded in the DB (Comida, Supermercado, Transporte, Ocio, Salud, Hogar,
+ * Servicios, Viajes, Otro).  This keeps the prompt coherent even if the client
+ * omits the list for any reason.
+ */
+function buildSystemPrompt(categoryNames: string[]): string {
+  const list =
+    categoryNames.length > 0
+      ? categoryNames
+      : [
+          'Comida',
+          'Supermercado',
+          'Transporte',
+          'Ocio',
+          'Salud',
+          'Hogar',
+          'Servicios',
+          'Viajes',
+          'Otro',
+        ];
+
+  const categoryList = list.map((n) => `"${n}"`).join(', ');
+
+  return `Sos un asistente especializado en leer tickets y facturas comerciales argentinas.
 Tu tarea es extraer datos estructurados del ticket o comprobante que se te muestra.
 
 Respondé ÚNICAMENTE con un objeto JSON válido con las siguientes claves:
@@ -228,13 +286,16 @@ Respondé ÚNICAMENTE con un objeto JSON válido con las siguientes claves:
 - "currency": "ARS" o "USD" según la moneda del ticket. Si no podés determinarlo, devolvé null.
 - "occurredAt": fecha del ticket en formato ISO 8601 (YYYY-MM-DD). Si no podés leerla, devolvé null.
 - "merchant": nombre del comercio o empresa emisora del ticket (string). Si no se ve, devolvé null.
-- "categoryHint": categoría del gasto en español, una de: "Comida", "Supermercado", "Transporte", "Salud", "Entretenimiento", "Servicios", "Ropa", "Tecnología", "Educación", "Otro". Si no podés determinarlo, devolvé null.
+- "categoryHint": categoría del gasto, una de la siguiente lista del usuario: ${categoryList}. Devolvé EXACTAMENTE uno de esos nombres SOLO si el rubro del comercio encaja de forma clara y directa. Si la relación es forzada o indirecta, devolvé null. Reglas estrictas: "Ocio" es EXCLUSIVAMENTE entretenimiento (cine, bar, teatro, salidas, videojuegos); NO aplica a ropa, tecnología ni otros productos. Indumentaria/calzado (Zara, H&M, locales de ropa) → null a menos que la lista tenga una categoría de ropa. Farmacia → "Salud" solo si la lista lo incluye con ese nombre exacto. Preferí null antes que forzar una categoría que no corresponde al rubro.
+- "suggestedNewCategory": CRÍTICO — si "categoryHint" es null (ninguna categoría de la lista corresponde al rubro), "suggestedNewCategory" NUNCA debe ser null: SIEMPRE proponé un nombre corto para una categoría nueva (1 o 2 palabras, en español, Tipo Título). Ejemplos de rubros y sugerencias: indumentaria/ropa/calzado (Zara, H&M, locales de ropa) → "Ropa"; farmacia sin categoría Salud → "Farmacia"; electrónica → "Tecnología"; mascotas → "Mascotas"; librería/papelería → "Librería"; belleza/peluquería → "Belleza"; deportes → "Deportes". Si "categoryHint" no es null, devolvé null aquí.
+- "suggestedNewCategoryReason": cuando "suggestedNewCategory" no es null, explicá en UNA frase breve (máximo ~140 caracteres), en español rioplatense formal, por qué ese gasto merece una categoría propia distinta de las existentes, mencionando el rubro o comercio. Ejemplo: "El comercio es Zara, una tienda de indumentaria; conviene una categoría de ropa separada de tus otros gastos." Si "suggestedNewCategory" es null, devolvé null aquí.
 - "confidence": número entre 0 y 1 indicando tu confianza en la extracción (1 = muy seguro, 0 = no pudiste leer nada).
 - "items": array de objetos, uno por cada renglón del detalle del ticket. Cada objeto: {"name": descripción del ítem (string), "quantity": cantidad como número decimal (admite peso, ej 0.75), o null si no figura, "unitPrice": precio unitario como número sin separadores de miles, o null, "lineTotal": importe total del renglón como número, o null}. Máximo 50 ítems. Si el ticket no muestra detalle de renglones, devolvé un array vacío [].
 
 No inventes ítems: incluí únicamente los renglones legibles del ticket.
 Si la imagen NO es un ticket o comprobante, establecé todos los campos en null y "confidence" en 0.
 No incluyas explicaciones ni texto fuera del JSON.`;
+}
 
 // ---------------------------------------------------------------------------
 // Main handler
@@ -284,6 +345,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const mimeType = body.mimeType ?? 'image/jpeg';
     const imageDataUrl = `data:${mimeType};base64,${body.imageBase64}`;
 
+    // -- Parse categories list (validate it is an array of strings; otherwise [])
+    const categories: string[] = Array.isArray(body.categories)
+      ? body.categories.filter((c): c is string => typeof c === 'string')
+      : [];
+
     // -- Groq API key
     const groqApiKey = Deno.env.get('GROQ_API_KEY');
     if (!groqApiKey) {
@@ -307,7 +373,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       messages: [
         {
           role: 'system',
-          content: SYSTEM_PROMPT,
+          content: buildSystemPrompt(categories),
         },
         {
           role: 'user',

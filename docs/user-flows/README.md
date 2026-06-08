@@ -11,23 +11,24 @@ spreadsheet; this folder is the engineering interpretation of those rows.
 
 ## Inventory
 
-| HU    | Historia                              | Estado | Relevancia | Release   | Documento                                    | Estado de implementación |
-| ----- | ------------------------------------- | ------ | ---------- | --------- | -------------------------------------------- | ------------------------ |
-| HU-01 | Iniciar sesión                        | MVP    | Alta       | Release 1 | [HU-01](./HU-01-iniciar-sesion.md)           | Implementado             |
-| HU-02 | Acceder a cámara                      | MVP    | Media      | Release 2 | [HU-02](./HU-02-acceder-camara.md)           | Pendiente                |
-| HU-03 | Acceder a fotografías del dispositivo | MVP    | Media      | Release 2 | [HU-03](./HU-03-acceder-fotografias.md)      | Pendiente                |
-| HU-04 | Menú principal                        | MVP    | Alta       | Release 1 | [HU-04](./HU-04-menu-principal.md)           | Implementado             |
-| HU-05 | Extraer datos OCR                     | MVP    | Alta       | Release 2 | [HU-05](./HU-05-extraer-datos-ocr.md)        | Pendiente                |
-| HU-06 | Validar datos detectados              | MVP    | Media      | Release 2 | [HU-06](./HU-06-validar-datos-detectados.md) | Pendiente                |
-| HU-07 | Sección historial de gastos           | MVP    | Alta       | Release 1 | [HU-07](./HU-07-historial-gastos.md)         | Implementado             |
-| HU-08 | Mostrar gastos                        | MVP    | Alto       | Release 1 | [HU-08](./HU-08-mostrar-gastos.md)           | Implementado             |
-| HU-09 | Filtrar gastos                        | MVP    | Baja       | Release 1 | [HU-09](./HU-09-filtrar-gastos.md)           | Implementado             |
-| HU-10 | Conocer gasto registrado              | MVP    | Alto       | Release 1 | [HU-10](./HU-10-conocer-gasto-registrado.md) | Implementado             |
-| HU-11 | Editar gasto                          | MVP    | Bajo       | Release 1 | [HU-11](./HU-11-editar-gasto.md)             | Implementado             |
-| HU-12 | Guardar gasto                         | MVP    | Alto       | Release 1 | [HU-12](./HU-12-guardar-gasto.md)            | Implementado             |
-| HU-13 | Sección registro nuevo                | MVP    | Alto       | Release 1 | [HU-13](./HU-13-registro-nuevo.md)           | Implementado             |
-| HU-14 | Registrar cuenta                      | MVP    | Alto       | Release 1 | [HU-14](./HU-14-registrar-cuenta.md)         | Implementado             |
-| HU-18 | Items detallados                      | MVP    | Media      | Entrega 3 | [HU-18](./HU-18-items-detallados.md)         | Implementado             |
+| HU    | Historia                              | Estado | Relevancia | Release   | Documento                                     | Estado de implementación |
+| ----- | ------------------------------------- | ------ | ---------- | --------- | --------------------------------------------- | ------------------------ |
+| HU-01 | Iniciar sesión                        | MVP    | Alta       | Release 1 | [HU-01](./HU-01-iniciar-sesion.md)            | Implementado             |
+| HU-02 | Acceder a cámara                      | MVP    | Media      | Release 2 | [HU-02](./HU-02-acceder-camara.md)            | Pendiente                |
+| HU-03 | Acceder a fotografías del dispositivo | MVP    | Media      | Release 2 | [HU-03](./HU-03-acceder-fotografias.md)       | Pendiente                |
+| HU-04 | Menú principal                        | MVP    | Alta       | Release 1 | [HU-04](./HU-04-menu-principal.md)            | Implementado             |
+| HU-05 | Extraer datos OCR                     | MVP    | Alta       | Release 2 | [HU-05](./HU-05-extraer-datos-ocr.md)         | Pendiente                |
+| HU-06 | Validar datos detectados              | MVP    | Media      | Release 2 | [HU-06](./HU-06-validar-datos-detectados.md)  | Pendiente                |
+| HU-07 | Sección historial de gastos           | MVP    | Alta       | Release 1 | [HU-07](./HU-07-historial-gastos.md)          | Implementado             |
+| HU-08 | Mostrar gastos                        | MVP    | Alto       | Release 1 | [HU-08](./HU-08-mostrar-gastos.md)            | Implementado             |
+| HU-09 | Filtrar gastos                        | MVP    | Baja       | Release 1 | [HU-09](./HU-09-filtrar-gastos.md)            | Implementado             |
+| HU-10 | Conocer gasto registrado              | MVP    | Alto       | Release 1 | [HU-10](./HU-10-conocer-gasto-registrado.md)  | Implementado             |
+| HU-11 | Editar gasto                          | MVP    | Bajo       | Release 1 | [HU-11](./HU-11-editar-gasto.md)              | Implementado             |
+| HU-12 | Guardar gasto                         | MVP    | Alto       | Release 1 | [HU-12](./HU-12-guardar-gasto.md)             | Implementado             |
+| HU-13 | Sección registro nuevo                | MVP    | Alto       | Release 1 | [HU-13](./HU-13-registro-nuevo.md)            | Implementado             |
+| HU-14 | Registrar cuenta                      | MVP    | Alto       | Release 1 | [HU-14](./HU-14-registrar-cuenta.md)          | Implementado             |
+| HU-16 | Categorías personalizadas             | MVP    | Baja       | Entrega 3 | [HU-16](./HU-16-categorias-personalizadas.md) | Implementado             |
+| HU-18 | Items detallados                      | MVP    | Media      | Entrega 3 | [HU-18](./HU-18-items-detallados.md)          | Implementado             |
 
 ---
 

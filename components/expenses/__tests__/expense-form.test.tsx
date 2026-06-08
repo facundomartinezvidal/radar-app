@@ -1,6 +1,6 @@
 /**
  * Minimal smoke tests for ExpenseForm — verifies the Fecha (occurred_at) field
- * is rendered in both create and edit modes.
+ * is rendered in both create and edit modes, and the OCR suggestion CTA.
  *
  * react-native-svg is mocked globally in jest.setup.ts.
  *
@@ -26,6 +26,14 @@ jest.mock('@react-native-community/datetimepicker', () => {
   return { __esModule: true, default: Mock };
 });
 
+jest.mock('@/hooks/use-categories', () => ({
+  useCreateCategory: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
+  useUpdateCategory: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
+  useDeleteCategory: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
+}));
+
+jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
@@ -39,6 +47,8 @@ const CATEGORIES: CategoryRow[] = [
     color: '#F59E0B',
     sort_order: 10,
     created_at: '2026-01-01',
+    updated_at: '2026-01-01',
+    user_id: null,
   },
 ];
 
@@ -86,5 +96,138 @@ describe('ExpenseForm', () => {
     expect(screen.getByText('Fecha')).toBeTruthy();
     // "marzo" is the es-AR long month name for March
     expect(screen.getByText(/marzo/i)).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// OCR suggestion CTA / recommendation card
+// ---------------------------------------------------------------------------
+
+describe('ExpenseForm — OCR suggestion CTA', () => {
+  it('renders the suggestion CTA when prefill has suggestedCategoryName and no category is selected', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        prefill={{ suggestedCategoryName: 'Farmacia' }}
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Crear categoría "Farmacia"')).toBeTruthy();
+  });
+
+  it('does NOT render the suggestion CTA when prefill has a matched category_id', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        prefill={{ suggestedCategoryName: 'Farmacia', category_id: 'cat-1' }}
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    expect(screen.queryByText('Crear categoría "Farmacia"')).toBeNull();
+  });
+
+  it('does NOT render the suggestion CTA when prefill has no suggestedCategoryName', () => {
+    render(<ExpenseForm categories={CATEGORIES} prefill={{ amount: 500 }} onSubmit={jest.fn()} />);
+
+    expect(screen.queryByText(/Crear categoría/)).toBeNull();
+  });
+
+  it('does NOT render the suggestion CTA when no prefill is provided', () => {
+    render(<ExpenseForm categories={CATEGORIES} onSubmit={jest.fn()} />);
+
+    expect(screen.queryByText(/Crear categoría/)).toBeNull();
+  });
+
+  it('has accessibilityLabel "Crear categoría sugerida" on the CTA button', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        prefill={{ suggestedCategoryName: 'Farmacia' }}
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText('Crear categoría sugerida')).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// OCR recommendation card — heading + reason text
+// ---------------------------------------------------------------------------
+
+describe('ExpenseForm — recommendation card content', () => {
+  it('shows the recommended category name in the card heading', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        prefill={{ suggestedCategoryName: 'Ropa', suggestedCategoryReason: 'Es indumentaria.' }}
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Categoría recomendada: Ropa')).toBeTruthy();
+  });
+
+  it('shows the reason text when suggestedCategoryReason is provided', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        prefill={{
+          suggestedCategoryName: 'Ropa',
+          suggestedCategoryReason:
+            'El comercio es Zara, una tienda de indumentaria; conviene una categoría de ropa separada de tus otros gastos.',
+        }}
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        'El comercio es Zara, una tienda de indumentaria; conviene una categoría de ropa separada de tus otros gastos.',
+      ),
+    ).toBeTruthy();
+  });
+
+  it('shows the fallback text when suggestedCategoryReason is absent', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        prefill={{ suggestedCategoryName: 'Ropa' }}
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Este gasto no encaja en tus categorías actuales.')).toBeTruthy();
+  });
+
+  it('shows the fallback text when suggestedCategoryReason is null', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        prefill={{ suggestedCategoryName: 'Ropa', suggestedCategoryReason: null }}
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Este gasto no encaja en tus categorías actuales.')).toBeTruthy();
+  });
+
+  it('does NOT render the recommendation card when category_id is matched', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        prefill={{
+          suggestedCategoryName: 'Ropa',
+          suggestedCategoryReason: 'Es indumentaria.',
+          category_id: 'cat-1',
+        }}
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    expect(screen.queryByText('Categoría recomendada: Ropa')).toBeNull();
+    expect(screen.queryByText('Es indumentaria.')).toBeNull();
   });
 });

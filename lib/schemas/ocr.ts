@@ -40,6 +40,17 @@ export const ocrResultSchema = z.object({
    */
   categoryHint: z.string().nullable().catch(null),
   /**
+   * Suggested new category name when no existing category fits.
+   * Only present when categoryHint is null. Null otherwise.
+   */
+  suggestedNewCategory: z.string().nullable().catch(null),
+  /**
+   * One-sentence explanation (≤160 chars, Spanish rioplatense) of why the
+   * suggested category deserves its own slot. Non-null only when
+   * suggestedNewCategory is non-null. Null on parse failure.
+   */
+  suggestedNewCategoryReason: z.string().nullable().catch(null),
+  /**
    * Model confidence in the extraction. Clamped to [0, 1].
    * Defaults to 0 on parse failure.
    */

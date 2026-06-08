@@ -41,6 +41,10 @@ export interface ReceiptPrefill {
   description?: string | null;
   /** Matched category ID, or null when no match was found. */
   category_id?: string | null;
+  /** Suggested new-category name when OCR found no matching category. */
+  suggestedCategoryName?: string | null;
+  /** One-sentence reason why the suggested category deserves its own slot. */
+  suggestedCategoryReason?: string | null;
   /** Receipt date as ISO 8601 (YYYY-MM-DD). Omitted when future or null. */
   occurred_at?: string;
   /** True when `confidence < 0.5` — the UI should warn the user to verify. */
@@ -169,6 +173,11 @@ export function mapOcrToPrefill(result: OcrResult, categories: CategoryRow[]): R
 
   prefill.category_id = matchCategory(result.categoryHint, categories);
 
+  if (prefill.category_id === null && result.suggestedNewCategory) {
+    prefill.suggestedCategoryName = result.suggestedNewCategory;
+    prefill.suggestedCategoryReason = result.suggestedNewCategoryReason ?? null;
+  }
+
   if (result.occurredAt !== null) {
     const parsed = new Date(result.occurredAt);
     if (!Number.isNaN(parsed.getTime()) && parsed <= new Date()) {
@@ -201,10 +210,14 @@ export function mapOcrToPrefill(result: OcrResult, categories: CategoryRow[]): R
  *
  * @throws {OcrError} on network / HTTP / parse failures.
  */
-export async function extractReceipt(imageBase64: string, mimeType: string): Promise<OcrResult> {
+export async function extractReceipt(
+  imageBase64: string,
+  mimeType: string,
+  categoryNames: string[] = [],
+): Promise<OcrResult> {
   const { data: invokeData, error: invokeError } = await supabase.functions.invoke(
     'extract-receipt',
-    { body: { imageBase64, mimeType } },
+    { body: { imageBase64, mimeType, categories: categoryNames } },
   );
 
   if (invokeError) {

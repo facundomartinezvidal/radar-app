@@ -47,18 +47,22 @@ const CATEGORIES = [
     name: 'Comida',
     color: '#FF0000',
     created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
     icon: 'utensils',
     slug: 'comida',
     sort_order: 1,
+    user_id: null,
   },
   {
     id: '2',
     name: 'Transporte',
     color: '#0000FF',
     created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
     icon: 'car',
     slug: 'transporte',
     sort_order: 2,
+    user_id: null,
   },
 ];
 
@@ -117,6 +121,90 @@ describe('ocrResultSchema — items', () => {
     };
     const result = ocrResultSchema.parse(payload);
     expect(result.items[0]?.unitPrice).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ocrResultSchema — suggestedNewCategory field
+// ---------------------------------------------------------------------------
+
+describe('ocrResultSchema — suggestedNewCategory', () => {
+  const BASE_PAYLOAD = {
+    amount: 1000,
+    currency: 'ARS',
+    occurredAt: '2026-05-01',
+    merchant: 'Farmacia Norte',
+    categoryHint: null,
+    confidence: 0.7,
+    items: [],
+  };
+
+  it('parses suggestedNewCategory when present as a string', () => {
+    const result = ocrResultSchema.parse({ ...BASE_PAYLOAD, suggestedNewCategory: 'Farmacia' });
+    expect(result.suggestedNewCategory).toBe('Farmacia');
+  });
+
+  it('defaults suggestedNewCategory to null when missing from payload (catch)', () => {
+    const result = ocrResultSchema.parse(BASE_PAYLOAD);
+    expect(result.suggestedNewCategory).toBeNull();
+  });
+
+  it('coerces an off-spec value (number) to null via catch', () => {
+    const result = ocrResultSchema.parse({ ...BASE_PAYLOAD, suggestedNewCategory: 42 });
+    expect(result.suggestedNewCategory).toBeNull();
+  });
+
+  it('coerces an off-spec value (boolean) to null via catch', () => {
+    const result = ocrResultSchema.parse({ ...BASE_PAYLOAD, suggestedNewCategory: true });
+    expect(result.suggestedNewCategory).toBeNull();
+  });
+
+  it('preserves null when explicitly null', () => {
+    const result = ocrResultSchema.parse({ ...BASE_PAYLOAD, suggestedNewCategory: null });
+    expect(result.suggestedNewCategory).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ocrResultSchema — suggestedNewCategoryReason field
+// ---------------------------------------------------------------------------
+
+describe('ocrResultSchema — suggestedNewCategoryReason', () => {
+  const BASE_PAYLOAD = {
+    amount: 1000,
+    currency: 'ARS',
+    occurredAt: '2026-05-01',
+    merchant: 'Zara',
+    categoryHint: null,
+    suggestedNewCategory: 'Ropa',
+    confidence: 0.8,
+    items: [],
+  };
+
+  it('parses suggestedNewCategoryReason when present as a string', () => {
+    const result = ocrResultSchema.parse({
+      ...BASE_PAYLOAD,
+      suggestedNewCategoryReason:
+        'El comercio es Zara, una tienda de indumentaria; conviene una categoría de ropa separada.',
+    });
+    expect(result.suggestedNewCategoryReason).toBe(
+      'El comercio es Zara, una tienda de indumentaria; conviene una categoría de ropa separada.',
+    );
+  });
+
+  it('defaults suggestedNewCategoryReason to null when missing from payload (catch)', () => {
+    const result = ocrResultSchema.parse(BASE_PAYLOAD);
+    expect(result.suggestedNewCategoryReason).toBeNull();
+  });
+
+  it('coerces a non-string value (number) to null via catch', () => {
+    const result = ocrResultSchema.parse({ ...BASE_PAYLOAD, suggestedNewCategoryReason: 123 });
+    expect(result.suggestedNewCategoryReason).toBeNull();
+  });
+
+  it('preserves null when explicitly null', () => {
+    const result = ocrResultSchema.parse({ ...BASE_PAYLOAD, suggestedNewCategoryReason: null });
+    expect(result.suggestedNewCategoryReason).toBeNull();
   });
 });
 
@@ -276,18 +364,22 @@ describe('matchCategory', () => {
         name: 'Comida',
         color: '#FF0000',
         created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
         icon: 'utensils',
         slug: 'comida',
         sort_order: 1,
+        user_id: null,
       },
       {
         id: 'sub',
         name: 'Comida Rápida',
         color: '#FF0000',
         created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
         icon: 'utensils',
         slug: 'comida-rapida',
         sort_order: 2,
+        user_id: null,
       },
     ];
     expect(matchCategory('Comida', cats)).toBe('exact');
@@ -312,6 +404,8 @@ describe('mapOcrToPrefill', () => {
       occurredAt: PAST_DATE,
       merchant: 'Burguer Palace',
       categoryHint: 'Comida',
+      suggestedNewCategory: null,
+      suggestedNewCategoryReason: null,
       confidence: 0.9,
       items: [],
       ...overrides,
@@ -421,6 +515,79 @@ describe('mapOcrToPrefill', () => {
     const prefill = mapOcrToPrefill(result, CATEGORIES);
     expect(prefill.items).toBeUndefined();
   });
+
+  it('does not set suggestedCategoryName when categoryHint matches a category', () => {
+    // categoryHint = 'Comida' matches CATEGORIES[0], so category_id is set
+    const result = makeResult({ categoryHint: 'Comida', suggestedNewCategory: 'Farmacia' });
+    const prefill = mapOcrToPrefill(result, CATEGORIES);
+    expect(prefill.category_id).toBe('1');
+    expect(prefill.suggestedCategoryName).toBeUndefined();
+  });
+
+  it('sets suggestedCategoryName when no match AND suggestedNewCategory is present', () => {
+    // categoryHint does not match anything, suggestedNewCategory is returned
+    const result = makeResult({
+      categoryHint: 'Belleza',
+      suggestedNewCategory: 'Peluquería',
+    });
+    const prefill = mapOcrToPrefill(result, CATEGORIES);
+    expect(prefill.category_id).toBeNull();
+    expect(prefill.suggestedCategoryName).toBe('Peluquería');
+  });
+
+  it('does not set suggestedCategoryName when no match and suggestedNewCategory is null', () => {
+    const result = makeResult({
+      categoryHint: 'Belleza',
+      suggestedNewCategory: null,
+    });
+    const prefill = mapOcrToPrefill(result, CATEGORIES);
+    expect(prefill.category_id).toBeNull();
+    expect(prefill.suggestedCategoryName).toBeUndefined();
+  });
+
+  it('does not set suggestedCategoryName when categoryHint is null and suggestedNewCategory is null', () => {
+    const result = makeResult({ categoryHint: null, suggestedNewCategory: null });
+    const prefill = mapOcrToPrefill(result, CATEGORIES);
+    expect(prefill.category_id).toBeNull();
+    expect(prefill.suggestedCategoryName).toBeUndefined();
+  });
+
+  it('sets suggestedCategoryReason when there is no match and a reason is provided', () => {
+    const reason =
+      'El comercio es Zara, una tienda de indumentaria; conviene una categoría de ropa separada.';
+    const result = makeResult({
+      categoryHint: null,
+      suggestedNewCategory: 'Ropa',
+      suggestedNewCategoryReason: reason,
+    });
+    const prefill = mapOcrToPrefill(result, CATEGORIES);
+    expect(prefill.suggestedCategoryName).toBe('Ropa');
+    expect(prefill.suggestedCategoryReason).toBe(reason);
+  });
+
+  it('sets suggestedCategoryReason to null when no reason is provided', () => {
+    const result = makeResult({
+      categoryHint: null,
+      suggestedNewCategory: 'Ropa',
+      suggestedNewCategoryReason: null,
+    });
+    const prefill = mapOcrToPrefill(result, CATEGORIES);
+    expect(prefill.suggestedCategoryName).toBe('Ropa');
+    expect(prefill.suggestedCategoryReason).toBeNull();
+  });
+
+  it('does not set suggestedCategoryReason when categoryHint matches a category', () => {
+    const result = makeResult({
+      categoryHint: 'Comida',
+      suggestedNewCategory: 'Ropa',
+      suggestedNewCategoryReason: 'Debería ser ropa',
+    });
+    const prefill = mapOcrToPrefill(result, CATEGORIES);
+    // category matched, so suggestion block is skipped entirely
+    expect(prefill.category_id).toBe('1');
+    expect(prefill.suggestedCategoryName).toBeUndefined();
+    expect(prefill.suggestedCategoryReason).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -438,6 +605,8 @@ describe('extractReceipt', () => {
     occurredAt: '2024-03-10',
     merchant: 'Supermercado Día',
     categoryHint: 'Supermercado',
+    suggestedNewCategory: null,
+    suggestedNewCategoryReason: null,
     confidence: 0.85,
     items: [],
   };
@@ -461,7 +630,34 @@ describe('extractReceipt', () => {
     await extractReceipt('mybase64', 'image/png');
 
     expect(mockInvoke).toHaveBeenCalledWith('extract-receipt', {
-      body: { imageBase64: 'mybase64', mimeType: 'image/png' },
+      body: { imageBase64: 'mybase64', mimeType: 'image/png', categories: [] },
+    });
+  });
+
+  it('forwards categoryNames as categories in the invoke body', async () => {
+    mockInvoke.mockResolvedValue({
+      data: { data: VALID_OCR_RESULT },
+      error: null,
+    });
+
+    const names = ['Comida', 'Transporte', 'Mascotas'];
+    await extractReceipt('base64string', 'image/jpeg', names);
+
+    expect(mockInvoke).toHaveBeenCalledWith('extract-receipt', {
+      body: { imageBase64: 'base64string', mimeType: 'image/jpeg', categories: names },
+    });
+  });
+
+  it('sends categories as empty array when categoryNames is omitted (default)', async () => {
+    mockInvoke.mockResolvedValue({
+      data: { data: VALID_OCR_RESULT },
+      error: null,
+    });
+
+    await extractReceipt('base64string', 'image/jpeg');
+
+    expect(mockInvoke).toHaveBeenCalledWith('extract-receipt', {
+      body: expect.objectContaining({ categories: [] }),
     });
   });
 
