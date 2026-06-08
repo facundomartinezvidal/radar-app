@@ -173,6 +173,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      seed_default_categories: {
+        Args: { p_user_id: string };
+        Returns: undefined;
+      };
       create_expense_with_items: {
         Args: {
           p_amount: number;

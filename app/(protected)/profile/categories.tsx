@@ -66,7 +66,7 @@ export default function CategoriesScreen(): React.JSX.Element {
           </View>
         ) : customCategories.length === 0 ? (
           <View style={styles.emptyState}>
-            <Body color={colors.fg[3]}>No tenés categorías personalizadas.</Body>
+            <Body color={colors.fg[3]}>No hay categorías.</Body>
           </View>
         ) : (
           <Card variant="base" style={styles.listCard}>
