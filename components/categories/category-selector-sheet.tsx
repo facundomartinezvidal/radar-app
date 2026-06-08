@@ -2,15 +2,18 @@
  * RADAR — CategorySelectorSheet
  *
  * Searchable bottom-sheet for selecting a category.
- * Allows creating, editing, and deleting custom categories inline.
- * System categories (user_id === null) are read-only.
+ * Allows creating custom categories inline.
+ * Edit / delete are handled by the dedicated management screen
+ * (reachable via the "Gestionar categorías" link at the bottom).
+ * System categories (user_id === null) are read-only in the selector.
  */
 import React, { useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, TouchableOpacity, View } from 'react-native';
+import { Modal, Pressable, ScrollView, TouchableOpacity, View } from 'react-native';
+import { router } from 'expo-router';
 
 import { H2, H3, Icon, Input, Text } from '@/components/ui';
 import { CategoryForm } from '@/components/categories/category-form';
-import { useCreateCategory, useDeleteCategory, useUpdateCategory } from '@/hooks/use-categories';
+import { useCreateCategory } from '@/hooks/use-categories';
 import type { CategoryRow } from '@/lib/repositories/expenses';
 import type { IconName } from '@/components/ui/icon';
 import { normalizeName } from '@/lib/ocr';
@@ -28,15 +31,7 @@ export interface CategorySelectorSheetProps {
   onSelect: (id: string | null) => void;
 }
 
-type SheetMode = 'list' | 'create' | { edit: CategoryRow };
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function isEditMode(mode: SheetMode): mode is { edit: CategoryRow } {
-  return typeof mode === 'object' && mode !== null && 'edit' in mode;
-}
+type SheetMode = 'list' | 'create';
 
 // ---------------------------------------------------------------------------
 // Sub-component: CategoryTile
@@ -46,19 +41,9 @@ interface CategoryTileProps {
   cat: CategoryRow;
   selected: boolean;
   onSelect: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
 }
 
-function CategoryTile({
-  cat,
-  selected,
-  onSelect,
-  onEdit,
-  onDelete,
-}: CategoryTileProps): React.JSX.Element {
-  const isCustom = cat.user_id !== null;
-
+function CategoryTile({ cat, selected, onSelect }: CategoryTileProps): React.JSX.Element {
   return (
     <View style={{ width: '33.33%', padding: spacing[1] }}>
       <Pressable
@@ -88,37 +73,6 @@ function CategoryTile({
           {cat.name}
         </Text>
       </Pressable>
-
-      {/* Edit / delete controls — custom categories only */}
-      {isCustom && (
-        <View
-          style={{
-            flexDirection: 'row',
-            justifyContent: 'center',
-            gap: spacing[2],
-            marginTop: spacing[1],
-          }}
-        >
-          <TouchableOpacity
-            onPress={onEdit}
-            hitSlop={8}
-            style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
-            accessibilityRole="button"
-            accessibilityLabel={`Editar ${cat.name}`}
-          >
-            <Icon name="Pencil" size={14} color={colors.fg[3]} strokeWidth={1.5} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={onDelete}
-            hitSlop={8}
-            style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}
-            accessibilityRole="button"
-            accessibilityLabel={`Eliminar ${cat.name}`}
-          >
-            <Icon name="Trash2" size={14} color={colors.money.out} strokeWidth={1.5} />
-          </TouchableOpacity>
-        </View>
-      )}
     </View>
   );
 }
@@ -139,8 +93,6 @@ export function CategorySelectorSheet({
   const [serverError, setServerError] = useState<string | null>(null);
 
   const createMutation = useCreateCategory();
-  const updateMutation = useUpdateCategory();
-  const deleteMutation = useDeleteCategory();
 
   // Reset state each time the sheet opens
   function handleOpen(): void {
@@ -164,31 +116,6 @@ export function CategorySelectorSheet({
       : categories.filter((cat) => normalizeName(cat.name).includes(normalizedQuery));
 
   // -------------------------------------------------------------------------
-  // Delete handler
-  // -------------------------------------------------------------------------
-
-  function handleDeletePress(cat: CategoryRow): void {
-    Alert.alert('Eliminar categoría', '¿Confirmás que querés eliminar esta categoría?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Eliminar',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteMutation.mutateAsync(cat.id);
-            // If the deleted category was selected, deselect it
-            if (value === cat.id) {
-              onSelect(null);
-            }
-          } catch {
-            Alert.alert('Error', 'No se pudo eliminar la categoría. Intentá nuevamente.');
-          }
-        },
-      },
-    ]);
-  }
-
-  // -------------------------------------------------------------------------
   // Create handler
   // -------------------------------------------------------------------------
 
@@ -203,28 +130,6 @@ export function CategorySelectorSheet({
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'No se pudo crear la categoría. Intentá nuevamente.';
-      setServerError(message);
-    }
-  }
-
-  // -------------------------------------------------------------------------
-  // Update handler
-  // -------------------------------------------------------------------------
-
-  async function handleUpdate(
-    id: string,
-    values: Parameters<typeof createMutation.mutateAsync>[0],
-  ): Promise<void> {
-    setServerError(null);
-    try {
-      await updateMutation.mutateAsync({ id, patch: values });
-      setMode('list');
-      setServerError(null);
-    } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : 'No se pudo actualizar la categoría. Intentá nuevamente.';
       setServerError(message);
     }
   }
@@ -302,7 +207,7 @@ export function CategorySelectorSheet({
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{
                   paddingHorizontal: spacing[4],
-                  paddingBottom: spacing[8],
+                  paddingBottom: spacing[4],
                 }}
               >
                 {/* Sin categoría option */}
@@ -356,11 +261,6 @@ export function CategorySelectorSheet({
                         onSelect(cat.id);
                         handleClose();
                       }}
-                      onEdit={() => {
-                        setServerError(null);
-                        setMode({ edit: cat });
-                      }}
-                      onDelete={() => handleDeletePress(cat)}
                     />
                   ))}
 
@@ -408,6 +308,29 @@ export function CategorySelectorSheet({
                     No hay categorías que coincidan con la búsqueda.
                   </Text>
                 )}
+
+                {/* Gestionar categorías link */}
+                <TouchableOpacity
+                  onPress={() => {
+                    handleClose();
+                    router.push('/(protected)/profile/categories');
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Gestionar categorías"
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: spacing[2],
+                    paddingVertical: spacing[4],
+                    marginTop: spacing[2],
+                  }}
+                >
+                  <Icon name="Settings" size={16} color={colors.fg[3]} strokeWidth={1.5} />
+                  <Text variant="bodySm" color={colors.fg[3]} style={{ fontWeight: '500' }}>
+                    Gestionar categorías
+                  </Text>
+                </TouchableOpacity>
               </ScrollView>
             </>
           )}
@@ -452,58 +375,6 @@ export function CategorySelectorSheet({
                 <CategoryForm
                   onSubmit={handleCreate}
                   isSubmitting={createMutation.isPending}
-                  errorMessage={serverError}
-                />
-              </ScrollView>
-            </>
-          )}
-
-          {/* ---------------------------------------------------------------- */}
-          {/* EDIT MODE                                                        */}
-          {/* ---------------------------------------------------------------- */}
-          {isEditMode(mode) && (
-            <>
-              {/* Header */}
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: spacing[3],
-                  paddingHorizontal: spacing[5],
-                  paddingTop: spacing[5],
-                  paddingBottom: spacing[3],
-                }}
-              >
-                <TouchableOpacity
-                  onPress={() => {
-                    setMode('list');
-                    setServerError(null);
-                  }}
-                  hitSlop={12}
-                  accessibilityRole="button"
-                  accessibilityLabel="Volver"
-                >
-                  <Icon name="ArrowLeft" size={24} color={colors.fg[2]} strokeWidth={1.5} />
-                </TouchableOpacity>
-                <H3>Editar categoría</H3>
-              </View>
-
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={{
-                  paddingHorizontal: spacing[5],
-                  paddingBottom: spacing[8],
-                }}
-              >
-                <CategoryForm
-                  initial={{
-                    name: mode.edit.name,
-                    icon: mode.edit.icon as IconName,
-                    color: mode.edit.color,
-                  }}
-                  submitLabel="Guardar cambios"
-                  onSubmit={(values) => handleUpdate(mode.edit.id, values)}
-                  isSubmitting={updateMutation.isPending}
                   errorMessage={serverError}
                 />
               </ScrollView>

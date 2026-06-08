@@ -37,7 +37,7 @@ import type { IconName } from '@/components/ui/icon';
 
 interface QuickAction {
   label: string;
-  iconName: 'Plus' | 'Users' | 'Camera' | 'MoreHorizontal';
+  iconName: 'Plus' | 'Users' | 'Tags' | 'MoreHorizontal';
   accessibilityLabel: string;
   onPress?: () => void;
 }
@@ -73,10 +73,10 @@ function buildQuickActions(): QuickAction[] {
       accessibilityLabel: 'Ver grupos',
     },
     {
-      label: 'Escanear',
-      iconName: 'Camera',
-      accessibilityLabel: 'Escanear comprobante',
-      onPress: () => router.push('/(protected)/(tabs)/camera' as Parameters<typeof router.push>[0]),
+      label: 'Categorías',
+      iconName: 'Tags',
+      accessibilityLabel: 'Ver categorías',
+      onPress: () => router.push('/(protected)/profile/categories'),
     },
     {
       label: 'Más',
