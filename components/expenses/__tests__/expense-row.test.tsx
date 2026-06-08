@@ -54,6 +54,13 @@ const SHARED_EXPENSE: ExpenseWithCategory = {
   group_id: 'group-abc',
 };
 
+const RECURRENT_EXPENSE: ExpenseWithCategory = {
+  ...BASE_EXPENSE,
+  id: 'exp-3',
+  source: 'recurrence',
+  recurrence_id: 'rec-550e8400-e29b-41d4-a716-446655440000',
+};
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -110,5 +117,22 @@ describe('ExpenseRow', () => {
   it('does not show the separator dot when not shared', () => {
     render(<ExpenseRow expense={BASE_EXPENSE} />);
     expect(screen.queryByText('·')).toBeNull();
+  });
+
+  it('does NOT show the recurrent indicator for a manual expense', () => {
+    render(<ExpenseRow expense={BASE_EXPENSE} />);
+    expect(screen.queryByTestId('recurrent-indicator')).toBeNull();
+    expect(screen.queryByText('Recurrente')).toBeNull();
+  });
+
+  it('shows the recurrent indicator when source is "recurrence"', () => {
+    render(<ExpenseRow expense={RECURRENT_EXPENSE} />);
+    expect(screen.getByTestId('recurrent-indicator')).toBeTruthy();
+    expect(screen.getByText('Recurrente')).toBeTruthy();
+  });
+
+  it('shows the separator dot before "Recurrente" when recurrent', () => {
+    render(<ExpenseRow expense={RECURRENT_EXPENSE} />);
+    expect(screen.getByText('·')).toBeTruthy();
   });
 });
