@@ -10,6 +10,7 @@
  *   - Saldos tab: renders "Tu situación" + who-owes rows
  *   - Saldos tab: Saldar confirm → calls useCreateSettlement
  *   - Saldos tab: empty → "No hay saldos pendientes."
+ *   - "Agregar miembro" button is rendered and opens the MemberSelectorSheet
  */
 import React from 'react';
 import { Alert } from 'react-native';
@@ -73,6 +74,9 @@ jest.mock('@/hooks/use-groups', () => ({
     mutateAsync: mockSettleMutateAsync,
     isPending: false,
   })),
+  // Required by MemberSelectorSheet (rendered inside GroupDetailScreen)
+  useAddPlaceholder: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
+  useInviteMember: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
 }));
 
 function makeMember(id: string, displayName: string, userId: string | null = null): GroupMemberRow {
@@ -299,5 +303,29 @@ describe('GroupDetailScreen', () => {
         }),
       );
     });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Add member button
+  // ---------------------------------------------------------------------------
+
+  it('renders "Agregar miembro" button', () => {
+    mockUseGroup.mockReturnValue({ data: MOCK_GROUP, isLoading: false });
+    mockUseGroupExpenses.mockReturnValue({ data: [], isLoading: false });
+
+    render(<GroupDetailScreen />);
+    expect(screen.getByTestId('add-member-button')).toBeTruthy();
+    expect(screen.getByLabelText('Agregar miembro')).toBeTruthy();
+  });
+
+  it('pressing "Agregar miembro" opens the MemberSelectorSheet', () => {
+    mockUseGroup.mockReturnValue({ data: MOCK_GROUP, isLoading: false });
+    mockUseGroupExpenses.mockReturnValue({ data: [], isLoading: false });
+
+    render(<GroupDetailScreen />);
+    fireEvent.press(screen.getByTestId('add-member-button'));
+
+    // After pressing, the sheet's name input should appear
+    expect(screen.getByPlaceholderText('Nombre del participante')).toBeTruthy();
   });
 });

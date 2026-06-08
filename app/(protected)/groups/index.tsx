@@ -3,21 +3,42 @@
  *
  * Lists all groups the user belongs to. Shows a GroupCard per group.
  * Primary CTA creates a new group.
+ * Shows a pending-invites section at the top when the user has open invitations.
  */
 import { router } from 'expo-router';
-import React from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import React, { useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GroupCard } from '@/components/groups/group-card';
-import { Body, Button, H2, Icon, Loader } from '@/components/ui';
-import { useGroups } from '@/hooks/use-groups';
+import { Body, Button, Caption, Card, H2, H3, Icon, Loader, Pill } from '@/components/ui';
+import type { IconName } from '@/components/ui/icon';
+import { useGroups, usePendingInvites, useRespondInvite } from '@/hooks/use-groups';
 import { useSession } from '@/hooks/use-session';
-import { colors, spacing } from '@/lib/theme';
+import { colors, radii, spacing } from '@/lib/theme';
 
 export default function GroupsScreen(): React.JSX.Element {
   const { data: groups, isLoading } = useGroups();
   const { user } = useSession();
+  const { data: pendingInvites } = usePendingInvites();
+  const respondMutation = useRespondInvite();
+  const [respondingId, setRespondingId] = useState<string | null>(null);
+
+  function handleRespond(memberId: string, accept: boolean): void {
+    setRespondingId(memberId);
+    void respondMutation
+      .mutateAsync({ memberId, accept })
+      .then(() => {
+        setRespondingId(null);
+        if (accept) {
+          Alert.alert('Listo', 'Te uniste al grupo.');
+        }
+      })
+      .catch(() => {
+        setRespondingId(null);
+        Alert.alert('Error', 'No se pudo responder la invitación. Intentá nuevamente.');
+      });
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -41,6 +62,90 @@ export default function GroupsScreen(): React.JSX.Element {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* Pending invites section */}
+        {(pendingInvites ?? []).length > 0 && (
+          <View testID="pending-invites-section">
+            <H3 style={styles.sectionTitle}>Invitaciones</H3>
+            <View style={styles.list}>
+              {(pendingInvites ?? []).map((invite) => {
+                const isResponding = respondingId === invite.id;
+                return (
+                  <Card
+                    key={invite.id}
+                    variant="base"
+                    style={styles.inviteCard}
+                    testID={`invite-card-${invite.id}`}
+                  >
+                    <View style={styles.inviteRow}>
+                      {/* Group icon chip */}
+                      {invite.group != null && (
+                        <View
+                          style={[
+                            styles.inviteIconChip,
+                            {
+                              backgroundColor: `${invite.group.color}1A`,
+                              borderColor: invite.group.color,
+                            },
+                          ]}
+                        >
+                          <Icon
+                            name={invite.group.icon as IconName}
+                            size={18}
+                            color={invite.group.color}
+                            strokeWidth={1.5}
+                          />
+                        </View>
+                      )}
+
+                      {/* Info */}
+                      <View style={styles.inviteInfo}>
+                        <Body numberOfLines={1} style={{ fontWeight: '600' }}>
+                          {invite.group?.name ?? 'Grupo'}
+                        </Body>
+                        <Caption color={colors.fg[3]}>
+                          {invite.group?.name ?? 'Grupo'} · te invitó
+                        </Caption>
+                      </View>
+
+                      {/* Pending pill */}
+                      <Pill variant="neutral" size="sm">
+                        Pendiente
+                      </Pill>
+                    </View>
+
+                    {/* Actions */}
+                    <View style={styles.inviteActions}>
+                      <View testID={`decline-invite-${invite.id}`}>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onPress={() => handleRespond(invite.id, false)}
+                          loading={isResponding}
+                          accessibilityLabel="Rechazar invitación"
+                        >
+                          Rechazar
+                        </Button>
+                      </View>
+                      <View testID={`accept-invite-${invite.id}`}>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onPress={() => handleRespond(invite.id, true)}
+                          loading={isResponding}
+                          accessibilityLabel="Aceptar invitación"
+                        >
+                          Aceptar
+                        </Button>
+                      </View>
+                    </View>
+                  </Card>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* Groups list */}
         {isLoading ? (
           <View style={styles.center}>
             <Loader size={24} color={colors.fg[3]} />
@@ -124,5 +229,35 @@ const styles = StyleSheet.create({
   },
   createButtonContainer: {
     marginTop: spacing[2],
+  },
+  sectionTitle: {
+    marginBottom: spacing[3],
+  },
+  // Invite card
+  inviteCard: {
+    padding: spacing[4],
+    gap: spacing[3],
+  },
+  inviteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+  },
+  inviteIconChip: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.sm,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inviteInfo: {
+    flex: 1,
+    gap: spacing[1],
+  },
+  inviteActions: {
+    flexDirection: 'row',
+    gap: spacing[3],
+    justifyContent: 'flex-end',
   },
 });

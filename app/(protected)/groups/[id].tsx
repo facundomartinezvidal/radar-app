@@ -4,6 +4,7 @@
  * Shows group info, member avatars, and either the Gastos list (expenses)
  * or the Saldos view (balances + settlement) depending on the active tab.
  * The ··· menu offers only "Eliminar" for now (edit deferred to a later atomic).
+ * An "Agregar miembro" button opens the MemberSelectorSheet.
  */
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
@@ -12,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BalanceRow } from '@/components/groups/balance-row';
 import { MemberAvatarsRow } from '@/components/groups/member-avatars-row';
+import { MemberSelectorSheet } from '@/components/groups/member-selector-sheet';
 import { ExpenseRow } from '@/components/expenses/expense-row';
 import { Body, Button, Card, Caption, H2, H3, Icon, Loader, Money, Pill } from '@/components/ui';
 import type { IconName } from '@/components/ui/icon';
@@ -118,6 +120,7 @@ export default function GroupDetailScreen(): React.JSX.Element {
   const { user } = useSession();
   const [activeTab, setActiveTab] = useState<ActiveTab>('gastos');
   const [settlingEdge, setSettlingEdge] = useState<string | null>(null);
+  const [addMemberVisible, setAddMemberVisible] = useState(false);
 
   const { data: group, isLoading: groupLoading } = useGroup(id);
   const { data: expenses, isLoading: expensesLoading } = useGroupExpenses(id);
@@ -372,14 +375,38 @@ export default function GroupDetailScreen(): React.JSX.Element {
       >
         {/* Members */}
         <View style={styles.membersSection}>
-          <Caption color={colors.fg[3]} style={styles.sectionLabel}>
-            {group.members.length === 1 ? '1 miembro' : `${group.members.length} miembros`}
-          </Caption>
+          <View style={styles.membersHeader}>
+            <Caption color={colors.fg[3]} style={styles.sectionLabel}>
+              {group.members.length === 1 ? '1 miembro' : `${group.members.length} miembros`}
+            </Caption>
+            <Pressable
+              onPress={() => setAddMemberVisible(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Agregar miembro"
+              hitSlop={8}
+              style={styles.addMemberButton}
+              testID="add-member-button"
+            >
+              <Icon name="UserPlus" size={18} color={colors.brand[400]} strokeWidth={1.5} />
+              <Caption color={colors.brand[400]} style={{ fontWeight: '600' }}>
+                Agregar miembro
+              </Caption>
+            </Pressable>
+          </View>
           <MemberAvatarsRow members={group.members} max={8} size={36} />
         </View>
 
         {/* Tab switcher */}
         <TabSwitcher active={activeTab} onChange={setActiveTab} />
+
+        {/* Add member sheet */}
+        {id != null && (
+          <MemberSelectorSheet
+            visible={addMemberVisible}
+            groupId={id}
+            onClose={() => setAddMemberVisible(false)}
+          />
+        )}
 
         {/* Tab content */}
         {activeTab === 'gastos' ? (
@@ -489,6 +516,17 @@ const styles = StyleSheet.create({
     gap: spacing[2],
     paddingTop: spacing[2],
     paddingHorizontal: spacing[5],
+  },
+  membersHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  addMemberButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[1],
+    paddingVertical: spacing[1],
   },
   sectionLabel: {
     textTransform: 'uppercase',
