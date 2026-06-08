@@ -83,7 +83,7 @@ describe('CategoriesScreen', () => {
 
     render(<CategoriesScreen />);
 
-    expect(screen.getByText('No tenés categorías personalizadas.')).toBeTruthy();
+    expect(screen.getByText('No hay categorías.')).toBeTruthy();
   });
 
   it('renders empty-state text when data is empty', () => {
@@ -94,7 +94,7 @@ describe('CategoriesScreen', () => {
 
     render(<CategoriesScreen />);
 
-    expect(screen.getByText('No tenés categorías personalizadas.')).toBeTruthy();
+    expect(screen.getByText('No hay categorías.')).toBeTruthy();
   });
 
   it('pressing delete triggers Alert.alert with the confirm dialog', () => {

@@ -191,12 +191,12 @@ See `docs/decisions/2026-05-16-auth-strategy.md`.
 
 ### DB schema (current)
 
-| Table           | Purpose                                                                              | RLS                                                            |
-| --------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------- |
-| `profiles`      | 1:1 with auth.users, first/last name                                                 | owner select/insert/update                                     |
-| `categories`    | system (user_id null) + per-user custom (user_id = auth.uid()); 9 seeded system rows | SELECT = system ∪ own; INSERT/UPDATE/DELETE = own only (HU-16) |
-| `expenses`      | core expense rows, numeric(14,2)                                                     | owner CRUD (`(select auth.uid()) = user_id`)                   |
-| `expense_items` | receipt line items (HU-18), ≤50/gasto                                                | owner CRUD, denormalized `user_id`                             |
+| Table           | Purpose                                                                          | RLS                                                        |
+| --------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `profiles`      | 1:1 with auth.users, first/last name                                             | owner select/insert/update                                 |
+| `categories`    | fully per-user; each user owns 9 default rows (editable/deletable) + custom rows | SELECT = own only; INSERT/UPDATE/DELETE = own only (HU-16) |
+| `expenses`      | core expense rows, numeric(14,2)                                                 | owner CRUD (`(select auth.uid()) = user_id`)               |
+| `expense_items` | receipt line items (HU-18), ≤50/gasto                                            | owner CRUD, denormalized `user_id`                         |
 
 `expense_items`: `name` (1–120), `quantity numeric(14,3) > 0` (kg OK, default 1), `unit_price numeric(14,2)` nullable, `line_total numeric(14,2) >= 0` required (source of truth — OCR often lacks unit price), `position` preserves order, cascade-deletes with the expense.
 
@@ -207,7 +207,7 @@ See `docs/decisions/2026-05-16-auth-strategy.md`.
 
 Reads use the nested select `'*, category:categories(*), items:expense_items(*)'` sorted client-side by `position`. See `docs/decisions/2026-06-03-expense-line-items-schema.md`.
 
-`categories` (HU-16): `user_id` nullable — `null` = system (globally readable), `auth.uid()` = user-owned (full CRUD under RLS). `updated_at` + trigger. Global slug unique replaced by two partial unique indexes (`slug WHERE user_id IS NULL` and `(user_id, slug) WHERE user_id IS NOT NULL`). Name check `btrim(name)` length 1–40. No RPC — direct single-table CRUD. `expenses.category_id` FK is `on delete set null` (unchanged). List order: system (sort_order asc) → custom (name asc). See `docs/decisions/2026-06-07-custom-categories-schema.md`.
+`categories` (HU-16 + seed migration): `user_id` is always set — no more system/null rows. Every user owns exactly 9 default rows (seeded on signup via `on_auth_user_created_seed_categories` trigger → `seed_default_categories(uuid)` SECURITY DEFINER fn with REVOKE; existing users backfilled). `updated_at` + trigger. Two partial unique indexes: `(slug) WHERE user_id IS NULL` (now dead) and `(user_id, slug) WHERE user_id IS NOT NULL`. Name check `btrim(name)` length 1–40. No RPC — direct single-table CRUD. `expenses.category_id` FK is `on delete set null` (unchanged). Existing expenses re-pointed from the old global rows to each user's copy by slug. Hogar icon corrected to `House` (was `Home`). See `docs/decisions/2026-06-07-custom-categories-schema.md`.
 
 ### Push notifications
 
@@ -514,6 +514,13 @@ Update **AGENTS.md** as part of the feature's final PR:
   See `docs/features/custom-categories.md`,
   `docs/decisions/2026-06-07-custom-categories-schema.md` and
   `docs/user-flows/HU-16-categorias-personalizadas.md`.
+- Per-user default categories (HU-16 seed migration): the 9 shared/global
+  category rows are retired. Each user now owns their own editable/deletable
+  copy of the 9 defaults, seeded on signup by `seed_default_categories(uuid)`
+  (SECURITY DEFINER, REVOKE from anon/authenticated/public). Existing users
+  backfilled; existing expenses re-pointed from global rows to the owner's copy
+  by slug. Hogar icon corrected to `House`. Applied as migration
+  `20260608004254_seed_default_categories_per_user.sql`.
 
 ### Still pending
 
@@ -536,9 +543,6 @@ Update **AGENTS.md** as part of the feature's final PR:
 10. Revisit `expense_items` update strategy (delete-all + reinsert rotates
     item ids) if a future HU needs stable per-item identity (e.g. AI
     insights keyed by item)
-11. Fix system seed: "Hogar" category uses `icon = 'Home'` but
-    `lucide-react-native` v1 exports `House` — icon renders blank. Update
-    the seeded row (direct UPDATE or new migration).
 
 The expenses CRUD is the first feature with real persistence end-to-end.
 Everything else still depends on the items above.
