@@ -288,7 +288,22 @@ describe('ExpenseForm — groupConfig', () => {
     expect(screen.getByText('División')).toBeTruthy();
   });
 
-  it('renders both member names in who-paid selector', () => {
+  it('renders both member names in who-paid selector (no currentMemberId)', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        onSubmit={jest.fn()}
+        groupConfig={{ members: GROUP_MEMBERS, currentMemberId: null }}
+      />,
+    );
+    // Both members should appear in the who-paid row (no "Vos" substitution)
+    const facundoElements = screen.getAllByText('Facundo Martinez');
+    expect(facundoElements.length).toBeGreaterThanOrEqual(1);
+    const jonathanElements = screen.getAllByText('Jonathan Mayan');
+    expect(jonathanElements.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('labels the current member as "Vos" in who-paid selector', () => {
     render(
       <ExpenseForm
         categories={CATEGORIES}
@@ -296,9 +311,9 @@ describe('ExpenseForm — groupConfig', () => {
         groupConfig={{ members: GROUP_MEMBERS, currentMemberId: 'm1' }}
       />,
     );
-    // Both members should appear in the who-paid row
-    const facundoElements = screen.getAllByText('Facundo Martinez');
-    expect(facundoElements.length).toBeGreaterThanOrEqual(1);
+    // currentMemberId = 'm1' (Facundo Martinez) → should appear as "Vos"
+    expect(screen.getAllByText('Vos').length).toBeGreaterThanOrEqual(1);
+    // Other member still shows their name
     const jonathanElements = screen.getAllByText('Jonathan Mayan');
     expect(jonathanElements.length).toBeGreaterThanOrEqual(1);
   });
@@ -340,6 +355,45 @@ describe('ExpenseForm — groupConfig', () => {
         ]),
       }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HU-17 — GroupConfig: "Vos" label + include-toggle subset
+// ---------------------------------------------------------------------------
+
+describe('ExpenseForm — HU-17 include subset', () => {
+  it('who-paid "Pagó Vos" accessibility label for the current member', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        onSubmit={jest.fn()}
+        groupConfig={{ members: GROUP_MEMBERS, currentMemberId: 'm1' }}
+      />,
+    );
+    expect(screen.getByLabelText('Pagó Vos')).toBeTruthy();
+  });
+
+  it('submitting with all members included sends splits for both members', async () => {
+    const onSubmitShared = jest.fn().mockResolvedValue(undefined);
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        onSubmit={jest.fn()}
+        onSubmitShared={onSubmitShared}
+        groupConfig={{ members: GROUP_MEMBERS, currentMemberId: 'm1', groupId: 'g1' }}
+        prefill={{ amount: 1000 }}
+        submitLabel="Registrar gasto"
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('Registrar gasto'));
+    });
+
+    const callArg = onSubmitShared.mock.calls[0]?.[0] as { splits: { member_id: string }[] };
+    expect(callArg.splits).toHaveLength(2);
+    expect(callArg.splits.map((s) => s.member_id).sort()).toEqual(['m1', 'm2'].sort());
   });
 });
 

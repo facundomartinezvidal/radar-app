@@ -240,7 +240,11 @@ export function ExpenseForm({
       ? (groupConfig.currentMemberId ?? groupConfig.members[0]?.id ?? null)
       : null;
   const [paidByMemberId, setPaidByMemberId] = useState<string | null>(defaultPaidBy);
-  const [splitState, setSplitState] = useState<SplitState>({ type: 'equal', values: {} });
+  const [splitState, setSplitState] = useState<SplitState>({
+    type: 'equal',
+    values: {},
+    includedMemberIds: [],
+  });
   const [splitError, setSplitError] = useState<string | null>(null);
 
   // When the user selects a group via the toggle, reset payer + splits to that group's defaults.
@@ -250,12 +254,12 @@ export function ExpenseForm({
       const newDefault =
         activeMembers.find((m) => m.user_id === currentUserId)?.id ?? activeMembers[0]?.id ?? null;
       setPaidByMemberId(newDefault);
-      setSplitState({ type: 'equal', values: {} });
+      setSplitState({ type: 'equal', values: {}, includedMemberIds: [] });
       setSplitError(null);
     } else if (!isShared) {
       // Toggle was turned off — reset to null
       setPaidByMemberId(null);
-      setSplitState({ type: 'equal', values: {} });
+      setSplitState({ type: 'equal', values: {}, includedMemberIds: [] });
       setSplitError(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -691,7 +695,10 @@ export function ExpenseForm({
           <View style={{ gap: spacing[2] }}>
             {effectiveGroupConfig.members.map((member) => {
               const selected = paidByMemberId === member.id;
-              const displayName = member.display_name ?? 'Miembro';
+              const isSelf =
+                effectiveGroupConfig.currentMemberId != null &&
+                member.id === effectiveGroupConfig.currentMemberId;
+              const displayName = isSelf ? 'Vos' : (member.display_name ?? 'Miembro');
               const nameParts = displayName.trim().split(' ');
               const firstName = nameParts[0] ?? null;
               const lastName =
@@ -778,6 +785,7 @@ export function ExpenseForm({
               setSplitError(null);
             }}
             disabled={isSubmitting}
+            currentMemberId={effectiveGroupConfig.currentMemberId}
           />
           {splitError != null && <BodySm color={colors.money.out}>{splitError}</BodySm>}
         </View>
