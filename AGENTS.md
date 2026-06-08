@@ -450,7 +450,7 @@ Gotchas in SDK 54:
 pnpm format:check   # Prettier
 pnpm lint           # ESLint flat config
 pnpm typecheck      # tsc --noEmit strict
-pnpm test           # jest-expo + RNTL (834 tests baseline)
+pnpm test           # jest-expo + RNTL (888 tests baseline)
 ```
 
 CI enforces these on every push/PR via `.github/workflows/ci.yml`.
@@ -546,6 +546,17 @@ Update **AGENTS.md** as part of the feature's final PR:
   Tests: 603 → 834. See `docs/features/shared-expenses.md`,
   `docs/decisions/2026-06-07-shared-expenses-schema.md` and
   `docs/user-flows/HU-17-gastos-compartidos.md`.
+- Member-invite email validation + keyboard-aware sheet: `user_exists_by_email`
+  SECURITY DEFINER RPC (migration `20260608042550`) with REVOKE from anon/public
+  and GRANT to authenticated (intentional — mirrors `invite_group_member`
+  not_found pattern; allows authenticated email enumeration, accepted
+  trade-off). `checkUserExists` repo fn + `useCheckUserExists` useMutation hook.
+  On-blur existence check in both `InviteForm` (MemberSelectorSheet) and invite
+  rows in `GroupForm`: shows "Verificando…" while pending, inline error
+  "No existe una cuenta con ese correo electrónico." when false, blocks
+  Invitar/Crear grupo. `MemberSelectorSheet` wrapped in `KeyboardAvoidingView`
+  + `ScrollView` so the input, feedback, and action button stay visible above
+  the on-screen keyboard. Tests: 834 → 888.
 
 ### Still pending
 

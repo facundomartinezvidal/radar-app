@@ -27,6 +27,25 @@ import { CATEGORY_COLORS, CATEGORY_ICONS } from '@/lib/category-options';
 
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
 
+// ---------------------------------------------------------------------------
+// useCheckUserExists mock
+// ---------------------------------------------------------------------------
+
+const mockCheckExistsMutateAsync = jest.fn();
+
+jest.mock('@/hooks/use-groups', () => ({
+  useCheckUserExists: jest.fn(() => ({
+    mutateAsync: mockCheckExistsMutateAsync,
+    isPending: false,
+  })),
+}));
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  // Default: account found
+  mockCheckExistsMutateAsync.mockResolvedValue(true);
+});
+
 describe('GroupForm', () => {
   // ---------------------------------------------------------------------------
   // Existing basic rendering
@@ -294,5 +313,86 @@ describe('GroupForm', () => {
       />,
     );
     expect(screen.getByDisplayValue('pre@example.com')).toBeTruthy();
+  });
+
+  // ---------------------------------------------------------------------------
+  // Email existence check (on blur)
+  // ---------------------------------------------------------------------------
+
+  it('shows "No existe una cuenta..." inline error when email is not found on blur', async () => {
+    mockCheckExistsMutateAsync.mockResolvedValueOnce(false);
+    const onSubmit = jest.fn();
+    render(<GroupForm onSubmit={onSubmit} />);
+
+    fireEvent.changeText(screen.getByPlaceholderText('Nombre del grupo'), 'Depto');
+
+    fireEvent.press(screen.getByTestId('add-invite-button'));
+    const input = screen.getByTestId('invite-input-0');
+    fireEvent.changeText(input, 'ghost@example.com');
+    fireEvent(input, 'blur');
+
+    await waitFor(() => {
+      expect(screen.getByText('No existe una cuenta con ese correo electrónico.')).toBeTruthy();
+    });
+  });
+
+  it('blocks submit when a row email is known-not-found', async () => {
+    mockCheckExistsMutateAsync.mockResolvedValueOnce(false);
+    const onSubmit = jest.fn();
+    render(<GroupForm onSubmit={onSubmit} />);
+
+    fireEvent.changeText(screen.getByPlaceholderText('Nombre del grupo'), 'Depto');
+
+    fireEvent.press(screen.getByTestId('add-invite-button'));
+    const input = screen.getByTestId('invite-input-0');
+    fireEvent.changeText(input, 'ghost@example.com');
+    fireEvent(input, 'blur');
+
+    await waitFor(() => {
+      expect(screen.getByText('No existe una cuenta con ese correo electrónico.')).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText('Crear grupo'));
+    await waitFor(() => {
+      expect(onSubmit).not.toHaveBeenCalled();
+    });
+  });
+
+  it('allows submit when all invite emails are found', async () => {
+    mockCheckExistsMutateAsync.mockResolvedValueOnce(true);
+    const onSubmit = jest.fn();
+    render(<GroupForm onSubmit={onSubmit} />);
+
+    fireEvent.changeText(screen.getByPlaceholderText('Nombre del grupo'), 'Depto');
+
+    fireEvent.press(screen.getByTestId('add-invite-button'));
+    const input = screen.getByTestId('invite-input-0');
+    fireEvent.changeText(input, 'real@example.com');
+    fireEvent(input, 'blur');
+
+    await waitFor(() => {
+      expect(mockCheckExistsMutateAsync).toHaveBeenCalledWith('real@example.com');
+    });
+
+    fireEvent.press(screen.getByText('Crear grupo'));
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+
+    const payload = onSubmit.mock.calls[0]?.[0] as GroupFormValues;
+    expect(payload.invites).toEqual(['real@example.com']);
+  });
+
+  it('does not call existence check when email format is invalid', async () => {
+    render(<GroupForm onSubmit={jest.fn()} />);
+
+    fireEvent.press(screen.getByTestId('add-invite-button'));
+    const input = screen.getByTestId('invite-input-0');
+    fireEvent.changeText(input, 'bad-email');
+    fireEvent(input, 'blur');
+
+    await waitFor(() => {
+      expect(mockCheckExistsMutateAsync).not.toHaveBeenCalled();
+    });
   });
 });

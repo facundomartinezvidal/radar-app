@@ -183,6 +183,25 @@ export async function deleteGroup(id: string): Promise<RepoResult<{ id: string }
 }
 
 /**
+ * Check whether a registered account exists for the given email address.
+ *
+ * Calls the `user_exists_by_email` SECURITY DEFINER RPC which queries
+ * auth.users. Returns `true` when found, `false` when not found.
+ *
+ * This deliberately allows authenticated email enumeration — acceptable for
+ * this app; mirrors the invite_group_member not_found behaviour.
+ */
+export async function checkUserExists(email: string): Promise<RepoResult<boolean>> {
+  try {
+    const { data, error } = await supabase.rpc('user_exists_by_email', { p_email: email });
+    if (error) return { data: null, error };
+    return { data: data as boolean, error: null };
+  } catch (e) {
+    return { data: null, error: e as Error };
+  }
+}
+
+/**
  * Fetch per-member net balances for a group via the `get_group_balances` RPC.
  *
  * Each row has `{ member_id, currency, net }` where `net > 0` means the

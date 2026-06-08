@@ -389,6 +389,55 @@ describe('deleteGroup', () => {
 });
 
 // ---------------------------------------------------------------------------
+// checkUserExists
+// ---------------------------------------------------------------------------
+
+describe('checkUserExists', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('calls rpc("user_exists_by_email") with the correct parameter', async () => {
+    (supabase.rpc as jest.Mock).mockResolvedValueOnce({ data: true, error: null });
+
+    await repo.checkUserExists('user@example.com');
+
+    const rpcCall = (supabase.rpc as jest.Mock).mock.calls[0];
+    expect(rpcCall?.[0]).toBe('user_exists_by_email');
+    const args = rpcCall?.[1] as Record<string, unknown>;
+    expect(args.p_email).toBe('user@example.com');
+  });
+
+  it('returns true when the account exists', async () => {
+    (supabase.rpc as jest.Mock).mockResolvedValueOnce({ data: true, error: null });
+
+    const result = await repo.checkUserExists('found@example.com');
+
+    expect(result.error).toBeNull();
+    expect(result.data).toBe(true);
+  });
+
+  it('returns false when the account does not exist', async () => {
+    (supabase.rpc as jest.Mock).mockResolvedValueOnce({ data: false, error: null });
+
+    const result = await repo.checkUserExists('notfound@example.com');
+
+    expect(result.error).toBeNull();
+    expect(result.data).toBe(false);
+  });
+
+  it('returns { data: null, error } when the rpc fails', async () => {
+    const pgError = { code: '42501', message: 'permission denied' };
+    (supabase.rpc as jest.Mock).mockResolvedValueOnce({ data: null, error: pgError });
+
+    const result = await repo.checkUserExists('fail@example.com');
+
+    expect(result.data).toBeNull();
+    expect(result.error).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // getGroupBalances
 // ---------------------------------------------------------------------------
 

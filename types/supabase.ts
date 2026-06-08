@@ -562,6 +562,10 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      user_exists_by_email: {
+        Args: { p_email: string };
+        Returns: boolean;
+      };
     };
     Enums: {
       [_ in never]: never;
