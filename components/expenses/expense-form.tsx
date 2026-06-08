@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Pressable, View } from 'react-native';
 
-import { Body, BodySm, Button, Input } from '@/components/ui';
+import { Avatar, Body, BodySm, Button, Input } from '@/components/ui';
 import { CategoryCreateSheet } from '@/components/categories/category-create-sheet';
 import {
   type CreateExpenseInput,
@@ -16,13 +16,16 @@ import {
   type Currency,
 } from '@/lib/schemas/expense';
 import type { CategoryRow, ExpenseItemRow, ExpenseWithCategory } from '@/lib/repositories/expenses';
-import { colors, radii, spacing } from '@/lib/theme';
+import type { GroupMemberRow } from '@/lib/repositories/groups';
+import type { ShareEntry } from '@/lib/split-math';
+import { colors, radii, spacing, typography } from '@/lib/theme';
 
 import { AmountInput } from './amount-input';
 import { CategoryPicker } from './category-picker';
 import { CurrencyToggle } from './currency-toggle';
 import { DateField } from './date-field';
 import { ExpenseItemsField } from './expense-items-field';
+import { SplitEditor, deriveShares, type SplitState } from '@/components/groups/split-editor';
 
 /** Partial prefill from OCR — used by the review screen when no DB row exists yet. */
 export interface ExpenseFormPrefill {
@@ -42,6 +45,23 @@ export interface ExpenseFormPrefill {
 /** Expense row with optional line items (edit mode). */
 export type ExpenseWithItems = ExpenseWithCategory & { items?: ExpenseItemRow[] };
 
+/** Extended payload emitted by onSubmit when groupConfig is present. */
+export interface SharedExpenseSubmitPayload extends CreateExpenseInput {
+  paid_by_member_id: string;
+  splits: ShareEntry[];
+}
+
+/**
+ * When provided, the form renders a "¿Quién pagó?" member selector and
+ * a SplitEditor below the standard fields.
+ */
+export interface GroupConfig {
+  /** Active members to display in the who-paid selector and split editor. */
+  members: GroupMemberRow[];
+  /** Pre-select this member as the payer (usually the current user). */
+  currentMemberId: string | null;
+}
+
 export interface ExpenseFormProps {
   categories: CategoryRow[];
   /** Optional initial values (edit mode — DB row, optionally with items). Takes precedence over prefill. */
@@ -56,7 +76,26 @@ export interface ExpenseFormProps {
    * to verify the detected data. Does NOT block submit.
    */
   lowConfidence?: boolean;
+  /**
+   * When provided the form gains a "¿Quién pagó?" member selector and a
+   * SplitEditor. Submit calls `onSubmitShared` (required when groupConfig
+   * is set) with the extended payload including `paid_by_member_id` and
+   * `splits`.
+   */
+  groupConfig?: GroupConfig;
+  /**
+   * Called on valid submit when `groupConfig` is NOT set.
+   * When `groupConfig` IS set, pass `onSubmitShared` instead — this prop
+   * is still required for the non-group fast path (default = no-op when
+   * groupConfig is present, but TypeScript callers pass the right handler).
+   */
   onSubmit: (input: CreateExpenseInput) => Promise<void> | void;
+  /**
+   * Called on valid submit when `groupConfig` is provided.
+   * Receives the full CreateExpenseInput fields PLUS `paid_by_member_id`
+   * and `splits`. Required when `groupConfig` is set.
+   */
+  onSubmitShared?: (input: SharedExpenseSubmitPayload) => Promise<void> | void;
   submitLabel?: string;
   isSubmitting?: boolean;
   submitError?: string | null;
@@ -77,7 +116,9 @@ export function ExpenseForm({
   initial,
   prefill,
   lowConfidence = false,
+  groupConfig,
   onSubmit,
+  onSubmitShared,
   submitLabel = 'Registrar gasto',
   isSubmitting = false,
   submitError = null,
@@ -134,10 +175,46 @@ export function ExpenseForm({
   const currency = watch('currency');
   const amountText = watch('amountText');
   const categoryId = watch('category_id');
+  const amount = watch('amount');
 
   const [suggestionSheetVisible, setSuggestionSheetVisible] = useState(false);
 
+  // Group-specific state: who paid and how to split
+  const defaultPaidBy =
+    groupConfig != null
+      ? (groupConfig.currentMemberId ?? groupConfig.members[0]?.id ?? null)
+      : null;
+  const [paidByMemberId, setPaidByMemberId] = useState<string | null>(defaultPaidBy);
+  const [splitState, setSplitState] = useState<SplitState>({ type: 'equal', values: {} });
+  const [splitError, setSplitError] = useState<string | null>(null);
+
   const submit = handleSubmit(async (data) => {
+    if (groupConfig != null) {
+      // Validate split before submitting
+      const effectivePaidBy = paidByMemberId ?? groupConfig.members[0]?.id ?? '';
+      const { shares, error: deriveError } = deriveShares(
+        splitState,
+        data.amount,
+        groupConfig.members,
+      );
+      if (deriveError != null) {
+        setSplitError(deriveError);
+        return;
+      }
+      setSplitError(null);
+      await onSubmitShared?.({
+        amount: data.amount,
+        currency: data.currency,
+        category_id: data.category_id,
+        description: data.description ?? null,
+        occurred_at: data.occurred_at,
+        items: data.items,
+        paid_by_member_id: effectivePaidBy,
+        splits: shares,
+      });
+      return;
+    }
+
     await onSubmit({
       amount: data.amount,
       currency: data.currency,
@@ -299,6 +376,105 @@ export function ExpenseForm({
           )}
         />
       </View>
+
+      {/* Who paid — only when groupConfig is present */}
+      {groupConfig != null && groupConfig.members.length > 0 && (
+        <View style={{ gap: spacing[2] }}>
+          <BodySm color={colors.fg[3]}>¿Quién pagó?</BodySm>
+          <View style={{ gap: spacing[2] }}>
+            {groupConfig.members.map((member) => {
+              const selected = paidByMemberId === member.id;
+              const displayName = member.display_name ?? 'Miembro';
+              const nameParts = displayName.trim().split(' ');
+              const firstName = nameParts[0] ?? null;
+              const lastName =
+                nameParts.length > 1 ? (nameParts[nameParts.length - 1] ?? null) : null;
+              return (
+                <Pressable
+                  key={member.id}
+                  onPress={() => {
+                    if (!isSubmitting) setPaidByMemberId(member.id);
+                  }}
+                  disabled={isSubmitting}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected, disabled: isSubmitting }}
+                  accessibilityLabel={`Pagó ${displayName}`}
+                  style={({ pressed }) => ({
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: spacing[3],
+                    paddingHorizontal: spacing[3],
+                    paddingVertical: spacing[3],
+                    minHeight: 44,
+                    borderRadius: radii.md,
+                    borderWidth: 1.5,
+                    borderColor: selected ? colors.brand[500] : colors.line[2],
+                    backgroundColor: selected
+                      ? `${colors.brand[500]}1A`
+                      : pressed
+                        ? colors.bg[3]
+                        : colors.bg[2],
+                    opacity: isSubmitting ? 0.5 : 1,
+                  })}
+                >
+                  <Avatar firstName={firstName} lastName={lastName} size={32} />
+                  <BodySm
+                    color={selected ? colors.fg[1] : colors.fg[2]}
+                    style={{
+                      flex: 1,
+                      fontWeight: selected ? '600' : '400',
+                      fontFamily: selected ? typography.family.semibold : typography.family.regular,
+                    }}
+                  >
+                    {displayName}
+                  </BodySm>
+                  {selected && (
+                    <View
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: 999,
+                        backgroundColor: colors.brand[500],
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 999,
+                          backgroundColor: colors.fg.onBrand,
+                        }}
+                      />
+                    </View>
+                  )}
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      )}
+
+      {/* Split editor — only when groupConfig is present */}
+      {groupConfig != null && groupConfig.members.length > 0 && (
+        <View style={{ gap: spacing[2] }}>
+          <BodySm color={colors.fg[3]}>División</BodySm>
+          <SplitEditor
+            amount={amount}
+            currency={currency as 'ARS' | 'USD'}
+            members={groupConfig.members}
+            value={splitState}
+            onChange={(s) => {
+              setSplitState(s);
+              // Clear cached split error when user changes split
+              setSplitError(null);
+            }}
+            disabled={isSubmitting}
+          />
+          {splitError != null && <BodySm color={colors.money.out}>{splitError}</BodySm>}
+        </View>
+      )}
 
       {submitError != null && (
         <Body style={{ textAlign: 'center', color: colors.money.out }}>{submitError}</Body>

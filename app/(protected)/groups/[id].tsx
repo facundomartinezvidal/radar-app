@@ -11,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MemberAvatarsRow } from '@/components/groups/member-avatars-row';
 import { ExpenseRow } from '@/components/expenses/expense-row';
-import { Body, Card, Caption, H2, H3, Icon, Loader } from '@/components/ui';
+import { Body, Button, Card, Caption, H2, H3, Icon, Loader } from '@/components/ui';
 import type { IconName } from '@/components/ui/icon';
 import { useDeleteGroup, useGroup, useGroupExpenses } from '@/hooks/use-groups';
 import type { GroupExpense } from '@/hooks/use-groups';
@@ -147,7 +147,21 @@ export default function GroupDetailScreen(): React.JSX.Element {
 
         {/* Expenses section */}
         <View style={styles.section}>
-          <H3 style={styles.sectionTitle}>Gastos</H3>
+          <View style={styles.sectionHeader}>
+            <H3 style={styles.sectionTitle}>Gastos</H3>
+            <Button
+              variant="primary"
+              size="sm"
+              onPress={() =>
+                router.push(
+                  `/(protected)/groups/expense?groupId=${id}` as Parameters<typeof router.push>[0],
+                )
+              }
+              accessibilityLabel="Registrar gasto compartido"
+            >
+              Registrar gasto
+            </Button>
+          </View>
           {expensesLoading ? (
             <View style={styles.center}>
               <Loader size={20} color={colors.fg[3]} />
@@ -240,6 +254,11 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: spacing[3],
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   sectionTitle: {},
   emptyState: {
