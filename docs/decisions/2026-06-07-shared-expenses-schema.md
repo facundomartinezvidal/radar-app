@@ -23,6 +23,10 @@ Open choices at the start of this feature:
 5. **Split math location** — DB-side vs TypeScript.
 6. **Multi-currency balances** — whether to convert or keep ARS/USD separate.
 7. **Deferred scope** — what is explicitly left out of MVP.
+8. **Entry points** — where the user can trigger a shared expense (in-group only vs everywhere).
+9. **Personal-share accounting** — whether the dashboard shows full amounts or user's share.
+10. **Shared expense edit** — whether shared expenses can be edited after creation.
+11. **Member management** — whether the owner can rename placeholders or remove members.
 
 ---
 
@@ -90,9 +94,14 @@ revoke execute on function public.is_group_member(uuid, uuid) from anon, public,
 
 Because it is SECURITY DEFINER, it runs as the function owner (postgres), bypassing
 the RLS evaluation that would otherwise recurse. It is scoped narrowly (reads only
-`group_members`, filters `status='active'`), and EXECUTE is revoked from all roles
-other than service_role — it is only called from within RLS policies and other functions,
-never directly by the client.
+`group_members`, filters `status='active'`), and EXECUTE is revoked from `anon` and
+`public`. **`authenticated` MUST retain EXECUTE**: RLS policies are evaluated in the
+querying role's context; revoking from `authenticated` causes every query involving
+group RLS to fail with 403. (Migration `20260608013250` mistakenly revoked it, breaking
+all expense reads/writes; migration `20260608033734` re-granted it.) The Supabase
+security advisor lint `authenticated_security_definer_function_executable` is an
+**accepted false positive** — the function is a pure boolean membership check with no
+side effects. It is only called from within RLS policies, never directly by the client.
 
 The `expenses` SELECT policy was extended:
 
@@ -132,8 +141,18 @@ app can call it as an RPC. The Supabase security advisor will flag this function
 accepted by design**. The function's own authz guard prevents unauthorized use.
 
 All other group RPCs (`create_group`, `add_group_member`, `respond_group_invite`,
-`create_shared_expense`, `create_settlement`, `get_group_balances`) are SECURITY INVOKER —
-caller RLS applies normally.
+`create_shared_expense`, `update_shared_expense`, `create_settlement`,
+`get_group_balances`, `get_personal_totals`) are SECURITY INVOKER — caller RLS
+applies normally.
+
+`user_exists_by_email(p_email) → boolean` (migration `20260608042550`) is a second
+SECURITY DEFINER RPC, needed to check if a given email exists in `auth.users` without
+exposing that table via PostgREST. REVOKE from `anon`/`public`; `authenticated`
+retains EXECUTE. **Email enumeration trade-off:** any authenticated user can determine
+whether an email is registered in RADAR. This is accepted because: (a) the check is
+required to validate invite inputs in real time, (b) the same information is implicitly
+available via `invite_group_member` response codes, and (c) enumeration requires a
+valid RADAR session. The Supabase advisor flags it — documented in the migration file.
 
 ### 5. Split math in TypeScript (`lib/split-math.ts`)
 
@@ -173,6 +192,52 @@ are never mixed or converted. Reasons:
 ### 7. Deferred scope
 
 Explicitly excluded from HU-17 MVP:
+
+### 8. Shared expense entry point: toggle in the standard form
+
+A `¿Gasto compartido?` toggle is available in the standard expense form and the OCR
+review screen, in addition to the in-group "Registrar gasto" button. This avoids
+forcing the user to navigate to a group to record a shared expense — a friction
+identified in UX review.
+
+The toggle is shown even when the user has no groups, presenting a CTA "Crear grupo"
+to guide onboarding. Selecting a group inline reveals the who-paid and split fields
+within the same form.
+
+### 9. Personal-share accounting on the dashboard
+
+The Home "Este mes" total and the personal expense list use the user's split share for
+shared expenses (via `get_personal_totals` RPC), not the full ticket amount. Reasons:
+
+- The user's financial reality is their share, not the total others owe.
+- Showing the full amount would inflate the personal spending figures.
+
+The expense detail and edit screens still display the full amount plus the split
+breakdown, so the total is always accessible.
+
+Shared expenses are differentiated in the list and dashboard with a `Users` icon and
+a "Compartido" label.
+
+### 10. Shared expense edit via `update_shared_expense`
+
+A shared expense can be edited after creation (amount, category, items, who paid,
+splits) using the `update_shared_expense` RPC (owner-only, SECURITY INVOKER). The
+RPC validates Σsplits == amount and replaces the full split set atomically (delete +
+reinsert), consistent with the `expense_items` update pattern.
+
+Personal ↔ shared conversion (attaching or detaching `group_id`) is explicitly out of
+scope — it would require migrating split records and resolving balance history.
+
+### 11. Member management: rename placeholders + remove members
+
+The group owner can rename placeholder members and remove any member via
+`MemberManageSheet`. Removal cascades to `expense_splits` and `group_settlements`.
+The owner is blocked from removing themselves.
+
+The owner is warned before removal that historical split/settlement data will be lost.
+This is acceptable because placeholders represent people without RADAR accounts (no
+account to protect), and removing a registered member is a deliberate owner action
+with explicit confirmation.
 
 - **Push reminders** ("Recordar a X") — requires `device_tokens` table and push wiring.
 - **Placeholder → account linking** — when a placeholder's named person later creates
@@ -238,19 +303,27 @@ user expectation is to see the two currencies separately.
 **Benefits:**
 
 - OCR/items/categories UX works unchanged for shared expenses — no second form path.
+- The standard-form toggle allows recording shared expenses from anywhere, not just from a group screen.
+- Personal-share accounting (`get_personal_totals`) keeps the dashboard financially accurate.
 - Consent model prevents balance abuse by third parties.
 - `is_group_member` DEFINER centralizes the membership check in one place; RLS policies
   are readable and consistent.
-- `invite_group_member` DEFINER is the only viable way to look up a registered user by
-  email without exposing `auth.users`; the accepted lint is documented.
+- `invite_group_member` + `user_exists_by_email` DEFINER are the only viable ways to
+  look up registered users by email without exposing `auth.users`; both accepted lints
+  are documented.
 - Split math in TS enables real-time feedback with no network cost; DB validates integrity.
 - ARS/USD balances are always unambiguous; no FX risk.
 
 **Tradeoffs:**
 
-- `invited_group_member` lint (`authenticated_security_definer_function_executable`) is
-  permanently present in the security advisor. It is annotated in the migration file
-  and documented here — any future reviewer must understand it is intentional.
+- `invite_group_member` and `user_exists_by_email` lints
+  (`authenticated_security_definer_function_executable`) are permanently present in the
+  security advisor. Annotated in migration files and documented here.
+- `user_exists_by_email` enables email enumeration by authenticated users — accepted
+  trade-off (see Decision 4 addendum).
+- `is_group_member` MUST retain EXECUTE for `authenticated` or all group RLS breaks.
+  The advisor lint for this function is a false positive that must never be "fixed" by
+  revoking `authenticated`. Documented in §7 AGENTS.md.
 - `pending` members add UI complexity (badge, invite inbox screen).
 - Re-split on edit requires delete + recreate (split ids rotate); consistent with the
   `expense_items` pattern.
@@ -265,17 +338,29 @@ user expectation is to see the two currencies separately.
    `is_group_member()` DEFINER + REVOKE; RLS on all tables including extended
    `expenses` SELECT policy.
 2. `supabase/migrations/20260608013250_revoke_is_group_member_authenticated.sql` —
-   additional REVOKE of `authenticated` from `is_group_member` (separated to ensure
-   idempotent apply).
+   REVOKE of `authenticated` from `is_group_member` (broke RLS — kept for history).
 3. `supabase/migrations/20260608013859_shared_expenses_rpcs.sql` — `create_group`,
    `add_group_member`, `invite_group_member` (DEFINER), `respond_group_invite`,
    `create_shared_expense`, `create_settlement`, `get_group_balances`.
-4. `lib/split-math.ts` — `computeShares`, `simplifyDebts`.
-5. `lib/group-balance.ts` — wraps `get_group_balances` RPC results.
-6. `lib/schemas/group.ts` — zod schemas for group, member, split.
-7. `lib/repositories/groups.ts` + `shared-expenses.ts` — typed repository functions.
-8. `hooks/use-groups.ts` — TanStack Query hooks.
-9. `components/groups/*` — `group-form`, `group-card`, `member-avatars-row`,
-   `split-editor`, `balance-row`, `member-selector-sheet`.
-10. `app/(protected)/groups/{_layout,index,new,[id],expense}.tsx` — screens.
-11. Home wiring: "Grupos" quick-action + "Mis grupos" section + invite badge.
+4. `supabase/migrations/20260608033734_grant_is_group_member_execute.sql` — re-GRANT
+   EXECUTE on `is_group_member` to `authenticated` (corrects `013250`).
+5. `supabase/migrations/20260608042550_user_exists_by_email.sql` — `user_exists_by_email`
+   DEFINER RPC for on-blur email validation.
+6. `supabase/migrations/20260608050920_get_personal_totals.sql` — `get_personal_totals`
+   INVOKER RPC for personal-share accounting.
+7. `supabase/migrations/20260608052600_update_shared_expense.sql` — `update_shared_expense`
+   INVOKER RPC for owner-only edit.
+8. `lib/split-math.ts` — `computeShares`, `simplifyDebts`; `resolveIncluded` for
+   participant subset.
+9. `lib/group-balance.ts` — wraps `get_group_balances` RPC results.
+10. `lib/schemas/group.ts` — zod schemas for group, member, split.
+11. `lib/repositories/groups.ts` + `shared-expenses.ts` — typed repository functions
+    (`checkUserExists`, `updateMember`, `removeMember`).
+12. `hooks/use-groups.ts` — TanStack Query hooks.
+13. `components/groups/*` — `group-form` (con-cuenta + sin-cuenta), `group-card`,
+    `member-avatars-row`, `split-editor` (participant subset + "Vos" label),
+    `balance-row`, `member-selector-sheet` ("Vos" label), `member-manage-sheet`.
+14. `app/(protected)/groups/{_layout,index,new,[id],expense}.tsx` — screens.
+15. `ExpenseForm` + OCR review screen — `¿Gasto compartido?` toggle integration.
+16. Home wiring: "Grupos" quick-action + "Mis grupos" section + invite badge +
+    personal-share totals via `get_personal_totals`.
