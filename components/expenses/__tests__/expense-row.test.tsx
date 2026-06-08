@@ -31,6 +31,9 @@ const BASE_EXPENSE: ExpenseWithCategory = {
   updated_at: '2026-06-01T12:00:00.000Z',
   group_id: null,
   paid_by_member_id: null,
+  source: 'manual',
+  recurrence_id: null,
+  occurred_date: null,
   category: {
     id: 'cat-1',
     slug: 'comida',
