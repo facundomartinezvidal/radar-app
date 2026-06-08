@@ -11,6 +11,7 @@
  */
 import React from 'react';
 import { render, screen, fireEvent, act } from '@testing-library/react-native';
+import { router } from 'expo-router';
 
 import { ExpenseForm } from '../expense-form';
 import type { CategoryRow } from '@/lib/repositories/expenses';
@@ -19,6 +20,11 @@ import type { GroupMemberRow, GroupWithMembers } from '@/lib/repositories/groups
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
+
+jest.mock('expo-router', () => ({
+  router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() },
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+}));
 
 jest.mock('@react-native-community/datetimepicker', () => {
   const ReactLib = require('react');
@@ -392,7 +398,7 @@ describe('ExpenseForm — share toggle (shareableGroups)', () => {
     expect(screen.getByLabelText('¿Gasto compartido?')).toBeTruthy();
   });
 
-  it('does NOT render the toggle when shareableGroups is empty', () => {
+  it('renders the toggle even when shareableGroups is empty (discoverable)', () => {
     render(
       <ExpenseForm
         categories={CATEGORIES}
@@ -401,7 +407,8 @@ describe('ExpenseForm — share toggle (shareableGroups)', () => {
         onSubmit={jest.fn()}
       />,
     );
-    expect(screen.queryByLabelText('¿Gasto compartido?')).toBeNull();
+    // The toggle must render so users with no groups can discover shared expenses
+    expect(screen.getByLabelText('¿Gasto compartido?')).toBeTruthy();
   });
 
   it('does NOT render the toggle when shareableGroups is absent', () => {
@@ -422,6 +429,98 @@ describe('ExpenseForm — share toggle (shareableGroups)', () => {
     expect(screen.queryByLabelText('¿Gasto compartido?')).toBeNull();
     // But who-paid is still shown (from groupConfig)
     expect(screen.getByText('¿Quién pagó?')).toBeTruthy();
+  });
+
+  // ---------------------------------------------------------------------------
+  // Empty shareableGroups — discoverable empty state
+  // ---------------------------------------------------------------------------
+
+  it('shows "Todavía no tenés grupos." when toggle ON and shareableGroups is empty', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        shareableGroups={[]}
+        currentUserId="u1"
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    fireEvent.press(screen.getByLabelText('¿Gasto compartido?'));
+
+    expect(screen.getByText('Todavía no tenés grupos.')).toBeTruthy();
+  });
+
+  it('shows "Crear grupo" CTA when toggle ON and shareableGroups is empty', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        shareableGroups={[]}
+        currentUserId="u1"
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    fireEvent.press(screen.getByLabelText('¿Gasto compartido?'));
+
+    expect(screen.getByLabelText('Crear grupo')).toBeTruthy();
+  });
+
+  it('"Crear grupo" navigates to /(protected)/groups/new', () => {
+    const mockPush = router.push as jest.Mock;
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        shareableGroups={[]}
+        currentUserId="u1"
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    fireEvent.press(screen.getByLabelText('¿Gasto compartido?'));
+    fireEvent.press(screen.getByLabelText('Crear grupo'));
+
+    expect(mockPush).toHaveBeenCalledWith('/(protected)/groups/new');
+  });
+
+  it('does NOT show group selector trigger when shareableGroups is empty and toggle is ON', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        shareableGroups={[]}
+        currentUserId="u1"
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    fireEvent.press(screen.getByLabelText('¿Gasto compartido?'));
+
+    expect(screen.queryByLabelText('Elegí un grupo')).toBeNull();
+  });
+
+  it('blocks submit when toggle ON and shareableGroups is empty (does not call onSubmit or onSubmitShared)', async () => {
+    const onSubmit = jest.fn().mockResolvedValue(undefined);
+    const onSubmitShared = jest.fn();
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        shareableGroups={[]}
+        currentUserId="u1"
+        onSubmit={onSubmit}
+        onSubmitShared={onSubmitShared}
+        prefill={{ amount: 500 }}
+        submitLabel="Registrar gasto"
+      />,
+    );
+
+    // Toggle ON with no groups
+    fireEvent.press(screen.getByLabelText('¿Gasto compartido?'));
+
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('Registrar gasto'));
+    });
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(onSubmitShared).not.toHaveBeenCalled();
   });
 
   it('shows the group selector trigger after toggling ON', () => {
