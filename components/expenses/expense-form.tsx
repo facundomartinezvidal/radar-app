@@ -3,6 +3,7 @@
  * onSubmit with a validated payload. Parent screen wires the mutation.
  */
 import { zodResolver } from '@hookform/resolvers/zod';
+import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Pressable, View } from 'react-native';
@@ -207,8 +208,9 @@ export function ExpenseForm({
 
   // In-form share toggle state (only relevant when shareableGroups is provided
   // and groupConfig is NOT — i.e. standard personal expense screens).
-  const showShareToggle =
-    groupConfig == null && shareableGroups != null && shareableGroups.length > 0;
+  // Show the toggle whenever shareableGroups is provided (even empty) so users
+  // with zero groups can still discover the shared-expense feature.
+  const showShareToggle = groupConfig == null && shareableGroups != null;
   const [isShared, setIsShared] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [groupSelectorOpen, setGroupSelectorOpen] = useState(false);
@@ -402,107 +404,135 @@ export function ExpenseForm({
                 gap: spacing[2],
               }}
             >
-              {/* Trigger */}
-              <Pressable
-                onPress={() => {
-                  if (!isSubmitting) setGroupSelectorOpen((o) => !o);
-                }}
-                disabled={isSubmitting}
-                accessibilityRole="button"
-                accessibilityLabel="Elegí un grupo"
-                style={({ pressed }) => ({
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  paddingHorizontal: spacing[3],
-                  paddingVertical: spacing[3],
-                  minHeight: 44,
-                  borderRadius: radii.md,
-                  borderWidth: 1,
-                  borderColor:
-                    noGroupError != null && selectedGroupId == null
-                      ? colors.money.out
-                      : colors.line[2],
-                  backgroundColor: pressed ? colors.bg[3] : colors.bg[2],
-                })}
-              >
-                <BodySm
-                  color={selectedGroupId != null ? colors.fg[1] : colors.fg[3]}
-                  style={{ flex: 1 }}
-                >
-                  {selectedGroupId != null
-                    ? (shareableGroups?.find((g) => g.id === selectedGroupId)?.name ??
-                      'Elegí un grupo')
-                    : 'Elegí un grupo'}
-                </BodySm>
-                <Icon
-                  name={groupSelectorOpen ? 'ChevronUp' : 'ChevronDown'}
-                  size={16}
-                  color={colors.fg[3]}
-                />
-              </Pressable>
-
-              {/* Inline group list */}
-              {groupSelectorOpen && (
+              {shareableGroups != null && shareableGroups.length === 0 ? (
+                /* Empty state — user has no groups yet */
                 <View
                   style={{
-                    borderRadius: radii.md,
-                    borderWidth: 1,
-                    borderColor: colors.line[2],
-                    backgroundColor: colors.bg[2],
-                    overflow: 'hidden',
+                    gap: spacing[3],
+                    paddingTop: spacing[1],
+                    alignItems: 'flex-start',
                   }}
                 >
-                  {(shareableGroups ?? []).map((group, idx) => {
-                    const isSelected = group.id === selectedGroupId;
-                    return (
-                      <Pressable
-                        key={group.id}
-                        onPress={() => {
-                          setSelectedGroupId(group.id);
-                          setGroupSelectorOpen(false);
-                          setNoGroupError(null);
-                        }}
-                        accessibilityRole="menuitem"
-                        accessibilityLabel={`Grupo ${group.name}`}
-                        accessibilityState={{ selected: isSelected }}
-                        style={({ pressed }) => ({
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          gap: spacing[3],
-                          paddingHorizontal: spacing[3],
-                          paddingVertical: spacing[3],
-                          minHeight: 44,
-                          borderTopWidth: idx > 0 ? 1 : 0,
-                          borderTopColor: colors.line[1],
-                          backgroundColor: isSelected
-                            ? `${colors.brand[500]}1A`
-                            : pressed
-                              ? colors.bg[3]
-                              : 'transparent',
-                        })}
-                      >
-                        <BodySm
-                          color={isSelected ? colors.fg[1] : colors.fg[2]}
-                          style={{
-                            flex: 1,
-                            fontWeight: isSelected ? '600' : '400',
-                            fontFamily: isSelected
-                              ? typography.family.semibold
-                              : typography.family.regular,
-                          }}
-                        >
-                          {group.name}
-                        </BodySm>
-                        {isSelected && <Icon name="Check" size={16} color={colors.brand[500]} />}
-                      </Pressable>
-                    );
-                  })}
+                  <BodySm color={colors.fg[2]}>Todavía no tenés grupos.</BodySm>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onPress={() => {
+                      router.push('/(protected)/groups/new' as never);
+                    }}
+                    disabled={isSubmitting}
+                    accessibilityLabel="Crear grupo"
+                  >
+                    Crear grupo
+                  </Button>
                 </View>
-              )}
+              ) : (
+                <>
+                  {/* Trigger */}
+                  <Pressable
+                    onPress={() => {
+                      if (!isSubmitting) setGroupSelectorOpen((o) => !o);
+                    }}
+                    disabled={isSubmitting}
+                    accessibilityRole="button"
+                    accessibilityLabel="Elegí un grupo"
+                    style={({ pressed }) => ({
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      paddingHorizontal: spacing[3],
+                      paddingVertical: spacing[3],
+                      minHeight: 44,
+                      borderRadius: radii.md,
+                      borderWidth: 1,
+                      borderColor:
+                        noGroupError != null && selectedGroupId == null
+                          ? colors.money.out
+                          : colors.line[2],
+                      backgroundColor: pressed ? colors.bg[3] : colors.bg[2],
+                    })}
+                  >
+                    <BodySm
+                      color={selectedGroupId != null ? colors.fg[1] : colors.fg[3]}
+                      style={{ flex: 1 }}
+                    >
+                      {selectedGroupId != null
+                        ? (shareableGroups?.find((g) => g.id === selectedGroupId)?.name ??
+                          'Elegí un grupo')
+                        : 'Elegí un grupo'}
+                    </BodySm>
+                    <Icon
+                      name={groupSelectorOpen ? 'ChevronUp' : 'ChevronDown'}
+                      size={16}
+                      color={colors.fg[3]}
+                    />
+                  </Pressable>
 
-              {/* Validation error */}
-              {noGroupError != null && <BodySm color={colors.money.out}>{noGroupError}</BodySm>}
+                  {/* Inline group list */}
+                  {groupSelectorOpen && (
+                    <View
+                      style={{
+                        borderRadius: radii.md,
+                        borderWidth: 1,
+                        borderColor: colors.line[2],
+                        backgroundColor: colors.bg[2],
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {(shareableGroups ?? []).map((group, idx) => {
+                        const isSelected = group.id === selectedGroupId;
+                        return (
+                          <Pressable
+                            key={group.id}
+                            onPress={() => {
+                              setSelectedGroupId(group.id);
+                              setGroupSelectorOpen(false);
+                              setNoGroupError(null);
+                            }}
+                            accessibilityRole="menuitem"
+                            accessibilityLabel={`Grupo ${group.name}`}
+                            accessibilityState={{ selected: isSelected }}
+                            style={({ pressed }) => ({
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              gap: spacing[3],
+                              paddingHorizontal: spacing[3],
+                              paddingVertical: spacing[3],
+                              minHeight: 44,
+                              borderTopWidth: idx > 0 ? 1 : 0,
+                              borderTopColor: colors.line[1],
+                              backgroundColor: isSelected
+                                ? `${colors.brand[500]}1A`
+                                : pressed
+                                  ? colors.bg[3]
+                                  : 'transparent',
+                            })}
+                          >
+                            <BodySm
+                              color={isSelected ? colors.fg[1] : colors.fg[2]}
+                              style={{
+                                flex: 1,
+                                fontWeight: isSelected ? '600' : '400',
+                                fontFamily: isSelected
+                                  ? typography.family.semibold
+                                  : typography.family.regular,
+                              }}
+                            >
+                              {group.name}
+                            </BodySm>
+                            {isSelected && (
+                              <Icon name="Check" size={16} color={colors.brand[500]} />
+                            )}
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  )}
+
+                  {/* Validation error */}
+                  {noGroupError != null && <BodySm color={colors.money.out}>{noGroupError}</BodySm>}
+                </>
+              )}
             </View>
           )}
         </View>
