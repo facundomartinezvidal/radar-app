@@ -94,6 +94,55 @@ export type Database = {
           },
         ];
       };
+      expense_splits: {
+        Row: {
+          created_at: string;
+          expense_id: string;
+          group_id: string;
+          id: string;
+          member_id: string;
+          share_amount: number;
+        };
+        Insert: {
+          created_at?: string;
+          expense_id: string;
+          group_id: string;
+          id?: string;
+          member_id: string;
+          share_amount: number;
+        };
+        Update: {
+          created_at?: string;
+          expense_id?: string;
+          group_id?: string;
+          id?: string;
+          member_id?: string;
+          share_amount?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'expense_splits_expense_id_fkey';
+            columns: ['expense_id'];
+            isOneToOne: false;
+            referencedRelation: 'expenses';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'expense_splits_group_id_fkey';
+            columns: ['group_id'];
+            isOneToOne: false;
+            referencedRelation: 'groups';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'expense_splits_member_id_fkey';
+            columns: ['member_id'];
+            isOneToOne: false;
+            referencedRelation: 'group_members';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       expenses: {
         Row: {
           amount: number;
@@ -101,8 +150,10 @@ export type Database = {
           created_at: string;
           currency: string;
           description: string | null;
+          group_id: string | null;
           id: string;
           occurred_at: string;
+          paid_by_member_id: string | null;
           updated_at: string;
           user_id: string;
         };
@@ -112,8 +163,10 @@ export type Database = {
           created_at?: string;
           currency: string;
           description?: string | null;
+          group_id?: string | null;
           id?: string;
           occurred_at?: string;
+          paid_by_member_id?: string | null;
           updated_at?: string;
           user_id: string;
         };
@@ -123,8 +176,10 @@ export type Database = {
           created_at?: string;
           currency?: string;
           description?: string | null;
+          group_id?: string | null;
           id?: string;
           occurred_at?: string;
+          paid_by_member_id?: string | null;
           updated_at?: string;
           user_id?: string;
         };
@@ -136,7 +191,150 @@ export type Database = {
             referencedRelation: 'categories';
             referencedColumns: ['id'];
           },
+          {
+            foreignKeyName: 'expenses_group_id_fkey';
+            columns: ['group_id'];
+            isOneToOne: false;
+            referencedRelation: 'groups';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'expenses_paid_by_member_id_fkey';
+            columns: ['paid_by_member_id'];
+            isOneToOne: false;
+            referencedRelation: 'group_members';
+            referencedColumns: ['id'];
+          },
         ];
+      };
+      group_members: {
+        Row: {
+          created_at: string;
+          display_name: string | null;
+          group_id: string;
+          id: string;
+          invited_by: string | null;
+          joined_at: string | null;
+          role: string;
+          status: string;
+          user_id: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          display_name?: string | null;
+          group_id: string;
+          id?: string;
+          invited_by?: string | null;
+          joined_at?: string | null;
+          role?: string;
+          status?: string;
+          user_id?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          display_name?: string | null;
+          group_id?: string;
+          id?: string;
+          invited_by?: string | null;
+          joined_at?: string | null;
+          role?: string;
+          status?: string;
+          user_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'group_members_group_id_fkey';
+            columns: ['group_id'];
+            isOneToOne: false;
+            referencedRelation: 'groups';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      group_settlements: {
+        Row: {
+          amount: number;
+          created_by: string;
+          currency: string;
+          from_member_id: string;
+          group_id: string;
+          id: string;
+          settled_at: string;
+          to_member_id: string;
+        };
+        Insert: {
+          amount: number;
+          created_by: string;
+          currency: string;
+          from_member_id: string;
+          group_id: string;
+          id?: string;
+          settled_at?: string;
+          to_member_id: string;
+        };
+        Update: {
+          amount?: number;
+          created_by?: string;
+          currency?: string;
+          from_member_id?: string;
+          group_id?: string;
+          id?: string;
+          settled_at?: string;
+          to_member_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'group_settlements_from_member_id_fkey';
+            columns: ['from_member_id'];
+            isOneToOne: false;
+            referencedRelation: 'group_members';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'group_settlements_group_id_fkey';
+            columns: ['group_id'];
+            isOneToOne: false;
+            referencedRelation: 'groups';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'group_settlements_to_member_id_fkey';
+            columns: ['to_member_id'];
+            isOneToOne: false;
+            referencedRelation: 'group_members';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      groups: {
+        Row: {
+          color: string;
+          created_at: string;
+          created_by: string;
+          icon: string;
+          id: string;
+          name: string;
+          updated_at: string;
+        };
+        Insert: {
+          color?: string;
+          created_at?: string;
+          created_by: string;
+          icon?: string;
+          id?: string;
+          name: string;
+          updated_at?: string;
+        };
+        Update: {
+          color?: string;
+          created_at?: string;
+          created_by?: string;
+          icon?: string;
+          id?: string;
+          name?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
       };
       profiles: {
         Row: {
@@ -173,10 +371,6 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      seed_default_categories: {
-        Args: { p_user_id: string };
-        Returns: undefined;
-      };
       create_expense_with_items: {
         Args: {
           p_amount: number;
@@ -192,8 +386,10 @@ export type Database = {
           created_at: string;
           currency: string;
           description: string | null;
+          group_id: string | null;
           id: string;
           occurred_at: string;
+          paid_by_member_id: string | null;
           updated_at: string;
           user_id: string;
         };
@@ -204,6 +400,14 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      is_group_member: {
+        Args: { p_group_id: string; p_user_id: string };
+        Returns: boolean;
+      };
+      seed_default_categories: {
+        Args: { p_user_id: string };
+        Returns: undefined;
+      };
       update_expense_with_items: {
         Args: { p_id: string; p_items?: Json; p_patch?: Json };
         Returns: {
@@ -212,8 +416,10 @@ export type Database = {
           created_at: string;
           currency: string;
           description: string | null;
+          group_id: string | null;
           id: string;
           occurred_at: string;
+          paid_by_member_id: string | null;
           updated_at: string;
           user_id: string;
         };
