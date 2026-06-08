@@ -522,6 +522,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      advance_occurrence: {
+        Args: {
+          p_current: string
+          p_dom: number
+          p_freq: string
+          p_start: string
+        }
+        Returns: string
+      }
       create_expense_with_items: {
         Args: {
           p_amount: number
@@ -655,6 +664,7 @@ export type Database = {
         Args: { p_group_id: string; p_user_id: string }
         Returns: boolean
       }
+      materialize_due_incomes: { Args: never; Returns: number }
       respond_group_invite: {
         Args: { p_accept: boolean; p_member_id: string }
         Returns: {
