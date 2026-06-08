@@ -227,6 +227,153 @@ describe('createSharedExpense', () => {
 });
 
 // ---------------------------------------------------------------------------
+// updateSharedExpense
+// ---------------------------------------------------------------------------
+
+describe('updateSharedExpense', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('calls rpc("update_shared_expense") with correct args', async () => {
+    (supabase.rpc as jest.Mock).mockResolvedValueOnce({
+      data: { id: 'exp-shared-1' },
+      error: null,
+    });
+    const fetchHandle = makeChain({ data: EXPENSE_ROW, error: null });
+    (supabase.from as jest.Mock).mockReturnValueOnce(fetchHandle.chain);
+
+    const input: repo.UpdateSharedExpenseInput = {
+      patch: { amount: 4000, currency: 'ARS' },
+      items: [{ name: 'Coca', quantity: 2, unit_price: 500, line_total: 1000 }],
+      paid_by_member_id: 'mem-1',
+      splits: [
+        { member_id: 'mem-1', share_amount: 2000 },
+        { member_id: 'mem-2', share_amount: 2000 },
+      ],
+    };
+
+    await repo.updateSharedExpense('exp-shared-1', input);
+
+    const rpcCall = (supabase.rpc as jest.Mock).mock.calls[0];
+    expect(rpcCall?.[0]).toBe('update_shared_expense');
+    const args = rpcCall?.[1] as Record<string, unknown>;
+    expect(args.p_id).toBe('exp-shared-1');
+    expect(args.p_paid_by_member_id).toBe('mem-1');
+    expect(Array.isArray(args.p_splits)).toBe(true);
+    expect(Array.isArray(args.p_items)).toBe(true);
+    // patch should contain only the explicitly-set keys
+    const patch = args.p_patch as Record<string, unknown>;
+    expect(patch.amount).toBe(4000);
+    expect(patch.currency).toBe('ARS');
+    expect(patch.description).toBeUndefined();
+  });
+
+  it('passes null p_items when items is null (leave untouched)', async () => {
+    (supabase.rpc as jest.Mock).mockResolvedValueOnce({
+      data: { id: 'exp-shared-1' },
+      error: null,
+    });
+    const fetchHandle = makeChain({ data: EXPENSE_ROW, error: null });
+    (supabase.from as jest.Mock).mockReturnValueOnce(fetchHandle.chain);
+
+    const input: repo.UpdateSharedExpenseInput = {
+      patch: {},
+      items: null,
+      paid_by_member_id: 'mem-1',
+      splits: [{ member_id: 'mem-1', share_amount: 3000 }],
+    };
+
+    await repo.updateSharedExpense('exp-shared-1', input);
+
+    const rpcCall = (supabase.rpc as jest.Mock).mock.calls[0];
+    const args = rpcCall?.[1] as Record<string, unknown>;
+    expect(args.p_items).toBeNull();
+  });
+
+  it('strips item id from the RPC payload', async () => {
+    (supabase.rpc as jest.Mock).mockResolvedValueOnce({
+      data: { id: 'exp-shared-1' },
+      error: null,
+    });
+    const fetchHandle = makeChain({ data: EXPENSE_ROW, error: null });
+    (supabase.from as jest.Mock).mockReturnValueOnce(fetchHandle.chain);
+
+    const input: repo.UpdateSharedExpenseInput = {
+      patch: {},
+      items: [{ name: 'Item A', quantity: 1, unit_price: null, line_total: 500 }],
+      paid_by_member_id: 'mem-1',
+      splits: [{ member_id: 'mem-1', share_amount: 3000 }],
+    };
+
+    await repo.updateSharedExpense('exp-shared-1', input);
+
+    const rpcCall = (supabase.rpc as jest.Mock).mock.calls[0];
+    const args = rpcCall?.[1] as Record<string, unknown>;
+    const items = args.p_items as { id?: string }[];
+    expect(items[0]).not.toHaveProperty('id');
+  });
+
+  it('re-fetches the updated expense after the rpc succeeds', async () => {
+    (supabase.rpc as jest.Mock).mockResolvedValueOnce({
+      data: { id: 'exp-shared-1' },
+      error: null,
+    });
+    const fetchHandle = makeChain({ data: EXPENSE_ROW, error: null });
+    (supabase.from as jest.Mock).mockReturnValueOnce(fetchHandle.chain);
+
+    const result = await repo.updateSharedExpense('exp-shared-1', {
+      patch: {},
+      items: null,
+      paid_by_member_id: 'mem-1',
+      splits: [{ member_id: 'mem-1', share_amount: 3000 }],
+    });
+
+    expect(supabase.from).toHaveBeenCalledWith('expenses');
+    const eqCall = fetchHandle.calls.find((c) => c.method === 'eq');
+    expect(eqCall?.args).toEqual(['id', 'exp-shared-1']);
+    expect(result.error).toBeNull();
+    expect(result.data?.id).toBe('exp-shared-1');
+  });
+
+  it('returns { data: null, error } when the rpc fails', async () => {
+    const pgError = { code: '42501', message: 'permission denied' };
+    (supabase.rpc as jest.Mock).mockResolvedValueOnce({ data: null, error: pgError });
+
+    const result = await repo.updateSharedExpense('exp-shared-1', {
+      patch: {},
+      items: null,
+      paid_by_member_id: 'mem-1',
+      splits: [],
+    });
+
+    expect(result.data).toBeNull();
+    expect(result.error).toBeTruthy();
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('returns { data: null, error } when the re-fetch fails', async () => {
+    (supabase.rpc as jest.Mock).mockResolvedValueOnce({
+      data: { id: 'exp-shared-1' },
+      error: null,
+    });
+    const pgError = { code: '42501', message: 'fetch failed' };
+    const fetchHandle = makeChain({ data: null, error: pgError });
+    (supabase.from as jest.Mock).mockReturnValueOnce(fetchHandle.chain);
+
+    const result = await repo.updateSharedExpense('exp-shared-1', {
+      patch: {},
+      items: null,
+      paid_by_member_id: 'mem-1',
+      splits: [],
+    });
+
+    expect(result.data).toBeNull();
+    expect(result.error).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // listGroupExpenses
 // ---------------------------------------------------------------------------
 
