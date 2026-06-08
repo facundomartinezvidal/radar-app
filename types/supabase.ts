@@ -17,6 +17,7 @@ export type Database = {
           created_at: string;
           icon: string;
           id: string;
+          kind: string;
           name: string;
           slug: string;
           sort_order: number;
@@ -28,6 +29,7 @@ export type Database = {
           created_at?: string;
           icon: string;
           id?: string;
+          kind?: string;
           name: string;
           slug: string;
           sort_order?: number;
@@ -39,6 +41,7 @@ export type Database = {
           created_at?: string;
           icon?: string;
           id?: string;
+          kind?: string;
           name?: string;
           slug?: string;
           sort_order?: number;

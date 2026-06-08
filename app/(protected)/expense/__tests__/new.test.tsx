@@ -62,6 +62,7 @@ const FIXTURE_CATEGORIES = [
     created_at: '2026-01-01',
     updated_at: '2026-01-01',
     user_id: null,
+    kind: 'expense',
   },
   {
     id: 'cat-2',
@@ -73,6 +74,7 @@ const FIXTURE_CATEGORIES = [
     created_at: '2026-01-01',
     updated_at: '2026-01-01',
     user_id: null,
+    kind: 'expense',
   },
 ] satisfies repo.CategoryRow[];
 

@@ -52,6 +52,7 @@ const CATEGORIES = [
     slug: 'comida',
     sort_order: 1,
     user_id: null,
+    kind: 'expense',
   },
   {
     id: '2',
@@ -63,6 +64,7 @@ const CATEGORIES = [
     slug: 'transporte',
     sort_order: 2,
     user_id: null,
+    kind: 'expense',
   },
 ];
 
@@ -369,6 +371,7 @@ describe('matchCategory', () => {
         slug: 'comida',
         sort_order: 1,
         user_id: null,
+        kind: 'expense',
       },
       {
         id: 'sub',
@@ -380,6 +383,7 @@ describe('matchCategory', () => {
         slug: 'comida-rapida',
         sort_order: 2,
         user_id: null,
+        kind: 'expense',
       },
     ];
     expect(matchCategory('Comida', cats)).toBe('exact');

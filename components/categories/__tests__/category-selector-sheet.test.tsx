@@ -55,6 +55,7 @@ const SYSTEM_CATEGORY: CategoryRow = {
   created_at: '2026-01-01',
   updated_at: '2026-01-01',
   user_id: null,
+  kind: 'expense',
 };
 
 const CUSTOM_CATEGORY: CategoryRow = {
@@ -67,6 +68,7 @@ const CUSTOM_CATEGORY: CategoryRow = {
   created_at: '2026-01-01',
   updated_at: '2026-01-01',
   user_id: 'user-1',
+  kind: 'expense',
 };
 
 const CATEGORIES: CategoryRow[] = [SYSTEM_CATEGORY, CUSTOM_CATEGORY];
