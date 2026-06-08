@@ -19,10 +19,12 @@ import type { GroupMemberRow, GroupRow } from '@/lib/repositories/groups';
 
 export type ExpenseSplitRow = Tables<'expense_splits'>;
 
-/** Expense row joined with category + line items + per-member splits. */
-export interface GroupExpense extends ExpenseWithItems {
-  splits: ExpenseSplitRow[];
-}
+/**
+ * Expense row joined with category + line items + per-member splits.
+ * `splits` carries the nested `member` join so `personalAmount()` can
+ * identify each member's share by `member.user_id`.
+ */
+export type GroupExpense = ExpenseWithItems;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -37,7 +39,7 @@ async function requireUserId(): Promise<string> {
 }
 
 const GROUP_EXPENSE_SELECT =
-  '*, category:categories(*), items:expense_items(*), splits:expense_splits(*)';
+  '*, category:categories(*), items:expense_items(*), splits:expense_splits(*, member:group_members(user_id))';
 
 /** Sort items by position ascending (defensive normalisation). */
 function normalizeItems<T extends ExpenseWithItems>(row: T): T {

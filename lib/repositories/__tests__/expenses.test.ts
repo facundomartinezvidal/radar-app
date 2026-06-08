@@ -7,6 +7,11 @@
  * - updateExpense routes through rpc('update_expense_with_items') when items present
  * - updateExpense uses the column-update path when items are absent
  * - Returned items are sorted by position ascending
+ *
+ * HU-17 personal-share additions:
+ * - listExpenses now gates on requireUserId() (scoped to user_id)
+ * - sumExpensesByCurrency now delegates to get_personal_totals RPC
+ * - personalAmount pure helper returns the user's share
  */
 import { supabase } from '@/lib/supabase';
 import * as repo from '../expenses';
@@ -151,7 +156,18 @@ describe('expenses repository', () => {
   });
 
   describe('listExpenses', () => {
+    // HU-17: listExpenses now calls requireUserId() internally — every test must
+    // mock getUser so the function reaches supabase.from and consumes the queued
+    // mockReturnValueOnce (unconsumed queues carry over between tests with clearAllMocks).
+    function mockAuthUser(userId = 'user-1'): void {
+      (supabase.auth.getUser as jest.Mock | undefined)?.mockResolvedValueOnce({
+        data: { user: { id: userId } },
+        error: null,
+      });
+    }
+
     it('applies search, currency, category, date filters and pagination', async () => {
+      mockAuthUser();
       const handle = makeChain({ data: [], error: null });
       (supabase.from as jest.Mock).mockReturnValueOnce(handle.chain);
 
@@ -166,6 +182,7 @@ describe('expenses repository', () => {
       });
 
       const methods = handle.calls.map((c) => c.method);
+      expect(methods).toContain('eq'); // user_id filter
       expect(methods).toContain('ilike');
       expect(methods).toContain('in');
       expect(methods).toContain('gte');
@@ -176,9 +193,12 @@ describe('expenses repository', () => {
       expect(range?.args).toEqual([20, 29]);
       const ilike = handle.calls.find((c) => c.method === 'ilike');
       expect(ilike?.args).toEqual(['description', '%pizza%']);
+      const eqCall = handle.calls.find((c) => c.method === 'eq');
+      expect(eqCall?.args).toEqual(['user_id', 'user-1']);
     });
 
     it('uses default pagination when not provided', async () => {
+      mockAuthUser();
       const handle = makeChain({ data: [], error: null });
       (supabase.from as jest.Mock).mockReturnValueOnce(handle.chain);
       await repo.listExpenses();
@@ -186,7 +206,16 @@ describe('expenses repository', () => {
       expect(range?.args).toEqual([0, 49]);
     });
 
+    it('returns error when no session', async () => {
+      // Default getUser mock returns { user: null } → requireUserId throws
+      const result = await repo.listExpenses();
+      expect(result.data).toBeNull();
+      expect(result.error).toBeInstanceOf(Error);
+      expect((result.error as Error).message).toMatch(/sesión/i);
+    });
+
     it('sorts returned items by position ascending', async () => {
+      mockAuthUser();
       const rowWithItems = {
         ...EXPENSE_ROW,
         items: [
@@ -405,21 +434,20 @@ describe('expenses repository', () => {
   });
 
   describe('sumExpensesByCurrency', () => {
-    it('groups + totals by currency', async () => {
-      const rows = [
-        { amount: '100.00', currency: 'ARS' },
-        { amount: '50.50', currency: 'ARS' },
-        { amount: '20.00', currency: 'USD' },
+    // HU-17: sumExpensesByCurrency now calls get_personal_totals RPC.
+    it('calls get_personal_totals rpc and maps currency/total/count', async () => {
+      const rpcRows = [
+        { currency: 'ARS', total: 150.5, count: 2 },
+        { currency: 'USD', total: 20, count: 1 },
       ];
-      const handle = makeChain({ data: rows, error: null });
-      // sumExpensesByCurrency only chains select → optional gte/lte → await
-      // Wire chain.select to terminate (no order/range)
-      handle.chain.select.mockImplementationOnce((...args: unknown[]) => {
-        handle.calls.push({ method: 'select', args });
-        return Promise.resolve({ data: rows, error: null });
-      });
-      (supabase.from as jest.Mock).mockReturnValueOnce(handle.chain);
+      (supabase.rpc as jest.Mock).mockResolvedValueOnce({ data: rpcRows, error: null });
+
       const result = await repo.sumExpensesByCurrency();
+
+      expect(supabase.rpc).toHaveBeenCalledWith('get_personal_totals', {
+        p_from: undefined,
+        p_to: undefined,
+      });
       expect(result.error).toBeNull();
       expect(result.data).toEqual(
         expect.arrayContaining([
@@ -427,6 +455,29 @@ describe('expenses repository', () => {
           { currency: 'USD', total: 20, count: 1 },
         ]),
       );
+    });
+
+    it('passes date range params to the rpc', async () => {
+      (supabase.rpc as jest.Mock).mockResolvedValueOnce({ data: [], error: null });
+
+      await repo.sumExpensesByCurrency({
+        from: '2026-06-01T00:00:00Z',
+        to: '2026-06-30T23:59:59Z',
+      });
+
+      expect(supabase.rpc).toHaveBeenCalledWith('get_personal_totals', {
+        p_from: '2026-06-01T00:00:00Z',
+        p_to: '2026-06-30T23:59:59Z',
+      });
+    });
+
+    it('returns null data when rpc returns error', async () => {
+      const rpcError = { message: 'rpc error', code: '42P01' };
+      (supabase.rpc as jest.Mock).mockResolvedValueOnce({ data: null, error: rpcError });
+
+      const result = await repo.sumExpensesByCurrency();
+      expect(result.data).toBeNull();
+      expect(result.error).toEqual(rpcError);
     });
   });
 });

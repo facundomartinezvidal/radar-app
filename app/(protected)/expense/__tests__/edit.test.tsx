@@ -60,6 +60,7 @@ const EXPENSE = {
   paid_by_member_id: null,
   category: CATEGORIES[0]!,
   items: [],
+  splits: [],
 } satisfies repo.ExpenseWithItems;
 
 /** Expense fixture that includes saved line items. */
@@ -76,6 +77,7 @@ const EXPENSE_WITH_ITEMS: repo.ExpenseWithItems = {
   group_id: null,
   paid_by_member_id: null,
   category: CATEGORIES[0]!,
+  splits: [],
   items: [
     {
       id: 'item-1',
