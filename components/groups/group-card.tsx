@@ -3,13 +3,21 @@
  *
  * Pressable card that shows a group's icon, name, member count, and
  * a stacked member avatar row. Used in the groups list screen.
+ *
+ * Balance badge: resolves the current user's member row from the group,
+ * calls useGroupBalances internally (one hook call per card instance —
+ * acceptable because each GroupCard is a separate component instance),
+ * and renders a compact Pill badge (Te deben / Debés / Al día).
  */
 import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { Caption, Card, H3, Icon } from '@/components/ui';
+import { Caption, Card, H3, Icon, Pill } from '@/components/ui';
 import type { IconName } from '@/components/ui/icon';
+import { useGroupBalances } from '@/hooks/use-groups';
 import type { GroupWithMembers } from '@/hooks/use-groups';
+import { balanceBadge, currentUserNet } from '@/lib/group-balance';
+import { formatMoney } from '@/lib/format/money';
 import { colors, radii, spacing } from '@/lib/theme';
 
 import { MemberAvatarsRow } from './member-avatars-row';
@@ -21,15 +29,48 @@ import { MemberAvatarsRow } from './member-avatars-row';
 export interface GroupCardProps {
   group: GroupWithMembers;
   onPress: (id: string) => void;
+  /** Current authenticated user's Supabase user id. Used to resolve member row. */
+  currentUserId?: string | null;
 }
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export function GroupCard({ group, onPress }: GroupCardProps): React.JSX.Element {
+export function GroupCard({ group, onPress, currentUserId }: GroupCardProps): React.JSX.Element {
   const memberCount = group.members.length;
   const memberLabel = memberCount === 1 ? '1 miembro' : `${memberCount} miembros`;
+
+  const { data: balances } = useGroupBalances(group.id);
+
+  // Resolve current user's member row
+  const currentMember =
+    currentUserId != null ? group.members.find((m) => m.user_id === currentUserId) : undefined;
+
+  const userNets = currentUserNet(balances ?? [], currentMember?.id ?? null);
+
+  // Pick ARS net first, then the first available currency
+  const netEntry =
+    userNets['ARS'] !== undefined
+      ? { currency: 'ARS', net: userNets['ARS'] }
+      : Object.entries(userNets)[0] !== undefined
+        ? { currency: Object.entries(userNets)[0]![0], net: Object.entries(userNets)[0]![1] }
+        : undefined;
+
+  const badge = netEntry !== undefined ? balanceBadge(netEntry.net) : undefined;
+  const badgeAmountLabel =
+    netEntry !== undefined
+      ? formatMoney(Math.abs(netEntry.net), netEntry.currency as 'ARS' | 'USD')
+      : undefined;
+
+  const pillVariant =
+    badge === undefined
+      ? undefined
+      : badge.tone === 'in'
+        ? 'income'
+        : badge.tone === 'out'
+          ? 'expense'
+          : 'neutral';
 
   return (
     <Pressable
@@ -56,7 +97,16 @@ export function GroupCard({ group, onPress }: GroupCardProps): React.JSX.Element
           {/* Text info */}
           <View style={styles.textBlock}>
             <H3 numberOfLines={1}>{group.name}</H3>
-            <Caption color={colors.fg[3]}>{memberLabel}</Caption>
+            <View style={styles.metaRow}>
+              <Caption color={colors.fg[3]}>{memberLabel}</Caption>
+              {badge !== undefined &&
+                pillVariant !== undefined &&
+                badgeAmountLabel !== undefined && (
+                  <Pill variant={pillVariant} size="sm">
+                    {`${badge.label} ${badgeAmountLabel}`}
+                  </Pill>
+                )}
+            </View>
           </View>
 
           {/* Member avatars */}
@@ -91,5 +141,11 @@ const styles = StyleSheet.create({
   textBlock: {
     flex: 1,
     gap: spacing[1],
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+    flexWrap: 'wrap',
   },
 });
