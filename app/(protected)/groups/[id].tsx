@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BalanceRow } from '@/components/groups/balance-row';
 import { MemberAvatarsRow } from '@/components/groups/member-avatars-row';
+import { MemberManageSheet } from '@/components/groups/member-manage-sheet';
 import { MemberSelectorSheet } from '@/components/groups/member-selector-sheet';
 import { ExpenseRow } from '@/components/expenses/expense-row';
 import { Body, Button, Card, Caption, H2, H3, Icon, Loader, Money, Pill } from '@/components/ui';
@@ -121,6 +122,7 @@ export default function GroupDetailScreen(): React.JSX.Element {
   const [activeTab, setActiveTab] = useState<ActiveTab>('gastos');
   const [settlingEdge, setSettlingEdge] = useState<string | null>(null);
   const [addMemberVisible, setAddMemberVisible] = useState(false);
+  const [manageMembersVisible, setManageMembersVisible] = useState(false);
 
   const { data: group, isLoading: groupLoading } = useGroup(id);
   const { data: expenses, isLoading: expensesLoading } = useGroupExpenses(id);
@@ -131,6 +133,10 @@ export default function GroupDetailScreen(): React.JSX.Element {
   // Resolve current user's member row so we can compute "Tu situación"
   const currentMember: GroupMemberRow | undefined =
     user != null && group != null ? group.members.find((m) => m.user_id === user.id) : undefined;
+
+  // Resolve the owner member row for manage-members guards
+  const ownerMember: GroupMemberRow | undefined =
+    group != null ? group.members.find((m) => m.role === 'owner') : undefined;
 
   function handleDelete(): void {
     Alert.alert('Eliminar grupo', '¿Confirmás que querés eliminar este grupo?', [
@@ -379,19 +385,34 @@ export default function GroupDetailScreen(): React.JSX.Element {
             <Caption color={colors.fg[3]} style={styles.sectionLabel}>
               {group.members.length === 1 ? '1 miembro' : `${group.members.length} miembros`}
             </Caption>
-            <Pressable
-              onPress={() => setAddMemberVisible(true)}
-              accessibilityRole="button"
-              accessibilityLabel="Agregar miembro"
-              hitSlop={8}
-              style={styles.addMemberButton}
-              testID="add-member-button"
-            >
-              <Icon name="UserPlus" size={18} color={colors.brand[400]} strokeWidth={1.5} />
-              <Caption color={colors.brand[400]} style={{ fontWeight: '600' }}>
-                Agregar miembro
-              </Caption>
-            </Pressable>
+            <View style={styles.memberActions}>
+              <Pressable
+                onPress={() => setManageMembersVisible(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Gestionar miembros"
+                hitSlop={8}
+                style={styles.addMemberButton}
+                testID="manage-members-button"
+              >
+                <Icon name="Users" size={18} color={colors.fg[3]} strokeWidth={1.5} />
+                <Caption color={colors.fg[3]} style={{ fontWeight: '600' }}>
+                  Gestionar miembros
+                </Caption>
+              </Pressable>
+              <Pressable
+                onPress={() => setAddMemberVisible(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Agregar miembro"
+                hitSlop={8}
+                style={styles.addMemberButton}
+                testID="add-member-button"
+              >
+                <Icon name="UserPlus" size={18} color={colors.brand[400]} strokeWidth={1.5} />
+                <Caption color={colors.brand[400]} style={{ fontWeight: '600' }}>
+                  Agregar miembro
+                </Caption>
+              </Pressable>
+            </View>
           </View>
           <MemberAvatarsRow members={group.members} max={8} size={36} />
         </View>
@@ -405,6 +426,18 @@ export default function GroupDetailScreen(): React.JSX.Element {
             visible={addMemberVisible}
             groupId={id}
             onClose={() => setAddMemberVisible(false)}
+          />
+        )}
+
+        {/* Manage members sheet */}
+        {id != null && (
+          <MemberManageSheet
+            visible={manageMembersVisible}
+            groupId={id}
+            members={group.members}
+            currentUserId={user?.id ?? null}
+            ownerMemberId={ownerMember?.id ?? null}
+            onClose={() => setManageMembersVisible(false)}
           />
         )}
 
@@ -521,6 +554,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: spacing[2],
+  },
+  memberActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
   },
   addMemberButton: {
     flexDirection: 'row',

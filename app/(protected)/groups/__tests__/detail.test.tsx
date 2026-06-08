@@ -77,6 +77,10 @@ jest.mock('@/hooks/use-groups', () => ({
   // Required by MemberSelectorSheet (rendered inside GroupDetailScreen)
   useAddPlaceholder: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
   useInviteMember: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
+  useCheckUserExists: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
+  // Required by MemberManageSheet
+  useUpdateMember: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
+  useRemoveMember: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
 }));
 
 function makeMember(id: string, displayName: string, userId: string | null = null): GroupMemberRow {
@@ -327,5 +331,29 @@ describe('GroupDetailScreen', () => {
 
     // After pressing, the sheet's name input should appear
     expect(screen.getByPlaceholderText('Nombre del participante')).toBeTruthy();
+  });
+
+  // ---------------------------------------------------------------------------
+  // Manage members button
+  // ---------------------------------------------------------------------------
+
+  it('renders "Gestionar miembros" button', () => {
+    mockUseGroup.mockReturnValue({ data: MOCK_GROUP, isLoading: false });
+    mockUseGroupExpenses.mockReturnValue({ data: [], isLoading: false });
+
+    render(<GroupDetailScreen />);
+    expect(screen.getByTestId('manage-members-button')).toBeTruthy();
+    expect(screen.getByLabelText('Gestionar miembros')).toBeTruthy();
+  });
+
+  it('pressing "Gestionar miembros" opens the MemberManageSheet', () => {
+    mockUseGroup.mockReturnValue({ data: MOCK_GROUP, isLoading: false });
+    mockUseGroupExpenses.mockReturnValue({ data: [], isLoading: false });
+
+    render(<GroupDetailScreen />);
+    fireEvent.press(screen.getByTestId('manage-members-button'));
+
+    // The sheet title should appear
+    expect(screen.getByText('Miembros')).toBeTruthy();
   });
 });

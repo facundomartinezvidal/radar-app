@@ -19,7 +19,9 @@ import {
   getGroupBalances,
   inviteMember,
   listGroups,
+  removeMember,
   respondInvite,
+  updateMember,
 } from '@/lib/repositories/groups';
 import {
   type CreateSharedExpenseInput,
@@ -264,6 +266,41 @@ export function useUpdateSharedExpense() {
       void qc.invalidateQueries({ queryKey: groupKeys.expenses(groupId) });
       // Update the individual expense detail cache immediately
       qc.setQueryData(expenseKeys.detail(row.id), row);
+    },
+  });
+}
+
+export function useUpdateMember() {
+  const qc = useQueryClient();
+  return useMutation<
+    GroupMemberRow,
+    Error,
+    { memberId: string; displayName: string; groupId: string }
+  >({
+    mutationFn: async ({ memberId, displayName }) => {
+      const { data, error } = await updateMember(memberId, displayName);
+      if (error || !data) throw error ?? new Error('No se pudo actualizar el miembro.');
+      return data;
+    },
+    onSuccess: (_row, { groupId }) => {
+      void qc.invalidateQueries({ queryKey: groupKeys.detail(groupId) });
+      void qc.invalidateQueries({ queryKey: groupKeys.all });
+    },
+  });
+}
+
+export function useRemoveMember() {
+  const qc = useQueryClient();
+  return useMutation<{ id: string }, Error, { memberId: string; groupId: string }>({
+    mutationFn: async ({ memberId }) => {
+      const { data, error } = await removeMember(memberId);
+      if (error || !data) throw error ?? new Error('No se pudo eliminar el miembro.');
+      return data;
+    },
+    onSuccess: (_row, { groupId }) => {
+      void qc.invalidateQueries({ queryKey: groupKeys.detail(groupId) });
+      void qc.invalidateQueries({ queryKey: groupKeys.balances(groupId) });
+      void qc.invalidateQueries({ queryKey: groupKeys.all });
     },
   });
 }
