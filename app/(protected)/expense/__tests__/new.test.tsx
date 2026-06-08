@@ -33,6 +33,22 @@ jest.mock('@/hooks/use-categories', () => ({
   useDeleteCategory: jest.fn(() => ({ mutateAsync: jest.fn(), isPending: false })),
 }));
 
+const mockCreateSharedExpenseMutateAsync = jest.fn().mockResolvedValue({ id: 'shared-1' });
+
+jest.mock('@/hooks/use-groups', () => ({
+  useGroups: jest.fn(() => ({ data: [], isLoading: false, error: null })),
+  useCreateSharedExpense: jest.fn(() => ({
+    mutateAsync: mockCreateSharedExpenseMutateAsync,
+    isPending: false,
+  })),
+}));
+
+jest.mock('@/stores/auth-store', () => ({
+  useAuthStore: jest.fn((selector: (s: { user: { id: string } | null }) => unknown) =>
+    selector({ user: { id: 'u1' } }),
+  ),
+}));
+
 const mockedRepo = repo as jest.Mocked<typeof repo>;
 
 const FIXTURE_CATEGORIES = [
@@ -88,10 +104,17 @@ async function openSheetAndSelect(categoryName: string): Promise<void> {
   fireEvent.press(screen.getByLabelText(`Categoría ${categoryName}`));
 }
 
+const { useGroups } = jest.requireMock('@/hooks/use-groups') as {
+  useGroups: jest.Mock;
+};
+
 describe('NewExpenseScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockedRepo.listCategories.mockResolvedValue({ data: FIXTURE_CATEGORIES, error: null });
+    // Default: no groups (toggle is hidden)
+    useGroups.mockReturnValue({ data: [], isLoading: false, error: null });
+    mockCreateSharedExpenseMutateAsync.mockResolvedValue({ id: 'shared-1' });
   });
 
   it('renders the screen title', async () => {
@@ -216,5 +239,99 @@ describe('NewExpenseScreen', () => {
     await waitFor(() => {
       expect(screen.getByText('No se pudo guardar el gasto.')).toBeTruthy();
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HU-17: share toggle wiring in NewExpenseScreen
+// ---------------------------------------------------------------------------
+
+const MOCK_GROUP_MEMBERS = [
+  {
+    id: 'm1',
+    group_id: 'g1',
+    user_id: 'u1',
+    display_name: 'Facundo Martinez',
+    role: 'member',
+    status: 'active',
+    joined_at: null,
+    invited_by: null,
+    created_at: '2026-01-01T00:00:00Z',
+  },
+  {
+    id: 'm2',
+    group_id: 'g1',
+    user_id: null,
+    display_name: 'Jonathan Mayan',
+    role: 'member',
+    status: 'active',
+    joined_at: null,
+    invited_by: null,
+    created_at: '2026-01-01T00:00:00Z',
+  },
+];
+
+const MOCK_GROUPS = [
+  {
+    id: 'g1',
+    name: 'Depto',
+    icon: 'House',
+    color: '#0077B6',
+    created_by: 'u1',
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    members: MOCK_GROUP_MEMBERS,
+  },
+];
+
+describe('NewExpenseScreen — share toggle wiring (HU-17)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockedRepo.listCategories.mockResolvedValue({ data: FIXTURE_CATEGORIES, error: null });
+    useGroups.mockReturnValue({ data: MOCK_GROUPS, isLoading: false, error: null });
+    mockCreateSharedExpenseMutateAsync.mockResolvedValue({ id: 'shared-1' });
+  });
+
+  it('shows the ¿Gasto compartido? toggle when the user has groups', async () => {
+    renderWithProviders();
+
+    await waitFor(() => expect(screen.getByLabelText('Elegir categoría')).toBeTruthy());
+    expect(screen.getByLabelText('¿Gasto compartido?')).toBeTruthy();
+  });
+
+  it('calls useCreateSharedExpense when shared submit is triggered', async () => {
+    renderWithProviders();
+
+    await waitFor(() => expect(screen.getByLabelText('Monto')).toBeTruthy());
+    fireEvent.changeText(screen.getByLabelText('Monto'), '500');
+
+    // Pick category
+    await openSheetAndSelect('Comida');
+
+    // Toggle shared ON
+    fireEvent.press(screen.getByLabelText('¿Gasto compartido?'));
+
+    // Select a group
+    fireEvent.press(screen.getByLabelText('Elegí un grupo'));
+    await waitFor(() => expect(screen.getByLabelText('Grupo Depto')).toBeTruthy());
+    fireEvent.press(screen.getByLabelText('Grupo Depto'));
+
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('Registrar gasto'));
+    });
+
+    await waitFor(() => {
+      expect(mockCreateSharedExpenseMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          amount: 500,
+          group_id: 'g1',
+          paid_by_member_id: expect.any(String),
+          splits: expect.arrayContaining([
+            expect.objectContaining({ member_id: expect.any(String) }),
+          ]),
+        }),
+      );
+    });
+    expect(router.back).toHaveBeenCalled();
   });
 });

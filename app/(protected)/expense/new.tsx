@@ -6,14 +6,19 @@ import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ExpenseForm } from '@/components/expenses/expense-form';
+import { ExpenseForm, type SharedExpenseSubmitPayload } from '@/components/expenses/expense-form';
 import { Body, H1, Icon, Loader } from '@/components/ui';
 import { useCategories, useCreateExpense } from '@/hooks/use-expenses';
+import { useGroups, useCreateSharedExpense } from '@/hooks/use-groups';
+import { useAuthStore } from '@/stores/auth-store';
 import { colors, spacing } from '@/lib/theme';
 
 export default function NewExpenseScreen(): React.JSX.Element {
   const categoriesQuery = useCategories();
   const createMutation = useCreateExpense();
+  const groupsQuery = useGroups();
+  const createSharedMutation = useCreateSharedExpense();
+  const currentUserId = useAuthStore((s) => s.user?.id ?? null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   return (
@@ -58,12 +63,42 @@ export default function NewExpenseScreen(): React.JSX.Element {
           ) : (
             <ExpenseForm
               categories={categoriesQuery.data ?? []}
-              isSubmitting={createMutation.isPending}
+              shareableGroups={groupsQuery.data ?? []}
+              currentUserId={currentUserId}
+              isSubmitting={createMutation.isPending || createSharedMutation.isPending}
               submitError={submitError}
               onSubmit={async (input) => {
                 setSubmitError(null);
                 try {
                   await createMutation.mutateAsync(input);
+                  router.back();
+                } catch (e) {
+                  setSubmitError(
+                    e instanceof Error
+                      ? e.message
+                      : 'No se pudo guardar el gasto. Intentá nuevamente.',
+                  );
+                }
+              }}
+              onSubmitShared={async (payload: SharedExpenseSubmitPayload) => {
+                setSubmitError(null);
+                try {
+                  await createSharedMutation.mutateAsync({
+                    amount: payload.amount,
+                    currency: payload.currency ?? 'ARS',
+                    category_id: payload.category_id,
+                    description: payload.description,
+                    occurred_at: payload.occurred_at,
+                    items: (payload.items ?? []).map((item) => ({
+                      name: item.name,
+                      quantity: item.quantity,
+                      unit_price: item.unit_price,
+                      line_total: item.line_total,
+                    })),
+                    group_id: payload.group_id,
+                    paid_by_member_id: payload.paid_by_member_id,
+                    splits: payload.splits,
+                  });
                   router.back();
                 } catch (e) {
                   setSubmitError(
