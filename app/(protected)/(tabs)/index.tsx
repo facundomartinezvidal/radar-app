@@ -28,6 +28,7 @@ import {
 import { formatMoney } from '@/lib/format/money';
 import { colors, motion, radii, spacing, typography } from '@/lib/theme';
 import { useExpenseTotals, useExpenses } from '@/hooks/use-expenses';
+import { useGroups } from '@/hooks/use-groups';
 import { useSession } from '@/hooks/use-session';
 import type { IconName } from '@/components/ui/icon';
 
@@ -71,6 +72,7 @@ function buildQuickActions(): QuickAction[] {
       label: 'Grupos',
       iconName: 'Users',
       accessibilityLabel: 'Ver grupos',
+      onPress: () => router.push('/(protected)/groups'),
     },
     {
       label: 'Categorías',
@@ -188,6 +190,7 @@ export default function HomeScreen(): React.JSX.Element {
   const { user } = useSession();
   const totalsQuery = useExpenseTotals({});
   const recentQuery = useExpenses({ limit: 4 });
+  const groupsQuery = useGroups();
 
   const arsTotal = totalsQuery.data?.find((t) => t.currency === 'ARS')?.total ?? 0;
   const usdTotal = totalsQuery.data?.find((t) => t.currency === 'USD')?.total ?? 0;
@@ -261,23 +264,38 @@ export default function HomeScreen(): React.JSX.Element {
         </View>
 
         {/* ── Mis grupos ── */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <H3>Mis grupos</H3>
-            <Button variant="ghost" size="sm" onPress={() => {}}>
-              Ver todos
-            </Button>
+        {(groupsQuery.data ?? []).length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <H3>Mis grupos</H3>
+              <Button variant="ghost" size="sm" onPress={() => router.push('/(protected)/groups')}>
+                Ver todos
+              </Button>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.groupsRow}
+            >
+              {(groupsQuery.data ?? []).map((group) => (
+                <Pressable
+                  key={group.id}
+                  onPress={() =>
+                    router.push(
+                      `/(protected)/groups/${group.id}` as Parameters<typeof router.push>[0],
+                    )
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel={`Ver grupo ${group.name}`}
+                >
+                  <Pill variant="neutral">
+                    {`${group.name} · ${group.members.length} ${group.members.length === 1 ? 'miembro' : 'miembros'}`}
+                  </Pill>
+                </Pressable>
+              ))}
+            </ScrollView>
           </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.groupsRow}
-          >
-            <Pill variant="income">Depto · Te deben $ 4.200</Pill>
-            <Pill variant="expense">Bariloche · Debés $ 12.600</Pill>
-            <Pill variant="neutral">Super · Al día</Pill>
-          </ScrollView>
-        </View>
+        )}
 
         {/* ── Últimos gastos ── */}
         <View style={styles.section}>
