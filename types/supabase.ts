@@ -508,6 +508,14 @@ export type Database = {
           net: number;
         }[];
       };
+      get_personal_totals: {
+        Args: { p_from?: string; p_to?: string };
+        Returns: {
+          count: number;
+          currency: string;
+          total: number;
+        }[];
+      };
       invite_group_member: {
         Args: { p_email: string; p_group_id: string };
         Returns: Json;
@@ -562,10 +570,7 @@ export type Database = {
           isSetofReturn: false;
         };
       };
-      user_exists_by_email: {
-        Args: { p_email: string };
-        Returns: boolean;
-      };
+      user_exists_by_email: { Args: { p_email: string }; Returns: boolean };
     };
     Enums: {
       [_ in never]: never;

@@ -27,7 +27,7 @@ import {
 } from '@/components/ui';
 import { formatMoney } from '@/lib/format/money';
 import { colors, motion, radii, spacing, typography } from '@/lib/theme';
-import { useExpenseTotals, useExpenses } from '@/hooks/use-expenses';
+import { personalAmount, useExpenseTotals, useExpenses } from '@/hooks/use-expenses';
 import { useGroups, usePendingInvites } from '@/hooks/use-groups';
 import { useSession } from '@/hooks/use-session';
 import type { IconName } from '@/components/ui/icon';
@@ -228,13 +228,16 @@ export default function HomeScreen(): React.JSX.Element {
   const arsTotal = totalsQuery.data?.find((t) => t.currency === 'ARS')?.total ?? 0;
   const usdTotal = totalsQuery.data?.find((t) => t.currency === 'USD')?.total ?? 0;
 
+  const currentUserId = user?.id ?? '';
+
   const recentRows: ExpenseRow[] = (recentQuery.data ?? []).map((e) => ({
     id: e.id,
     iconName: (e.category?.icon as IconName | undefined) ?? 'CircleDashed',
     categoryColor: e.category?.color ?? colors.fg[3],
     name: e.description?.trim().length ? e.description : (e.category?.name ?? 'Gasto'),
     meta: `${e.category?.name ?? 'Sin categoría'} · ${relativeTime(e.occurred_at)}`,
-    amount: formatMoney(Number(e.amount), e.currency as 'ARS' | 'USD'),
+    // For shared expenses show the user's share; for personal show full amount.
+    amount: formatMoney(personalAmount(e, currentUserId), e.currency as 'ARS' | 'USD'),
     tone: 'out',
     isShared: e.group_id != null,
   }));
