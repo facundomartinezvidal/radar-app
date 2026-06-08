@@ -11,12 +11,14 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ExpenseForm } from '@/components/expenses/expense-form';
+import { ExpenseForm, type SharedExpenseSubmitPayload } from '@/components/expenses/expense-form';
 import { ScanOverlay } from '@/components/expenses/scan-overlay';
 import { ScanStatus } from '@/components/expenses/scan-status';
 import { Body, BodySm, Button, H1, Icon, Loader } from '@/components/ui';
 import { useExtractReceipt } from '@/hooks/use-extract-receipt';
 import { useCategories, useCreateExpense } from '@/hooks/use-expenses';
+import { useGroups, useCreateSharedExpense } from '@/hooks/use-groups';
+import { useAuthStore } from '@/stores/auth-store';
 import type { CompressedImage } from '@/lib/image';
 import { compressForOcr } from '@/lib/image';
 import { OcrError, mapOcrToPrefill } from '@/lib/ocr';
@@ -41,6 +43,9 @@ export default function ReviewScreen(): React.JSX.Element {
   const categoriesQuery = useCategories();
   const extractMutation = useExtractReceipt();
   const createMutation = useCreateExpense();
+  const groupsQuery = useGroups();
+  const createSharedMutation = useCreateSharedExpense();
+  const currentUserId = useAuthStore((s) => s.user?.id ?? null);
 
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [prefill, setPrefill] = useState<ReceiptPrefill | null>(null);
@@ -166,11 +171,39 @@ export default function ReviewScreen(): React.JSX.Element {
     }
   }
 
+  async function handleSubmitShared(payload: SharedExpenseSubmitPayload): Promise<void> {
+    setSubmitError(null);
+    try {
+      await createSharedMutation.mutateAsync({
+        amount: payload.amount,
+        currency: payload.currency ?? 'ARS',
+        category_id: payload.category_id,
+        description: payload.description,
+        occurred_at: payload.occurred_at,
+        items: (payload.items ?? []).map((item) => ({
+          name: item.name,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          line_total: item.line_total,
+        })),
+        group_id: payload.group_id,
+        paid_by_member_id: payload.paid_by_member_id,
+        splits: payload.splits,
+      });
+      router.replace('/(protected)/(tabs)' as Parameters<typeof router.replace>[0]);
+    } catch (e) {
+      setSubmitError(
+        e instanceof Error ? e.message : 'No se pudo guardar el gasto. Intentá nuevamente.',
+      );
+    }
+  }
+
   // -------------------------------------------------------------------------
   // Derived state
   // -------------------------------------------------------------------------
 
   const isLoading = isCompressing || extractMutation.isPending || categoriesQuery.isLoading;
+  const isSubmitting = createMutation.isPending || createSharedMutation.isPending;
 
   // compressionError takes priority over the OCR mutation error so both paths
   // render the same retryable branch (Reintentar + empty form).
@@ -300,9 +333,12 @@ export default function ReviewScreen(): React.JSX.Element {
               </View>
               <ExpenseForm
                 categories={categoriesQuery.data ?? []}
-                isSubmitting={createMutation.isPending}
+                shareableGroups={groupsQuery.data ?? []}
+                currentUserId={currentUserId}
+                isSubmitting={isSubmitting}
                 submitError={submitError}
                 onSubmit={handleSubmit}
+                onSubmitShared={handleSubmitShared}
                 submitLabel="Registrar gasto"
               />
             </>
@@ -327,9 +363,12 @@ export default function ReviewScreen(): React.JSX.Element {
               </View>
               <ExpenseForm
                 categories={categoriesQuery.data ?? []}
-                isSubmitting={createMutation.isPending}
+                shareableGroups={groupsQuery.data ?? []}
+                currentUserId={currentUserId}
+                isSubmitting={isSubmitting}
                 submitError={submitError}
                 onSubmit={handleSubmit}
+                onSubmitShared={handleSubmitShared}
                 submitLabel="Registrar gasto"
               />
             </>
@@ -352,9 +391,12 @@ export default function ReviewScreen(): React.JSX.Element {
               </View>
               <ExpenseForm
                 categories={categoriesQuery.data ?? []}
-                isSubmitting={createMutation.isPending}
+                shareableGroups={groupsQuery.data ?? []}
+                currentUserId={currentUserId}
+                isSubmitting={isSubmitting}
                 submitError={submitError}
                 onSubmit={handleSubmit}
+                onSubmitShared={handleSubmitShared}
                 submitLabel="Registrar gasto"
               />
             </>
@@ -377,9 +419,12 @@ export default function ReviewScreen(): React.JSX.Element {
               </View>
               <ExpenseForm
                 categories={categoriesQuery.data ?? []}
-                isSubmitting={createMutation.isPending}
+                shareableGroups={groupsQuery.data ?? []}
+                currentUserId={currentUserId}
+                isSubmitting={isSubmitting}
                 submitError={submitError}
                 onSubmit={handleSubmit}
+                onSubmitShared={handleSubmitShared}
                 submitLabel="Registrar gasto"
               />
             </>
@@ -391,9 +436,12 @@ export default function ReviewScreen(): React.JSX.Element {
               categories={categoriesQuery.data ?? []}
               prefill={prefill}
               lowConfidence={prefill.lowConfidence}
-              isSubmitting={createMutation.isPending}
+              shareableGroups={groupsQuery.data ?? []}
+              currentUserId={currentUserId}
+              isSubmitting={isSubmitting}
               submitError={submitError}
               onSubmit={handleSubmit}
+              onSubmitShared={handleSubmitShared}
               submitLabel="Registrar gasto"
             />
           )}

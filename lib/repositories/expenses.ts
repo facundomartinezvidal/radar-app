@@ -14,6 +14,12 @@ import type { Tables, TablesUpdate } from '@/types/supabase';
 export type CategoryRow = Tables<'categories'>;
 export type ExpenseRow = Tables<'expenses'>;
 export type ExpenseItemRow = Tables<'expense_items'>;
+export type ExpenseSplitRow = Tables<'expense_splits'>;
+
+/** Split row with the member's user_id (used to identify the current user's share). */
+export interface ExpenseSplitWithMember extends ExpenseSplitRow {
+  member: { user_id: string | null };
+}
 
 /** Expense row joined with its category (left-join — `category` may be null). */
 export interface ExpenseWithCategory extends ExpenseRow {
@@ -23,6 +29,8 @@ export interface ExpenseWithCategory extends ExpenseRow {
 /** Expense row joined with category + line items (items sorted by position asc). */
 export interface ExpenseWithItems extends ExpenseWithCategory {
   items: ExpenseItemRow[];
+  /** Split breakdown — populated only when the expense belongs to a group. */
+  splits: ExpenseSplitWithMember[];
 }
 
 export interface RepoResult<T> {
@@ -34,11 +42,16 @@ export interface RepoResult<T> {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const EXPENSE_WITH_CATEGORY_SELECT = '*, category:categories(*), items:expense_items(*)';
+const EXPENSE_WITH_CATEGORY_SELECT =
+  '*, category:categories(*), items:expense_items(*), splits:expense_splits(*, member:group_members(user_id))';
 
 /** Sort items by position ascending (defensive — DB should return them ordered). */
 function normalizeItems(row: ExpenseWithItems): ExpenseWithItems {
-  return { ...row, items: [...row.items].sort((a, b) => a.position - b.position) };
+  return {
+    ...row,
+    items: [...(row.items ?? [])].sort((a, b) => a.position - b.position),
+    splits: row.splits ?? [],
+  };
 }
 
 async function requireUserId(): Promise<string> {
@@ -69,35 +82,45 @@ export async function listCategories(): Promise<RepoResult<CategoryRow[]>> {
 export async function listExpenses(
   filter: ExpenseFilter = {},
 ): Promise<RepoResult<ExpenseWithItems[]>> {
-  let query = supabase
-    .from('expenses')
-    .select(EXPENSE_WITH_CATEGORY_SELECT)
-    .order('occurred_at', { ascending: false });
+  try {
+    const userId = await requireUserId();
 
-  if (filter.search && filter.search.length > 0) {
-    // Postgres `ilike` — fine for v1, swap for trigram index post-MVP.
-    query = query.ilike('description', `%${filter.search}%`);
-  }
-  if (filter.categoryIds && filter.categoryIds.length > 0) {
-    query = query.in('category_id', filter.categoryIds);
-  }
-  if (filter.currencies && filter.currencies.length > 0) {
-    query = query.in('currency', filter.currencies);
-  }
-  if (filter.from) {
-    query = query.gte('occurred_at', filter.from);
-  }
-  if (filter.to) {
-    query = query.lte('occurred_at', filter.to);
-  }
+    let query = supabase
+      .from('expenses')
+      .select(EXPENSE_WITH_CATEGORY_SELECT)
+      // Scope to the authenticated user's own expenses only. This keeps the
+      // personal list correct even when the SELECT RLS policy is broadened
+      // to include group-member visibility (HU-17).
+      .eq('user_id', userId)
+      .order('occurred_at', { ascending: false });
 
-  const limit = filter.limit ?? 50;
-  const offset = filter.offset ?? 0;
-  query = query.range(offset, offset + limit - 1);
+    if (filter.search && filter.search.length > 0) {
+      // Postgres `ilike` — fine for v1, swap for trigram index post-MVP.
+      query = query.ilike('description', `%${filter.search}%`);
+    }
+    if (filter.categoryIds && filter.categoryIds.length > 0) {
+      query = query.in('category_id', filter.categoryIds);
+    }
+    if (filter.currencies && filter.currencies.length > 0) {
+      query = query.in('currency', filter.currencies);
+    }
+    if (filter.from) {
+      query = query.gte('occurred_at', filter.from);
+    }
+    if (filter.to) {
+      query = query.lte('occurred_at', filter.to);
+    }
 
-  const { data, error } = await query;
-  const rows = data as ExpenseWithItems[] | null;
-  return { data: rows ? rows.map(normalizeItems) : null, error };
+    const limit = filter.limit ?? 50;
+    const offset = filter.offset ?? 0;
+    query = query.range(offset, offset + limit - 1);
+
+    const { data, error } = await query;
+    const rows = data as ExpenseWithItems[] | null;
+    return { data: rows ? rows.map(normalizeItems) : null, error };
+  } catch (e) {
+    return { data: null, error: e as Error };
+  }
 }
 
 export async function getExpense(id: string): Promise<RepoResult<ExpenseWithItems>> {
@@ -243,28 +266,49 @@ export interface CurrencyTotal {
 }
 
 /**
- * Sums all expenses in the given window, grouped by currency. Useful for the
- * Home / Expenses balance hero.
+ * Returns per-currency personal totals for the current user.
+ *
+ * Delegates to the `get_personal_totals` RPC which applies share-aware logic:
+ * personal expenses contribute their full `amount`; shared (group) expenses
+ * contribute only the caller's `share_amount` from `expense_splits`. Scoped to
+ * `user_id = auth.uid()` — never leaks other members' expenses.
  */
 export async function sumExpensesByCurrency(
   filter: Pick<ExpenseFilter, 'from' | 'to'> = {},
 ): Promise<RepoResult<CurrencyTotal[]>> {
-  let query = supabase.from('expenses').select('amount, currency');
-  if (filter.from) query = query.gte('occurred_at', filter.from);
-  if (filter.to) query = query.lte('occurred_at', filter.to);
-
-  const { data, error } = await query;
+  const { data, error } = await supabase.rpc('get_personal_totals', {
+    p_from: filter.from ?? undefined,
+    p_to: filter.to ?? undefined,
+  });
   if (error || !data) return { data: null, error };
 
-  const totals = new Map<string, { total: number; count: number }>();
-  for (const row of data) {
-    const prev = totals.get(row.currency) ?? { total: 0, count: 0 };
-    prev.total += Number(row.amount);
-    prev.count += 1;
-    totals.set(row.currency, prev);
-  }
   return {
-    data: Array.from(totals, ([currency, v]) => ({ currency, ...v })),
+    data: (data as { currency: string; total: number; count: number }[]).map((row) => ({
+      currency: row.currency,
+      total: Number(row.total),
+      count: Number(row.count),
+    })),
     error: null,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Personal-share helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the display amount for an expense from the perspective of the current
+ * user (identified by `userId`):
+ *
+ * - Personal expense (`group_id == null`): full `expense.amount`
+ * - Shared expense: the caller's `share_amount` from their split; 0 if not found
+ *
+ * Pure function — no I/O, safe to call in render.
+ */
+export function personalAmount(expense: ExpenseWithItems, userId: string): number {
+  if (expense.group_id == null) {
+    return Number(expense.amount);
+  }
+  const split = expense.splits.find((s) => s.member.user_id === userId);
+  return split != null ? Number(split.share_amount) : 0;
 }

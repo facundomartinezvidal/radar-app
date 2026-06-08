@@ -56,8 +56,11 @@ const EXPENSE = {
   occurred_at: '2026-05-17T20:00:00Z',
   created_at: '2026-05-17T20:00:00Z',
   updated_at: '2026-05-17T20:00:00Z',
+  group_id: null,
+  paid_by_member_id: null,
   category: CATEGORIES[0]!,
   items: [],
+  splits: [],
 } satisfies repo.ExpenseWithItems;
 
 /** Expense fixture that includes saved line items. */
@@ -71,7 +74,10 @@ const EXPENSE_WITH_ITEMS: repo.ExpenseWithItems = {
   occurred_at: '2026-05-20T10:00:00Z',
   created_at: '2026-05-20T10:00:00Z',
   updated_at: '2026-05-20T10:00:00Z',
+  group_id: null,
+  paid_by_member_id: null,
   category: CATEGORIES[0]!,
+  splits: [],
   items: [
     {
       id: 'item-1',

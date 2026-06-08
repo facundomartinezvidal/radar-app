@@ -14,9 +14,10 @@ import { ExpenseRow } from '@/components/expenses/expense-row';
 import { FilterBar, type ExpenseFilters } from '@/components/expenses/filter-bar';
 import { Body, Button, H1, H3, Icon, Loader, Text } from '@/components/ui';
 import { formatMoney } from '@/lib/format/money';
-import { useCategories, useExpenseTotals, useExpenses } from '@/hooks/use-expenses';
-import type { ExpenseWithCategory } from '@/lib/repositories/expenses';
+import { personalAmount, useCategories, useExpenseTotals, useExpenses } from '@/hooks/use-expenses';
+import type { ExpenseWithItems } from '@/lib/repositories/expenses';
 import type { ExpenseFilter } from '@/lib/schemas/expense';
+import { useSession } from '@/hooks/use-session';
 import { colors, radii, spacing } from '@/lib/theme';
 
 // ---------------------------------------------------------------------------
@@ -26,7 +27,7 @@ import { colors, radii, spacing } from '@/lib/theme';
 interface DaySection {
   type: 'header' | 'row';
   /** Header: ISO date string `YYYY-MM-DD`. Row: original expense. */
-  payload: string | ExpenseWithCategory;
+  payload: string | ExpenseWithItems;
   /** Stable RN key. */
   key: string;
 }
@@ -55,7 +56,7 @@ function formatDayLabel(iso: string): string {
   }
 }
 
-function groupByDay(rows: ExpenseWithCategory[]): DaySection[] {
+function groupByDay(rows: ExpenseWithItems[]): DaySection[] {
   const out: DaySection[] = [];
   let currentDay: string | null = null;
   for (const row of rows) {
@@ -74,6 +75,9 @@ function groupByDay(rows: ExpenseWithCategory[]): DaySection[] {
 // ---------------------------------------------------------------------------
 
 export default function ExpensesTab(): React.JSX.Element {
+  const { user } = useSession();
+  const currentUserId = user?.id ?? '';
+
   const [filters, setFilters] = useState<ExpenseFilters>({
     search: '',
     currencies: [],
@@ -178,14 +182,18 @@ export default function ExpensesTab(): React.JSX.Element {
               </View>
             );
           }
-          return (
-            <ExpenseRow
-              expense={item.payload as ExpenseWithCategory}
-              onPress={(id) =>
-                router.push(`/(protected)/expense/${id}` as Parameters<typeof router.push>[0])
-              }
-            />
-          );
+          {
+            const expense = item.payload as ExpenseWithItems;
+            return (
+              <ExpenseRow
+                expense={expense}
+                displayAmount={personalAmount(expense, currentUserId)}
+                onPress={(id) =>
+                  router.push(`/(protected)/expense/${id}` as Parameters<typeof router.push>[0])
+                }
+              />
+            );
+          }
         }}
         ListEmptyComponent={
           expensesQuery.isLoading ? (

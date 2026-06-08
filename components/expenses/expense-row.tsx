@@ -1,5 +1,9 @@
 /**
  * Single row in the expenses list.
+ *
+ * Renders the category icon, description/category name, and formatted amount.
+ * When the expense belongs to a group (`group_id != null`) a subtle "Compartido"
+ * indicator (Users icon + caption text) is shown on the subtitle line.
  */
 import React from 'react';
 import { Pressable, View } from 'react-native';
@@ -13,13 +17,24 @@ import type { IconName } from '@/components/ui/icon';
 interface ExpenseRowProps {
   expense: ExpenseWithCategory;
   onPress?: (id: string) => void;
+  /**
+   * Override the displayed amount. Used in list contexts where the personal
+   * share should be shown instead of the full ticket amount. Detail/edit
+   * screens omit this prop and always render `expense.amount`.
+   */
+  displayAmount?: number;
 }
 
-export function ExpenseRow({ expense, onPress }: ExpenseRowProps): React.JSX.Element {
+export function ExpenseRow({
+  expense,
+  onPress,
+  displayAmount,
+}: ExpenseRowProps): React.JSX.Element {
   const cat = expense.category;
   const iconBg = cat ? `${cat.color}1F` : 'rgba(126,138,160,0.16)';
   const iconColor = cat?.color ?? colors.fg[2];
   const iconName: IconName = (cat?.icon as IconName | undefined) ?? 'CircleDashed';
+  const isShared = expense.group_id != null;
 
   return (
     <Pressable
@@ -33,7 +48,7 @@ export function ExpenseRow({ expense, onPress }: ExpenseRowProps): React.JSX.Ele
           alignItems: 'center',
           gap: spacing[3],
           paddingVertical: spacing[3],
-          paddingHorizontal: spacing[1],
+          paddingHorizontal: spacing[4],
           borderBottomWidth: 1,
           borderBottomColor: colors.line[1],
         }}
@@ -56,9 +71,27 @@ export function ExpenseRow({ expense, onPress }: ExpenseRowProps): React.JSX.Ele
               ? expense.description
               : (cat?.name ?? 'Sin descripción')}
           </Text>
-          <Text variant="caption" color={colors.fg[3]}>
-            {cat?.name ?? 'Sin categoría'}
-          </Text>
+          <View
+            style={{ flexDirection: 'row', alignItems: 'center', gap: spacing[1], marginTop: 1 }}
+          >
+            <Text variant="caption" color={colors.fg[3]}>
+              {cat?.name ?? 'Sin categoría'}
+            </Text>
+            {isShared && (
+              <View
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}
+                testID="shared-indicator"
+              >
+                <Text variant="caption" color={colors.fg[3]}>
+                  ·
+                </Text>
+                <Icon name="Users" size={12} color={colors.fg[3]} strokeWidth={1.5} />
+                <Text variant="caption" color={colors.fg[3]}>
+                  Compartido
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
         <Text
           variant="money"
@@ -68,7 +101,10 @@ export function ExpenseRow({ expense, onPress }: ExpenseRowProps): React.JSX.Ele
             fontVariant: ['tabular-nums'],
           }}
         >
-          {formatMoney(Number(expense.amount), expense.currency as 'ARS' | 'USD')}
+          {formatMoney(
+            displayAmount !== undefined ? displayAmount : Number(expense.amount),
+            expense.currency as 'ARS' | 'USD',
+          )}
         </Text>
       </View>
     </Pressable>

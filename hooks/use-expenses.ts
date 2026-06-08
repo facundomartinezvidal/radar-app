@@ -15,9 +15,12 @@ import {
   getExpense,
   listCategories,
   listExpenses,
+  personalAmount,
   sumExpensesByCurrency,
   updateExpense,
 } from '@/lib/repositories/expenses';
+
+export { personalAmount };
 import type { CreateExpenseInput, ExpenseFilter, UpdateExpenseInput } from '@/lib/schemas/expense';
 
 // ---------------------------------------------------------------------------

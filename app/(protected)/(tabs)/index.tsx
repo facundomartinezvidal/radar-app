@@ -27,7 +27,8 @@ import {
 } from '@/components/ui';
 import { formatMoney } from '@/lib/format/money';
 import { colors, motion, radii, spacing, typography } from '@/lib/theme';
-import { useExpenseTotals, useExpenses } from '@/hooks/use-expenses';
+import { personalAmount, useExpenseTotals, useExpenses } from '@/hooks/use-expenses';
+import { useGroups, usePendingInvites } from '@/hooks/use-groups';
 import { useSession } from '@/hooks/use-session';
 import type { IconName } from '@/components/ui/icon';
 
@@ -51,6 +52,7 @@ interface ExpenseRow {
   meta: string;
   amount: string;
   tone: 'in' | 'out' | 'neutral';
+  isShared: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -71,6 +73,7 @@ function buildQuickActions(): QuickAction[] {
       label: 'Grupos',
       iconName: 'Users',
       accessibilityLabel: 'Ver grupos',
+      onPress: () => router.push('/(protected)/groups'),
     },
     {
       label: 'Categorías',
@@ -109,7 +112,13 @@ function relativeTime(occurredAt: string): string {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function QuickActionButton({ action }: { action: QuickAction }): React.JSX.Element {
+function QuickActionButton({
+  action,
+  badgeCount,
+}: {
+  action: QuickAction;
+  badgeCount?: number;
+}): React.JSX.Element {
   const scale = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -124,6 +133,8 @@ function QuickActionButton({ action }: { action: QuickAction }): React.JSX.Eleme
     scale.value = withTiming(1, { duration: motion.dur[1] });
   }
 
+  const hasBadge = badgeCount != null && badgeCount > 0;
+
   return (
     <Pressable
       onPress={action.onPress}
@@ -133,7 +144,20 @@ function QuickActionButton({ action }: { action: QuickAction }): React.JSX.Eleme
       accessibilityLabel={action.accessibilityLabel}
     >
       <Animated.View style={[styles.quickActionInner, animatedStyle]}>
-        <Icon name={action.iconName} size={24} color={colors.fg[1]} strokeWidth={1.5} />
+        <View style={styles.quickActionIconWrap}>
+          <Icon name={action.iconName} size={24} color={colors.fg[1]} strokeWidth={1.5} />
+          {hasBadge && (
+            <View style={styles.badgeDot} testID="groups-badge-dot">
+              <Text
+                variant="caption"
+                color={colors.fg.onBrand}
+                style={{ fontSize: 9, fontWeight: '700', lineHeight: 13 }}
+              >
+                {badgeCount! > 9 ? '9+' : String(badgeCount!)}
+              </Text>
+            </View>
+          )}
+        </View>
         <Caption style={styles.quickActionLabel}>{action.label}</Caption>
       </Animated.View>
     </Pressable>
@@ -167,9 +191,18 @@ function ExpenseRowItem({
           <Body style={styles.expenseName} numberOfLines={1}>
             {row.name}
           </Body>
-          <Caption color={colors.fg[3]} numberOfLines={1}>
-            {row.meta}
-          </Caption>
+          <View style={styles.expenseMetaRow}>
+            <Caption color={colors.fg[3]} numberOfLines={1}>
+              {row.meta}
+            </Caption>
+            {row.isShared && (
+              <View style={styles.sharedTag} testID="shared-indicator">
+                <Caption color={colors.fg[3]}>·</Caption>
+                <Icon name="Users" size={12} color={colors.fg[3]} strokeWidth={1.5} />
+                <Caption color={colors.fg[3]}>Compartido</Caption>
+              </View>
+            )}
+          </View>
         </View>
         <Text variant="money" tone={row.tone} style={styles.expenseAmount}>
           {row.amount}
@@ -188,9 +221,14 @@ export default function HomeScreen(): React.JSX.Element {
   const { user } = useSession();
   const totalsQuery = useExpenseTotals({});
   const recentQuery = useExpenses({ limit: 4 });
+  const groupsQuery = useGroups();
+  const pendingInvitesQuery = usePendingInvites();
+  const pendingInviteCount = pendingInvitesQuery.data?.length ?? 0;
 
   const arsTotal = totalsQuery.data?.find((t) => t.currency === 'ARS')?.total ?? 0;
   const usdTotal = totalsQuery.data?.find((t) => t.currency === 'USD')?.total ?? 0;
+
+  const currentUserId = user?.id ?? '';
 
   const recentRows: ExpenseRow[] = (recentQuery.data ?? []).map((e) => ({
     id: e.id,
@@ -198,8 +236,10 @@ export default function HomeScreen(): React.JSX.Element {
     categoryColor: e.category?.color ?? colors.fg[3],
     name: e.description?.trim().length ? e.description : (e.category?.name ?? 'Gasto'),
     meta: `${e.category?.name ?? 'Sin categoría'} · ${relativeTime(e.occurred_at)}`,
-    amount: formatMoney(Number(e.amount), e.currency as 'ARS' | 'USD'),
+    // For shared expenses show the user's share; for personal show full amount.
+    amount: formatMoney(personalAmount(e, currentUserId), e.currency as 'ARS' | 'USD'),
     tone: 'out',
+    isShared: e.group_id != null,
   }));
 
   const quickActions = React.useMemo(() => buildQuickActions(), []);
@@ -256,28 +296,47 @@ export default function HomeScreen(): React.JSX.Element {
         {/* ── Quick-access row ── */}
         <View style={styles.quickActions}>
           {quickActions.map((action) => (
-            <QuickActionButton key={action.label} action={action} />
+            <QuickActionButton
+              key={action.label}
+              action={action}
+              badgeCount={action.label === 'Grupos' ? pendingInviteCount : undefined}
+            />
           ))}
         </View>
 
         {/* ── Mis grupos ── */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <H3>Mis grupos</H3>
-            <Button variant="ghost" size="sm" onPress={() => {}}>
-              Ver todos
-            </Button>
+        {(groupsQuery.data ?? []).length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <H3>Mis grupos</H3>
+              <Button variant="ghost" size="sm" onPress={() => router.push('/(protected)/groups')}>
+                Ver todos
+              </Button>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.groupsRow}
+            >
+              {(groupsQuery.data ?? []).map((group) => (
+                <Pressable
+                  key={group.id}
+                  onPress={() =>
+                    router.push(
+                      `/(protected)/groups/${group.id}` as Parameters<typeof router.push>[0],
+                    )
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel={`Ver grupo ${group.name}`}
+                >
+                  <Pill variant="neutral">
+                    {`${group.name} · ${group.members.length} ${group.members.length === 1 ? 'miembro' : 'miembros'}`}
+                  </Pill>
+                </Pressable>
+              ))}
+            </ScrollView>
           </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.groupsRow}
-          >
-            <Pill variant="income">Depto · Te deben $ 4.200</Pill>
-            <Pill variant="expense">Bariloche · Debés $ 12.600</Pill>
-            <Pill variant="neutral">Super · Al día</Pill>
-          </ScrollView>
-        </View>
+        )}
 
         {/* ── Últimos gastos ── */}
         <View style={styles.section}>
@@ -407,6 +466,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing[1],
   },
+  quickActionIconWrap: {
+    position: 'relative',
+  },
+  badgeDot: {
+    position: 'absolute',
+    top: -5,
+    right: -8,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.state.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
   quickActionLabel: {
     fontSize: 11,
     color: colors.fg[2],
@@ -449,6 +523,16 @@ const styles = StyleSheet.create({
   },
   expenseName: {
     fontFamily: typography.family.medium,
+  },
+  expenseMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[1],
+  },
+  sharedTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[1],
   },
   expenseAmount: {
     fontFamily: typography.family.semibold,
