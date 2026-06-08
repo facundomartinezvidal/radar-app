@@ -52,6 +52,7 @@ interface ExpenseRow {
   meta: string;
   amount: string;
   tone: 'in' | 'out' | 'neutral';
+  isShared: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -190,9 +191,18 @@ function ExpenseRowItem({
           <Body style={styles.expenseName} numberOfLines={1}>
             {row.name}
           </Body>
-          <Caption color={colors.fg[3]} numberOfLines={1}>
-            {row.meta}
-          </Caption>
+          <View style={styles.expenseMetaRow}>
+            <Caption color={colors.fg[3]} numberOfLines={1}>
+              {row.meta}
+            </Caption>
+            {row.isShared && (
+              <View style={styles.sharedTag} testID="shared-indicator">
+                <Caption color={colors.fg[3]}>·</Caption>
+                <Icon name="Users" size={12} color={colors.fg[3]} strokeWidth={1.5} />
+                <Caption color={colors.fg[3]}>Compartido</Caption>
+              </View>
+            )}
+          </View>
         </View>
         <Text variant="money" tone={row.tone} style={styles.expenseAmount}>
           {row.amount}
@@ -226,6 +236,7 @@ export default function HomeScreen(): React.JSX.Element {
     meta: `${e.category?.name ?? 'Sin categoría'} · ${relativeTime(e.occurred_at)}`,
     amount: formatMoney(Number(e.amount), e.currency as 'ARS' | 'USD'),
     tone: 'out',
+    isShared: e.group_id != null,
   }));
 
   const quickActions = React.useMemo(() => buildQuickActions(), []);
@@ -509,6 +520,16 @@ const styles = StyleSheet.create({
   },
   expenseName: {
     fontFamily: typography.family.medium,
+  },
+  expenseMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[1],
+  },
+  sharedTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[1],
   },
   expenseAmount: {
     fontFamily: typography.family.semibold,
