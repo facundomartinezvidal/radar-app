@@ -400,8 +400,9 @@ export function ExpenseForm({
                 borderTopWidth: 1,
                 borderTopColor: colors.line[2],
                 paddingHorizontal: spacing[4],
-                paddingBottom: spacing[3],
-                gap: spacing[2],
+                paddingTop: spacing[3],
+                paddingBottom: spacing[4],
+                gap: spacing[3],
               }}
             >
               {shareableGroups != null && shareableGroups.length === 0 ? (
@@ -409,7 +410,7 @@ export function ExpenseForm({
                 <View
                   style={{
                     gap: spacing[3],
-                    paddingTop: spacing[1],
+                    paddingTop: spacing[3],
                     alignItems: 'flex-start',
                   }}
                 >
@@ -440,7 +441,7 @@ export function ExpenseForm({
                       flexDirection: 'row',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      paddingHorizontal: spacing[3],
+                      paddingHorizontal: spacing[4],
                       paddingVertical: spacing[3],
                       minHeight: 44,
                       borderRadius: radii.md,
@@ -463,8 +464,9 @@ export function ExpenseForm({
                     </BodySm>
                     <Icon
                       name={groupSelectorOpen ? 'ChevronUp' : 'ChevronDown'}
-                      size={16}
+                      size={18}
                       color={colors.fg[3]}
+                      strokeWidth={1.5}
                     />
                   </Pressable>
 
