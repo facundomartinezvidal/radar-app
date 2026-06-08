@@ -3,22 +3,30 @@
  *
  * Drives the FilterBar component, debounces search by 250 ms, and renders a
  * day-grouped FlatList. Totals header summarises ARS + USD spend for the
- * current filter window.
+ * current filter window. A compact "Gastos recurrentes" section sits above the
+ * list, mirroring the equivalent section on the Ingresos tab.
  */
 import { router } from 'expo-router';
 import React, { useDeferredValue, useMemo, useState } from 'react';
-import { FlatList, RefreshControl, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ExpenseRow } from '@/components/expenses/expense-row';
 import { FilterBar, type ExpenseFilters } from '@/components/expenses/filter-bar';
 import { Body, Button, H1, H3, Icon, Loader, Text } from '@/components/ui';
 import { formatMoney } from '@/lib/format/money';
-import { personalAmount, useCategories, useExpenseTotals, useExpenses } from '@/hooks/use-expenses';
+import {
+  personalAmount,
+  useCategories,
+  useExpenseRecurrences,
+  useExpenseTotals,
+  useExpenses,
+  type ExpenseRecurrenceWithCategory,
+} from '@/hooks/use-expenses';
 import type { ExpenseWithItems } from '@/lib/repositories/expenses';
 import type { ExpenseFilter } from '@/lib/schemas/expense';
 import { useSession } from '@/hooks/use-session';
-import { colors, radii, spacing } from '@/lib/theme';
+import { colors, radii, spacing, typography } from '@/lib/theme';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -70,6 +78,169 @@ function groupByDay(rows: ExpenseWithItems[]): DaySection[] {
   return out;
 }
 
+const FREQUENCY_LABELS: Record<string, string> = {
+  weekly: 'Semanal',
+  biweekly: 'Quincenal',
+  monthly: 'Mensual',
+  yearly: 'Anual',
+};
+
+// ---------------------------------------------------------------------------
+// Recurrences section
+// ---------------------------------------------------------------------------
+
+interface ExpenseRecurrencesSectionProps {
+  recurrences: ExpenseRecurrenceWithCategory[];
+}
+
+function ExpenseRecurrencesSection({
+  recurrences,
+}: ExpenseRecurrencesSectionProps): React.JSX.Element {
+  const activeRecurrences = recurrences.filter(
+    (r) => r.status === 'active' || r.status === 'paused',
+  );
+
+  return (
+    <View
+      style={{
+        borderRadius: radii.lg,
+        backgroundColor: colors.bg[1],
+        borderWidth: 1,
+        borderColor: colors.line[1],
+        overflow: 'hidden',
+      }}
+    >
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingHorizontal: spacing[4],
+          paddingVertical: spacing[3],
+          borderBottomWidth: activeRecurrences.length > 0 ? 1 : 0,
+          borderBottomColor: colors.line[1],
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing[2] }}>
+          <Icon name="Repeat" size={16} color={colors.money.out} strokeWidth={1.5} />
+          <Text variant="label">Gastos recurrentes</Text>
+        </View>
+        <Pressable
+          onPress={() =>
+            router.push('/(protected)/expense/recurrence/new' as Parameters<typeof router.push>[0])
+          }
+          accessibilityRole="button"
+          accessibilityLabel="Agregar gasto recurrente"
+          hitSlop={8}
+        >
+          <Icon name="Plus" size={18} color={colors.brand[400]} />
+        </Pressable>
+      </View>
+
+      {activeRecurrences.length === 0 ? (
+        <Pressable
+          onPress={() =>
+            router.push('/(protected)/expense/recurrence/new' as Parameters<typeof router.push>[0])
+          }
+          accessibilityRole="button"
+          accessibilityLabel="Crear gasto recurrente"
+        >
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: spacing[2],
+              paddingHorizontal: spacing[4],
+              paddingVertical: spacing[3],
+            }}
+          >
+            <Icon name="PlusCircle" size={16} color={colors.fg[3]} />
+            <Text variant="bodySm" color={colors.fg[3]}>
+              Crear gasto recurrente
+            </Text>
+          </View>
+        </Pressable>
+      ) : (
+        activeRecurrences.map((r) => (
+          <Pressable
+            key={r.id}
+            onPress={() =>
+              router.push(
+                `/(protected)/expense/recurrence/${r.id}` as Parameters<typeof router.push>[0],
+              )
+            }
+            accessibilityRole="button"
+            accessibilityLabel={`Gasto recurrente ${r.description ?? r.category?.name ?? 'sin descripción'}`}
+          >
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: spacing[3],
+                paddingHorizontal: spacing[4],
+                paddingVertical: spacing[3],
+                borderBottomWidth: 1,
+                borderBottomColor: colors.line[1],
+              }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text variant="bodySm" color={colors.fg[1]} numberOfLines={1}>
+                  {r.description?.trim().length
+                    ? r.description
+                    : (r.category?.name ?? 'Sin descripción')}
+                </Text>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: spacing[1],
+                    marginTop: 1,
+                  }}
+                >
+                  <Text variant="caption" color={colors.fg[3]}>
+                    {FREQUENCY_LABELS[r.frequency] ?? r.frequency}
+                  </Text>
+                  {r.status === 'paused' && (
+                    <>
+                      <Text variant="caption" color={colors.fg[3]}>
+                        ·
+                      </Text>
+                      <Text variant="caption" color={colors.amber[500]}>
+                        Pausado
+                      </Text>
+                    </>
+                  )}
+                  {r.status === 'active' && r.next_run_on && (
+                    <>
+                      <Text variant="caption" color={colors.fg[3]}>
+                        ·
+                      </Text>
+                      <Text variant="caption" color={colors.fg[3]}>
+                        {`Próximo: ${r.next_run_on}`}
+                      </Text>
+                    </>
+                  )}
+                </View>
+              </View>
+              <Text
+                variant="money"
+                tone="out"
+                style={{
+                  fontFamily: typography.family.semibold,
+                  fontVariant: ['tabular-nums'],
+                }}
+              >
+                {formatMoney(Number(r.amount), r.currency as 'ARS' | 'USD')}
+              </Text>
+              <Icon name="ChevronRight" size={16} color={colors.fg[4]} strokeWidth={1.5} />
+            </View>
+          </Pressable>
+        ))
+      )}
+    </View>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Screen
 // ---------------------------------------------------------------------------
@@ -99,6 +270,7 @@ export default function ExpensesTab(): React.JSX.Element {
   const categoriesQuery = useCategories();
   const expensesQuery = useExpenses(queryFilter);
   const totalsQuery = useExpenseTotals({});
+  const recurrencesQuery = useExpenseRecurrences();
 
   const sections = useMemo(() => groupByDay(expensesQuery.data ?? []), [expensesQuery.data]);
 
@@ -167,6 +339,9 @@ export default function ExpensesTab(): React.JSX.Element {
               })}
             </View>
 
+            {/* Recurrences section */}
+            <ExpenseRecurrencesSection recurrences={recurrencesQuery.data ?? []} />
+
             <FilterBar
               categories={categoriesQuery.data ?? []}
               value={filters}
@@ -224,6 +399,7 @@ export default function ExpensesTab(): React.JSX.Element {
             onRefresh={() => {
               void expensesQuery.refetch();
               void totalsQuery.refetch();
+              void recurrencesQuery.refetch();
             }}
             tintColor={colors.brand[400]}
           />
