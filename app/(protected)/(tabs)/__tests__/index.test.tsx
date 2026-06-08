@@ -25,6 +25,10 @@ jest.mock('@/lib/repositories/expenses', () => ({
   sumExpensesByCurrency: jest.fn().mockResolvedValue({ data: [], error: null }),
 }));
 
+jest.mock('@/hooks/use-groups', () => ({
+  useGroups: jest.fn(() => ({ data: [], isLoading: false })),
+}));
+
 function renderWithClient(): { client: QueryClient } {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
