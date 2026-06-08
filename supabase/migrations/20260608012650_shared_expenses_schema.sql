@@ -71,7 +71,7 @@ returns boolean language sql security definer set search_path = '' as $$
     where gm.group_id = p_group_id and gm.user_id = p_user_id and gm.status = 'active'
   );
 $$;
-revoke execute on function public.is_group_member(uuid, uuid) from anon, authenticated, public;
+revoke execute on function public.is_group_member(uuid, uuid) from anon, public;
 
 create trigger groups_set_updated_at before update on public.groups
   for each row execute function public.set_updated_at();
