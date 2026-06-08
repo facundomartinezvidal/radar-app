@@ -8,16 +8,18 @@
  *   - name (text input, maxLength 60)
  *   - color (CategoryColorPicker)
  *   - icon (CategoryIconPicker)
- *   - placeholders (list of participant name inputs with add/remove)
+ *   - placeholders (list of participant name inputs, "sin cuenta", add/remove)
+ *   - invites (list of email inputs, "con cuenta", add/remove)
  *
- * Note: react-hook-form useFieldArray requires object fields. We manage the
- * `placeholders: string[]` list via a controlled local state that is written
- * into the form with setValue before submit so Zod can validate the full shape.
+ * Note: react-hook-form useFieldArray requires object fields. We manage both
+ * `placeholders` and `invites` lists via controlled local state, written into
+ * the final payload on submit.
  */
 import { zodResolver } from '@hookform/resolvers/zod';
 import React, { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { z } from 'zod';
 
 import { CategoryColorPicker } from '@/components/categories/category-color-picker';
 import { CategoryIconPicker } from '@/components/categories/category-icon-picker';
@@ -32,15 +34,26 @@ import { colors, radii, spacing } from '@/lib/theme';
 // Types
 // ---------------------------------------------------------------------------
 
+export type GroupFormValues = CreateGroupInput & { invites: string[] };
+
 export interface GroupFormProps {
-  initial?: { name: string; icon: IconName; color: string; placeholders: string[] };
-  onSubmit: (values: CreateGroupInput) => void | Promise<void>;
+  initial?: {
+    name: string;
+    icon: IconName;
+    color: string;
+    placeholders: string[];
+    invites?: string[];
+  };
+  onSubmit: (values: GroupFormValues) => void | Promise<void>;
   /** Button label. Defaults to 'Crear grupo'. */
   submitLabel?: string;
   isSubmitting?: boolean;
   /** Server-side error. Shown below the form. */
   submitError?: string | null;
 }
+
+// Inline email validator matching inviteMemberSchema
+const emailRule = z.string().trim().email('Ingresá un correo válido.');
 
 // ---------------------------------------------------------------------------
 // Preview chip
@@ -88,9 +101,12 @@ export function GroupForm({
   isSubmitting = false,
   submitError = null,
 }: GroupFormProps): React.JSX.Element {
-  // Placeholders are managed as local state so we can support add/remove
-  // without needing useFieldArray (which requires object-typed fields).
+  // Placeholders ("sin cuenta") managed as local state
   const [placeholders, setPlaceholders] = useState<string[]>(initial?.placeholders ?? []);
+  // Invites ("con cuenta") managed as local state — email strings
+  const [invites, setInvites] = useState<string[]>(initial?.invites ?? []);
+  // Per-invite inline validation errors
+  const [inviteErrors, setInviteErrors] = useState<Record<number, string>>({});
 
   const {
     control,
@@ -110,6 +126,10 @@ export function GroupForm({
   const watchedIcon = watch('icon');
   const watchedColor = watch('color');
 
+  // ---------------------------------------------------------------------------
+  // Placeholder (sin cuenta) handlers
+  // ---------------------------------------------------------------------------
+
   function addPlaceholder(): void {
     setPlaceholders((prev) => [...prev, '']);
   }
@@ -122,10 +142,58 @@ export function GroupForm({
     setPlaceholders((prev) => prev.map((p, i) => (i === index ? value : p)));
   }
 
+  // ---------------------------------------------------------------------------
+  // Invite (con cuenta) handlers
+  // ---------------------------------------------------------------------------
+
+  function addInvite(): void {
+    setInvites((prev) => [...prev, '']);
+  }
+
+  function removeInvite(index: number): void {
+    setInvites((prev) => prev.filter((_, i) => i !== index));
+    setInviteErrors((prev) => {
+      const next: Record<number, string> = {};
+      Object.entries(prev).forEach(([k, v]) => {
+        const n = Number(k);
+        if (n < index) next[n] = v;
+        else if (n > index) next[n - 1] = v;
+      });
+      return next;
+    });
+  }
+
+  function updateInvite(index: number, value: string): void {
+    setInvites((prev) => prev.map((p, i) => (i === index ? value : p)));
+    // Clear the error as user types
+    if (inviteErrors[index] != null) {
+      setInviteErrors((prev) => {
+        const next = { ...prev };
+        delete next[index];
+        return next;
+      });
+    }
+  }
+
+  function validateInvites(): boolean {
+    const errs: Record<number, string> = {};
+    invites.forEach((email, i) => {
+      if (email.trim().length === 0) return; // empty rows are dropped — no error
+      const result = emailRule.safeParse(email.trim());
+      if (!result.success) {
+        errs[i] = result.error.issues[0]?.message ?? 'Ingresá un correo válido.';
+      }
+    });
+    setInviteErrors(errs);
+    return Object.keys(errs).length === 0;
+  }
+
   const submit = handleSubmit(async (data) => {
-    const fullData: CreateGroupInput = {
+    if (!validateInvites()) return;
+    const fullData: GroupFormValues = {
       ...data,
       placeholders: placeholders.filter((p) => p.trim().length > 0),
+      invites: invites.map((e) => e.trim()).filter((e) => e.length > 0),
     };
     await onSubmit(fullData);
   });
@@ -185,12 +253,12 @@ export function GroupForm({
         <PreviewChip name={watchedName} icon={watchedIcon as IconName} color={watchedColor} />
       </View>
 
-      {/* Participants (placeholders) */}
+      {/* Participants — sin cuenta (placeholders) */}
       <View style={styles.fieldGroup}>
         <Text variant="label">Participantes (sin cuenta)</Text>
         {placeholders.map((value, index) => (
-          <View key={index} style={styles.placeholderRow}>
-            <View style={styles.placeholderInput}>
+          <View key={index} style={styles.participantRow}>
+            <View style={styles.participantInput}>
               <Input
                 placeholder="Nombre del participante"
                 value={value}
@@ -219,12 +287,58 @@ export function GroupForm({
           disabled={isSubmitting}
           accessibilityRole="button"
           accessibilityLabel="Agregar participante"
-          style={styles.addPlaceholder}
+          style={styles.addCta}
           testID="add-placeholder-button"
         >
           <Icon name="Plus" size={18} color={colors.brand[400]} strokeWidth={1.5} />
           <Text variant="bodySm" color={colors.brand[400]}>
             Agregar participante
+          </Text>
+        </Pressable>
+      </View>
+
+      {/* Participants — con cuenta (email invites) */}
+      <View style={styles.fieldGroup}>
+        <Text variant="label">Participantes (con cuenta)</Text>
+        {invites.map((value, index) => (
+          <View key={index} style={styles.participantRow}>
+            <View style={styles.participantInput}>
+              <Input
+                placeholder="Correo electrónico"
+                value={value}
+                onChangeText={(text) => updateInvite(index, text)}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                editable={!isSubmitting}
+                error={inviteErrors[index]}
+                testID={`invite-input-${index}`}
+              />
+            </View>
+            <Pressable
+              onPress={() => removeInvite(index)}
+              disabled={isSubmitting}
+              accessibilityRole="button"
+              accessibilityLabel={`Eliminar invitado ${index + 1}`}
+              hitSlop={8}
+              style={styles.removeButton}
+              testID={`remove-invite-${index}`}
+            >
+              <Icon name="Trash2" size={20} color={colors.money.out} strokeWidth={1.5} />
+            </Pressable>
+          </View>
+        ))}
+
+        <Pressable
+          onPress={addInvite}
+          disabled={isSubmitting}
+          accessibilityRole="button"
+          accessibilityLabel="Agregar por correo"
+          style={styles.addCta}
+          testID="add-invite-button"
+        >
+          <Icon name="Plus" size={18} color={colors.brand[400]} strokeWidth={1.5} />
+          <Text variant="bodySm" color={colors.brand[400]}>
+            Agregar por correo
           </Text>
         </Pressable>
       </View>
@@ -261,12 +375,12 @@ const styles = StyleSheet.create({
   fieldGroup: {
     gap: spacing[2],
   },
-  placeholderRow: {
+  participantRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: spacing[2],
   },
-  placeholderInput: {
+  participantInput: {
     flex: 1,
   },
   removeButton: {
@@ -275,9 +389,8 @@ const styles = StyleSheet.create({
     minWidth: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: spacing[7], // align with input (accounts for label height)
   },
-  addPlaceholder: {
+  addCta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[2],
