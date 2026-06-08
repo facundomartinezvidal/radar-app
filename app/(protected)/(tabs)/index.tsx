@@ -25,9 +25,11 @@ import {
   Pill,
   Text,
 } from '@/components/ui';
+import { IncomeRow } from '@/components/incomes/income-row';
 import { formatMoney } from '@/lib/format/money';
 import { colors, motion, radii, spacing, typography } from '@/lib/theme';
 import { personalAmount, useExpenseTotals, useExpenses } from '@/hooks/use-expenses';
+import { useIncomes, useIncomeTotals } from '@/hooks/use-incomes';
 import { useGroups, usePendingInvites } from '@/hooks/use-groups';
 import { useSession } from '@/hooks/use-session';
 import type { IconName } from '@/components/ui/icon';
@@ -38,7 +40,7 @@ import type { IconName } from '@/components/ui/icon';
 
 interface QuickAction {
   label: string;
-  iconName: 'Plus' | 'Users' | 'Tags' | 'MoreHorizontal';
+  iconName: 'Plus' | 'Users' | 'Tags' | 'TrendingUp';
   accessibilityLabel: string;
   onPress?: () => void;
 }
@@ -82,9 +84,10 @@ function buildQuickActions(): QuickAction[] {
       onPress: () => router.push('/(protected)/profile/categories'),
     },
     {
-      label: 'Más',
-      iconName: 'MoreHorizontal',
-      accessibilityLabel: 'Más opciones',
+      label: 'Ingresos',
+      iconName: 'TrendingUp',
+      accessibilityLabel: 'Agregar ingreso',
+      onPress: () => router.push('/(protected)/income/new'),
     },
   ];
 }
@@ -217,16 +220,38 @@ function ExpenseRowItem({
 // Main screen
 // ---------------------------------------------------------------------------
 
+/** Build an ISO-string range covering the current calendar month (local time). */
+function currentMonthRange(): { from: string; to: string } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth(); // 0-based
+  const from = new Date(y, m, 1, 0, 0, 0, 0).toISOString();
+  const to = new Date(y, m + 1, 0, 23, 59, 59, 999).toISOString();
+  return { from, to };
+}
+
 export default function HomeScreen(): React.JSX.Element {
   const { user } = useSession();
-  const totalsQuery = useExpenseTotals({});
+  const monthRange = React.useMemo(() => currentMonthRange(), []);
+  const totalsQuery = useExpenseTotals(monthRange);
+  const incomeTotalsQuery = useIncomeTotals(monthRange);
   const recentQuery = useExpenses({ limit: 4 });
+  const recentIncomesQuery = useIncomes({ limit: 4 });
   const groupsQuery = useGroups();
   const pendingInvitesQuery = usePendingInvites();
   const pendingInviteCount = pendingInvitesQuery.data?.length ?? 0;
 
-  const arsTotal = totalsQuery.data?.find((t) => t.currency === 'ARS')?.total ?? 0;
-  const usdTotal = totalsQuery.data?.find((t) => t.currency === 'USD')?.total ?? 0;
+  // Expense totals per currency
+  const arsExpenses = totalsQuery.data?.find((t) => t.currency === 'ARS')?.total ?? 0;
+  const usdExpenses = totalsQuery.data?.find((t) => t.currency === 'USD')?.total ?? 0;
+
+  // Income totals per currency
+  const arsIncomes = incomeTotalsQuery.data?.find((t) => t.currency === 'ARS')?.total ?? 0;
+  const usdIncomes = incomeTotalsQuery.data?.find((t) => t.currency === 'USD')?.total ?? 0;
+
+  // Net balance per currency (income − expense) — currencies NEVER mixed
+  const arsNet = arsIncomes - arsExpenses;
+  const usdNet = usdIncomes - usdExpenses;
 
   const currentUserId = user?.id ?? '';
 
@@ -279,17 +304,27 @@ export default function HomeScreen(): React.JSX.Element {
 
         {/* ── Balance card hero ── */}
         <Card variant="raised" padding={6} style={styles.balanceCard}>
-          <Label>Este mes</Label>
-          <Text variant="display" style={styles.balanceAmount}>
-            {formatMoney(arsTotal, 'ARS')}
+          <Label>Balance del mes</Label>
+          <Text
+            variant="display"
+            style={[
+              styles.balanceAmount,
+              { color: arsNet >= 0 ? colors.money.in : colors.money.out },
+            ]}
+          >
+            {formatMoney(arsNet, 'ARS', { showPlus: arsNet > 0 })}
           </Text>
-          <Caption color={colors.fg[3]} style={styles.balanceUsd}>
-            + {formatMoney(usdTotal, 'USD')}
-          </Caption>
+          {usdNet !== 0 && (
+            <Caption
+              color={usdNet >= 0 ? colors.money.in : colors.money.out}
+              style={styles.balanceUsd}
+            >
+              {formatMoney(usdNet, 'USD', { showPlus: usdNet > 0 })}
+            </Caption>
+          )}
           <View style={styles.balancePills}>
-            <Pill variant="expense">
-              {recentQuery.data?.length ?? 0} {recentQuery.data?.length === 1 ? 'gasto' : 'gastos'}
-            </Pill>
+            <Pill variant="income">{`Ingresos ${formatMoney(arsIncomes, 'ARS')}`}</Pill>
+            <Pill variant="expense">{`Gastos ${formatMoney(arsExpenses, 'ARS')}`}</Pill>
           </View>
         </Card>
 
@@ -365,6 +400,39 @@ export default function HomeScreen(): React.JSX.Element {
                   isLast={index === recentRows.length - 1}
                   onPress={(id) =>
                     router.push(`/(protected)/expense/${id}` as Parameters<typeof router.push>[0])
+                  }
+                />
+              ))
+            )}
+          </Card>
+        </View>
+
+        {/* ── Últimos ingresos ── */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <H3>Últimos ingresos</H3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => router.push('/(protected)/(tabs)/incomes')}
+            >
+              Ver todos
+            </Button>
+          </View>
+          <Card variant="base" style={styles.recentCard}>
+            {(recentIncomesQuery.data ?? []).length === 0 ? (
+              <View style={{ paddingVertical: spacing[4], alignItems: 'center' }}>
+                <Body color={colors.fg[3]} style={{ textAlign: 'center' }}>
+                  No hay ingresos registrados.
+                </Body>
+              </View>
+            ) : (
+              (recentIncomesQuery.data ?? []).map((income) => (
+                <IncomeRow
+                  key={income.id}
+                  income={income}
+                  onPress={(id) =>
+                    router.push(`/(protected)/income/${id}` as Parameters<typeof router.push>[0])
                   }
                 />
               ))

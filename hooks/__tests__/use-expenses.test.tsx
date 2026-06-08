@@ -51,6 +51,39 @@ describe('use-expenses hooks', () => {
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
       expect(result.current.data).toEqual([{ id: 'c1', slug: 'comida' }]);
     });
+
+    it('calls listCategories without kind when no arg is passed (backward compat)', async () => {
+      mocked.listCategories.mockResolvedValueOnce({ data: [], error: null });
+
+      const { wrapper } = makeWrapper();
+      renderHook(() => useCategories(), { wrapper });
+      await waitFor(() => expect(mocked.listCategories).toHaveBeenCalledWith(undefined));
+    });
+
+    it('calls listCategories with kind="income" and caches separately', async () => {
+      mocked.listCategories.mockResolvedValueOnce({
+        data: [{ id: 'c2', slug: 'sueldo' } as repo.CategoryRow],
+        error: null,
+      });
+
+      const { wrapper } = makeWrapper();
+      const { result } = renderHook(() => useCategories('income'), { wrapper });
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(mocked.listCategories).toHaveBeenCalledWith('income');
+      expect(result.current.data).toEqual([{ id: 'c2', slug: 'sueldo' }]);
+    });
+
+    it('calls listCategories with kind="expense" when kind="expense" is passed', async () => {
+      mocked.listCategories.mockResolvedValueOnce({
+        data: [{ id: 'c3', slug: 'comida' } as repo.CategoryRow],
+        error: null,
+      });
+
+      const { wrapper } = makeWrapper();
+      const { result } = renderHook(() => useCategories('expense'), { wrapper });
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(mocked.listCategories).toHaveBeenCalledWith('expense');
+    });
   });
 
   describe('useExpenses', () => {

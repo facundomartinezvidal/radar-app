@@ -50,6 +50,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="incomes"
+        options={{
+          title: 'Ingresos',
+          tabBarIcon: ({ color }) => (
+            <Icon name="TrendingUp" size={24} color={color} strokeWidth={1.5} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="camera"
         options={{
           title: 'Cámara',

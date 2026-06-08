@@ -17,6 +17,7 @@ export type Database = {
           created_at: string;
           icon: string;
           id: string;
+          kind: string;
           name: string;
           slug: string;
           sort_order: number;
@@ -28,6 +29,7 @@ export type Database = {
           created_at?: string;
           icon: string;
           id?: string;
+          kind?: string;
           name: string;
           slug: string;
           sort_order?: number;
@@ -39,6 +41,7 @@ export type Database = {
           created_at?: string;
           icon?: string;
           id?: string;
+          kind?: string;
           name?: string;
           slug?: string;
           sort_order?: number;
@@ -336,6 +339,128 @@ export type Database = {
         };
         Relationships: [];
       };
+      income_recurrences: {
+        Row: {
+          amount: number;
+          category_id: string | null;
+          created_at: string;
+          currency: string;
+          day_of_month: number | null;
+          description: string | null;
+          end_date: string | null;
+          frequency: string;
+          id: string;
+          last_materialized_at: string | null;
+          next_run_on: string;
+          start_date: string;
+          status: string;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          amount: number;
+          category_id?: string | null;
+          created_at?: string;
+          currency: string;
+          day_of_month?: number | null;
+          description?: string | null;
+          end_date?: string | null;
+          frequency: string;
+          id?: string;
+          last_materialized_at?: string | null;
+          next_run_on: string;
+          start_date: string;
+          status?: string;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          amount?: number;
+          category_id?: string | null;
+          created_at?: string;
+          currency?: string;
+          day_of_month?: number | null;
+          description?: string | null;
+          end_date?: string | null;
+          frequency?: string;
+          id?: string;
+          last_materialized_at?: string | null;
+          next_run_on?: string;
+          start_date?: string;
+          status?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'income_recurrences_category_id_fkey';
+            columns: ['category_id'];
+            isOneToOne: false;
+            referencedRelation: 'categories';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      incomes: {
+        Row: {
+          amount: number;
+          category_id: string | null;
+          created_at: string;
+          currency: string;
+          description: string | null;
+          id: string;
+          occurred_at: string;
+          occurred_date: string | null;
+          recurrence_id: string | null;
+          source: string;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          amount: number;
+          category_id?: string | null;
+          created_at?: string;
+          currency: string;
+          description?: string | null;
+          id?: string;
+          occurred_at?: string;
+          occurred_date?: string | null;
+          recurrence_id?: string | null;
+          source?: string;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          amount?: number;
+          category_id?: string | null;
+          created_at?: string;
+          currency?: string;
+          description?: string | null;
+          id?: string;
+          occurred_at?: string;
+          occurred_date?: string | null;
+          recurrence_id?: string | null;
+          source?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'incomes_category_id_fkey';
+            columns: ['category_id'];
+            isOneToOne: false;
+            referencedRelation: 'categories';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'incomes_recurrence_id_fkey';
+            columns: ['recurrence_id'];
+            isOneToOne: false;
+            referencedRelation: 'income_recurrences';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       profiles: {
         Row: {
           avatar_url: string | null;
@@ -390,6 +515,15 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      advance_occurrence: {
+        Args: {
+          p_current: string;
+          p_dom: number;
+          p_freq: string;
+          p_start: string;
+        };
+        Returns: string;
       };
       create_expense_with_items: {
         Args: {
@@ -508,6 +642,14 @@ export type Database = {
           net: number;
         }[];
       };
+      get_income_totals: {
+        Args: { p_from?: string; p_to?: string };
+        Returns: {
+          count: number;
+          currency: string;
+          total: number;
+        }[];
+      };
       get_personal_totals: {
         Args: { p_from?: string; p_to?: string };
         Returns: {
@@ -524,6 +666,7 @@ export type Database = {
         Args: { p_group_id: string; p_user_id: string };
         Returns: boolean;
       };
+      materialize_due_incomes: { Args: never; Returns: number };
       respond_group_invite: {
         Args: { p_accept: boolean; p_member_id: string };
         Returns: {

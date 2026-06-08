@@ -37,17 +37,28 @@ export const expenseKeys = {
 
 export const categoryKeys = {
   all: ['categories'] as const,
+  list: (kind?: string) => [...categoryKeys.all, 'list', kind ?? 'all'] as const,
 };
 
 // ---------------------------------------------------------------------------
 // Categories
 // ---------------------------------------------------------------------------
 
-export function useCategories() {
+/**
+ * Fetch categories for the current user.
+ *
+ * Pass `kind` to restrict to `'expense'` or `'income'` categories.
+ * Omitting `kind` (or passing `undefined`) returns all categories — backward
+ * compatible with every existing caller.
+ *
+ * The query key includes `kind` so expense/income lists cache separately
+ * while still being invalidated together when `categoryKeys.all` is purged.
+ */
+export function useCategories(kind?: string) {
   return useQuery<CategoryRow[]>({
-    queryKey: categoryKeys.all,
+    queryKey: categoryKeys.list(kind),
     queryFn: async () => {
-      const { data, error } = await listCategories();
+      const { data, error } = await listCategories(kind);
       if (error) throw error;
       return data ?? [];
     },

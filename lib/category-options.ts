@@ -32,6 +32,12 @@ export const CATEGORY_ICONS = [
   'Film',
   'Music',
   'BookOpen',
+  // Income-category icons (seeded defaults — must stay in allowlist)
+  'Wallet',
+  'Laptop',
+  'TrendingUp',
+  'Undo2',
+  'Building2',
   'CircleDashed',
 ] as const satisfies readonly IconName[];
 
