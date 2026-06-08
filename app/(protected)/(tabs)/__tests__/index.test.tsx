@@ -6,6 +6,8 @@
  *   - Shows "Hola" greeting (with or without user session)
  *   - Shows "ESTE MES" label
  *   - Avatar is pressable and navigates to profile
+ *   - Groups badge dot shows when pending invites > 0
+ *   - Groups badge dot is hidden when pending invites = 0
  */
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -25,8 +27,11 @@ jest.mock('@/lib/repositories/expenses', () => ({
   sumExpensesByCurrency: jest.fn().mockResolvedValue({ data: [], error: null }),
 }));
 
+const mockUsePendingInvites = jest.fn();
+
 jest.mock('@/hooks/use-groups', () => ({
   useGroups: jest.fn(() => ({ data: [], isLoading: false })),
+  usePendingInvites: (...args: unknown[]) => mockUsePendingInvites(...args),
 }));
 
 function renderWithClient(): { client: QueryClient } {
@@ -68,6 +73,7 @@ describe('HomeScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     useSession.mockReturnValue({ user: null, session: null, isLoading: false });
+    mockUsePendingInvites.mockReturnValue({ data: [], isLoading: false });
   });
 
   it('renders without crashing', () => {
@@ -145,5 +151,36 @@ describe('HomeScreen', () => {
     renderWithClient();
     fireEvent.press(screen.getByLabelText('Abrir perfil'));
     expect(router.push).toHaveBeenCalledWith('/(protected)/profile');
+  });
+
+  // -------------------------------------------------------------------------
+  // Pending invites badge on "Grupos" quick action
+  // -------------------------------------------------------------------------
+
+  it('shows badge dot on "Grupos" quick action when there are pending invites', () => {
+    mockUsePendingInvites.mockReturnValue({ data: [{ id: 'inv1' }], isLoading: false });
+    renderWithClient();
+    expect(screen.getByTestId('groups-badge-dot')).toBeTruthy();
+  });
+
+  it('does not show badge dot when there are no pending invites', () => {
+    mockUsePendingInvites.mockReturnValue({ data: [], isLoading: false });
+    renderWithClient();
+    expect(screen.queryByTestId('groups-badge-dot')).toBeNull();
+  });
+
+  it('does not show badge dot when pending invites data is null', () => {
+    mockUsePendingInvites.mockReturnValue({ data: null, isLoading: false });
+    renderWithClient();
+    expect(screen.queryByTestId('groups-badge-dot')).toBeNull();
+  });
+
+  it('shows the badge count on the "Grupos" quick action', () => {
+    mockUsePendingInvites.mockReturnValue({
+      data: [{ id: 'inv1' }, { id: 'inv2' }, { id: 'inv3' }],
+      isLoading: false,
+    });
+    renderWithClient();
+    expect(screen.getByText('3')).toBeTruthy();
   });
 });

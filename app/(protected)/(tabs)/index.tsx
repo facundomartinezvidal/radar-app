@@ -28,7 +28,7 @@ import {
 import { formatMoney } from '@/lib/format/money';
 import { colors, motion, radii, spacing, typography } from '@/lib/theme';
 import { useExpenseTotals, useExpenses } from '@/hooks/use-expenses';
-import { useGroups } from '@/hooks/use-groups';
+import { useGroups, usePendingInvites } from '@/hooks/use-groups';
 import { useSession } from '@/hooks/use-session';
 import type { IconName } from '@/components/ui/icon';
 
@@ -111,7 +111,13 @@ function relativeTime(occurredAt: string): string {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function QuickActionButton({ action }: { action: QuickAction }): React.JSX.Element {
+function QuickActionButton({
+  action,
+  badgeCount,
+}: {
+  action: QuickAction;
+  badgeCount?: number;
+}): React.JSX.Element {
   const scale = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -126,6 +132,8 @@ function QuickActionButton({ action }: { action: QuickAction }): React.JSX.Eleme
     scale.value = withTiming(1, { duration: motion.dur[1] });
   }
 
+  const hasBadge = badgeCount != null && badgeCount > 0;
+
   return (
     <Pressable
       onPress={action.onPress}
@@ -135,7 +143,20 @@ function QuickActionButton({ action }: { action: QuickAction }): React.JSX.Eleme
       accessibilityLabel={action.accessibilityLabel}
     >
       <Animated.View style={[styles.quickActionInner, animatedStyle]}>
-        <Icon name={action.iconName} size={24} color={colors.fg[1]} strokeWidth={1.5} />
+        <View style={styles.quickActionIconWrap}>
+          <Icon name={action.iconName} size={24} color={colors.fg[1]} strokeWidth={1.5} />
+          {hasBadge && (
+            <View style={styles.badgeDot} testID="groups-badge-dot">
+              <Text
+                variant="caption"
+                color={colors.fg.onBrand}
+                style={{ fontSize: 9, fontWeight: '700', lineHeight: 13 }}
+              >
+                {badgeCount! > 9 ? '9+' : String(badgeCount!)}
+              </Text>
+            </View>
+          )}
+        </View>
         <Caption style={styles.quickActionLabel}>{action.label}</Caption>
       </Animated.View>
     </Pressable>
@@ -191,6 +212,8 @@ export default function HomeScreen(): React.JSX.Element {
   const totalsQuery = useExpenseTotals({});
   const recentQuery = useExpenses({ limit: 4 });
   const groupsQuery = useGroups();
+  const pendingInvitesQuery = usePendingInvites();
+  const pendingInviteCount = pendingInvitesQuery.data?.length ?? 0;
 
   const arsTotal = totalsQuery.data?.find((t) => t.currency === 'ARS')?.total ?? 0;
   const usdTotal = totalsQuery.data?.find((t) => t.currency === 'USD')?.total ?? 0;
@@ -259,7 +282,11 @@ export default function HomeScreen(): React.JSX.Element {
         {/* ── Quick-access row ── */}
         <View style={styles.quickActions}>
           {quickActions.map((action) => (
-            <QuickActionButton key={action.label} action={action} />
+            <QuickActionButton
+              key={action.label}
+              action={action}
+              badgeCount={action.label === 'Grupos' ? pendingInviteCount : undefined}
+            />
           ))}
         </View>
 
@@ -424,6 +451,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing[1],
+  },
+  quickActionIconWrap: {
+    position: 'relative',
+  },
+  badgeDot: {
+    position: 'absolute',
+    top: -5,
+    right: -8,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.state.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
   },
   quickActionLabel: {
     fontSize: 11,
