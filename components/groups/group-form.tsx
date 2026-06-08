@@ -25,6 +25,7 @@ import { CategoryColorPicker } from '@/components/categories/category-color-pick
 import { CategoryIconPicker } from '@/components/categories/category-icon-picker';
 import { Body, BodySm, Button, Icon, Input, Text } from '@/components/ui';
 import type { IconName } from '@/components/ui/icon';
+import { useCheckUserExists } from '@/hooks/use-groups';
 import { CATEGORY_COLORS, CATEGORY_ICONS } from '@/lib/category-options';
 import type { CreateGroupInput } from '@/lib/schemas/group';
 import { createGroupSchema } from '@/lib/schemas/group';
@@ -101,12 +102,16 @@ export function GroupForm({
   isSubmitting = false,
   submitError = null,
 }: GroupFormProps): React.JSX.Element {
+  const checkExists = useCheckUserExists();
+
   // Placeholders ("sin cuenta") managed as local state
   const [placeholders, setPlaceholders] = useState<string[]>(initial?.placeholders ?? []);
   // Invites ("con cuenta") managed as local state — email strings
   const [invites, setInvites] = useState<string[]>(initial?.invites ?? []);
-  // Per-invite inline validation errors
+  // Per-invite inline validation errors (format + existence)
   const [inviteErrors, setInviteErrors] = useState<Record<number, string>>({});
+  // Per-invite existence state: null = unknown, true = found, false = not found
+  const [inviteExists, setInviteExists] = useState<Record<number, boolean | null>>({});
 
   const {
     control,
@@ -161,13 +166,56 @@ export function GroupForm({
       });
       return next;
     });
+    setInviteExists((prev) => {
+      const next: Record<number, boolean | null> = {};
+      Object.entries(prev).forEach(([k, v]) => {
+        const n = Number(k);
+        if (n < index) next[n] = v;
+        else if (n > index) next[n - 1] = v;
+      });
+      return next;
+    });
   }
 
   function updateInvite(index: number, value: string): void {
     setInvites((prev) => prev.map((p, i) => (i === index ? value : p)));
-    // Clear the error as user types
+    // Clear format error and existence state as user types
     if (inviteErrors[index] != null) {
       setInviteErrors((prev) => {
+        const next = { ...prev };
+        delete next[index];
+        return next;
+      });
+    }
+    if (inviteExists[index] !== undefined) {
+      setInviteExists((prev) => {
+        const next = { ...prev };
+        delete next[index];
+        return next;
+      });
+    }
+  }
+
+  async function handleInviteBlur(index: number): Promise<void> {
+    const email = invites[index]?.trim() ?? '';
+    if (email.length === 0) return; // empty rows are dropped — skip check
+    // Only check when format is valid
+    const formatOk = emailRule.safeParse(email);
+    if (!formatOk.success) return;
+    // Clear previous existence state to show "Verificando…" is implicit via isPending
+    setInviteExists((prev) => ({ ...prev, [index]: null }));
+    try {
+      const exists = await checkExists.mutateAsync(email);
+      setInviteExists((prev) => ({ ...prev, [index]: exists }));
+      if (!exists) {
+        setInviteErrors((prev) => ({
+          ...prev,
+          [index]: 'No existe una cuenta con ese correo electrónico.',
+        }));
+      }
+    } catch {
+      // Network error — treat as unknown, don't block
+      setInviteExists((prev) => {
         const next = { ...prev };
         delete next[index];
         return next;
@@ -176,20 +224,26 @@ export function GroupForm({
   }
 
   function validateInvites(): boolean {
-    const errs: Record<number, string> = {};
+    const errs: Record<number, string> = { ...inviteErrors };
     invites.forEach((email, i) => {
       if (email.trim().length === 0) return; // empty rows are dropped — no error
       const result = emailRule.safeParse(email.trim());
       if (!result.success) {
         errs[i] = result.error.issues[0]?.message ?? 'Ingresá un correo válido.';
+      } else if (inviteExists[i] === false) {
+        errs[i] = 'No existe una cuenta con ese correo electrónico.';
       }
     });
     setInviteErrors(errs);
     return Object.keys(errs).length === 0;
   }
 
+  // True while any invite row's existence check is in flight
+  const hasCheckPending = checkExists.isPending;
+
   const submit = handleSubmit(async (data) => {
     if (!validateInvites()) return;
+    if (hasCheckPending) return; // wait for in-flight check to finish
     const fullData: GroupFormValues = {
       ...data,
       placeholders: placeholders.filter((p) => p.trim().length > 0),
@@ -307,6 +361,7 @@ export function GroupForm({
                 placeholder="Correo electrónico"
                 value={value}
                 onChangeText={(text) => updateInvite(index, text)}
+                onBlur={() => void handleInviteBlur(index)}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 editable={!isSubmitting}
@@ -354,7 +409,7 @@ export function GroupForm({
         size="lg"
         fullWidth
         loading={isSubmitting}
-        disabled={isSubmitting}
+        disabled={isSubmitting || hasCheckPending}
         onPress={submit}
         accessibilityLabel={submitLabel}
       >

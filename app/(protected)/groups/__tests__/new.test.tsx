@@ -41,6 +41,7 @@ jest.mock('expo-router', () => ({
 
 const mockCreateMutateAsync = jest.fn();
 const mockInviteMutateAsync = jest.fn();
+const mockCheckExistsMutateAsync = jest.fn();
 
 jest.mock('@/hooks/use-groups', () => ({
   useCreateGroup: jest.fn(() => ({
@@ -49,6 +50,10 @@ jest.mock('@/hooks/use-groups', () => ({
   })),
   useInviteMember: jest.fn(() => ({
     mutateAsync: mockInviteMutateAsync,
+    isPending: false,
+  })),
+  useCheckUserExists: jest.fn(() => ({
+    mutateAsync: mockCheckExistsMutateAsync,
     isPending: false,
   })),
 }));
@@ -79,6 +84,8 @@ describe('NewGroupScreen', () => {
     jest.clearAllMocks();
     mockCreateMutateAsync.mockResolvedValue({ id: 'g-new' });
     mockInviteMutateAsync.mockResolvedValue({ status: 'invited' });
+    // Default: account found (on-blur existence check passes)
+    mockCheckExistsMutateAsync.mockResolvedValue(true);
   });
 
   it('renders the GroupForm', () => {

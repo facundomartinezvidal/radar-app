@@ -12,6 +12,7 @@ import {
   type GroupRow,
   type GroupWithMembers,
   addPlaceholder,
+  checkUserExists,
   createGroup,
   deleteGroup,
   getGroup,
@@ -217,6 +218,25 @@ export function useCreateSettlement() {
     onSuccess: (_row, input) => {
       void qc.invalidateQueries({ queryKey: groupKeys.balances(input.group_id) });
       void qc.invalidateQueries({ queryKey: groupKeys.detail(input.group_id) });
+    },
+  });
+}
+
+/**
+ * Mutation to check whether a registered account exists for an email address.
+ *
+ * Usage: `const { mutateAsync, isPending } = useCheckUserExists()`
+ *        `const exists = await mutateAsync(email)`
+ *
+ * Returns `true` when an account exists, `false` when not found.
+ * No cache invalidation needed — this is a pure read with no side effects.
+ */
+export function useCheckUserExists() {
+  return useMutation<boolean, Error, string>({
+    mutationFn: async (email: string) => {
+      const { data, error } = await checkUserExists(email);
+      if (error) throw error;
+      return data ?? false;
     },
   });
 }

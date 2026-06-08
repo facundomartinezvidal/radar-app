@@ -14,6 +14,7 @@ import * as groupsRepo from '@/lib/repositories/groups';
 import * as sharedExpensesRepo from '@/lib/repositories/shared-expenses';
 import {
   groupKeys,
+  useCheckUserExists,
   useCreateSharedExpense,
   useRespondInvite,
   useCreateGroup,
@@ -381,6 +382,57 @@ describe('useCreateSettlement', () => {
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: groupKeys.balances('grp-1') });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: groupKeys.detail('grp-1') });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// useCheckUserExists
+// ---------------------------------------------------------------------------
+
+describe('useCheckUserExists', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('returns true when the repo confirms the account exists', async () => {
+    mockedGroups.checkUserExists.mockResolvedValueOnce({ data: true, error: null });
+
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useCheckUserExists(), { wrapper });
+
+    let outcome: boolean | undefined;
+    await act(async () => {
+      outcome = await result.current.mutateAsync('found@example.com');
+    });
+
+    expect(mockedGroups.checkUserExists).toHaveBeenCalledWith('found@example.com');
+    expect(outcome).toBe(true);
+  });
+
+  it('returns false when the repo says the account does not exist', async () => {
+    mockedGroups.checkUserExists.mockResolvedValueOnce({ data: false, error: null });
+
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useCheckUserExists(), { wrapper });
+
+    let outcome: boolean | undefined;
+    await act(async () => {
+      outcome = await result.current.mutateAsync('notfound@example.com');
+    });
+
+    expect(outcome).toBe(false);
+  });
+
+  it('throws on repo error', async () => {
+    mockedGroups.checkUserExists.mockResolvedValueOnce({
+      data: null,
+      error: new Error('auth required'),
+    });
+
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useCheckUserExists(), { wrapper });
+
+    await expect(result.current.mutateAsync('bad@example.com')).rejects.toThrow('auth required');
   });
 });
 

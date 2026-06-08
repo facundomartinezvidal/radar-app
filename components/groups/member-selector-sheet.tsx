@@ -12,10 +12,18 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import React, { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { Modal, Pressable, TouchableOpacity, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 import { Body, Button, Caption, H2, Icon, Input, Text } from '@/components/ui';
-import { useAddPlaceholder, useInviteMember } from '@/hooks/use-groups';
+import { useAddPlaceholder, useCheckUserExists, useInviteMember } from '@/hooks/use-groups';
 import { addPlaceholderSchema, inviteMemberSchema } from '@/lib/schemas/group';
 import type { AddPlaceholderInput, InviteMemberInput } from '@/lib/schemas/group';
 import { colors, radii, shadows, spacing } from '@/lib/theme';
@@ -180,10 +188,12 @@ interface InviteFormProps {
 
 function InviteForm({ groupId, onSuccess }: InviteFormProps): React.JSX.Element {
   const inviteMutation = useInviteMember();
+  const checkExists = useCheckUserExists();
 
   const {
     control,
     handleSubmit,
+    getValues,
     formState: { errors },
   } = useForm<InviteMemberInput>({
     resolver: zodResolver(inviteMemberSchema),
@@ -192,8 +202,31 @@ function InviteForm({ groupId, onSuccess }: InviteFormProps): React.JSX.Element 
 
   const [inviteStatus, setInviteStatus] = useState<InviteStatus>(null);
   const [serverError, setServerError] = useState<string | null>(null);
+  // null = unknown, true = found, false = not found
+  const [emailExists, setEmailExists] = useState<boolean | null>(null);
+
+  async function handleEmailBlur(fieldOnBlur: () => void): Promise<void> {
+    fieldOnBlur();
+    const email = getValues('email').trim();
+    // Only run existence check when the format is valid
+    const formatOk = inviteMemberSchema.safeParse({ email });
+    if (!formatOk.success) {
+      setEmailExists(null);
+      return;
+    }
+    setEmailExists(null); // reset to show "Verificando…" state
+    try {
+      const exists = await checkExists.mutateAsync(email);
+      setEmailExists(exists);
+    } catch {
+      // Network/auth error: treat as unknown — don't block the user
+      setEmailExists(null);
+    }
+  }
 
   async function onSubmit(values: InviteMemberInput): Promise<void> {
+    // If we already know the email doesn't exist, block here (extra guard)
+    if (emailExists === false) return;
     setServerError(null);
     setInviteStatus(null);
     try {
@@ -207,6 +240,8 @@ function InviteForm({ groupId, onSuccess }: InviteFormProps): React.JSX.Element 
     }
   }
 
+  const isBlocked = emailExists === false || checkExists.isPending;
+
   return (
     <View style={{ gap: spacing[4] }}>
       <Controller
@@ -217,8 +252,12 @@ function InviteForm({ groupId, onSuccess }: InviteFormProps): React.JSX.Element 
             label="Correo electrónico"
             placeholder="correo@ejemplo.com"
             value={value}
-            onChangeText={onChange}
-            onBlur={onBlur}
+            onChangeText={(text) => {
+              onChange(text);
+              // Reset existence state as user edits
+              if (emailExists !== null) setEmailExists(null);
+            }}
+            onBlur={() => void handleEmailBlur(onBlur)}
             autoCapitalize="none"
             keyboardType="email-address"
             returnKeyType="send"
@@ -228,7 +267,20 @@ function InviteForm({ groupId, onSuccess }: InviteFormProps): React.JSX.Element 
         )}
       />
 
-      {/* Status messages */}
+      {/* On-blur existence feedback */}
+      {checkExists.isPending && (
+        <Text variant="bodySm" color={colors.fg[3]} testID="status-checking">
+          Verificando…
+        </Text>
+      )}
+
+      {!checkExists.isPending && emailExists === false && (
+        <Text variant="bodySm" color={colors.state.danger} testID="status-email-not-found">
+          No existe una cuenta con ese correo electrónico.
+        </Text>
+      )}
+
+      {/* Status messages (post-submit) */}
       {inviteStatus === 'already_member' && (
         <View
           style={{
@@ -270,6 +322,7 @@ function InviteForm({ groupId, onSuccess }: InviteFormProps): React.JSX.Element 
         fullWidth
         onPress={handleSubmit(onSubmit)}
         loading={inviteMutation.isPending}
+        disabled={isBlocked}
         accessibilityLabel="Invitar por correo electrónico"
       >
         Invitar
@@ -321,69 +374,86 @@ export function MemberSelectorSheet({
       onRequestClose={onClose}
       testID="member-selector-sheet"
     >
-      <View
-        style={{
-          flex: 1,
-          justifyContent: 'flex-end',
-          backgroundColor: 'rgba(0,0,0,0.6)',
-        }}
+      {/* Scrim — fills the screen above the sheet */}
+      <KeyboardAvoidingView
+        style={{ flex: 1, justifyContent: 'flex-end' }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
+        <Pressable
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+          }}
+          onPress={onClose}
+          accessibilityLabel="Cerrar hoja"
+        />
         <View
           style={{
             backgroundColor: colors.bg[1],
             borderTopLeftRadius: radii.lg,
             borderTopRightRadius: radii.lg,
-            padding: spacing[5],
-            paddingBottom: spacing[10],
             ...shadows.three,
           }}
         >
-          {/* Header */}
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: spacing[5],
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{
+              padding: spacing[5],
+              paddingBottom: spacing[10],
             }}
+            bounces={false}
           >
-            <H2>Agregar miembro</H2>
-            <TouchableOpacity
-              onPress={onClose}
-              hitSlop={12}
-              accessibilityRole="button"
-              accessibilityLabel="Cerrar"
-            >
-              <Icon name="X" size={24} color={colors.fg[2]} strokeWidth={1.5} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Segmented control */}
-          <SegmentedControl active={segment} onChange={setSegment} />
-
-          {/* Success message (invited) */}
-          {successMessage != null && (
+            {/* Header */}
             <View
               style={{
-                backgroundColor: `${colors.state.success}1A`,
-                borderRadius: radii.sm,
-                padding: spacing[3],
-                marginBottom: spacing[4],
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: spacing[5],
               }}
-              testID="status-invited"
             >
-              <Caption color={colors.money.in}>{successMessage}</Caption>
+              <H2>Agregar miembro</H2>
+              <TouchableOpacity
+                onPress={onClose}
+                hitSlop={12}
+                accessibilityRole="button"
+                accessibilityLabel="Cerrar"
+              >
+                <Icon name="X" size={24} color={colors.fg[2]} strokeWidth={1.5} />
+              </TouchableOpacity>
             </View>
-          )}
 
-          {/* Segment content */}
-          {segment === 'placeholder' ? (
-            <PlaceholderForm groupId={groupId} onSuccess={handlePlaceholderSuccess} />
-          ) : (
-            <InviteForm groupId={groupId} onSuccess={handleInviteSuccess} />
-          )}
+            {/* Segmented control */}
+            <SegmentedControl active={segment} onChange={setSegment} />
+
+            {/* Success message (invited) */}
+            {successMessage != null && (
+              <View
+                style={{
+                  backgroundColor: `${colors.state.success}1A`,
+                  borderRadius: radii.sm,
+                  padding: spacing[3],
+                  marginBottom: spacing[4],
+                }}
+                testID="status-invited"
+              >
+                <Caption color={colors.money.in}>{successMessage}</Caption>
+              </View>
+            )}
+
+            {/* Segment content */}
+            {segment === 'placeholder' ? (
+              <PlaceholderForm groupId={groupId} onSuccess={handlePlaceholderSuccess} />
+            ) : (
+              <InviteForm groupId={groupId} onSuccess={handleInviteSuccess} />
+            )}
+          </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
