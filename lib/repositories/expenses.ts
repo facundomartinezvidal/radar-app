@@ -9,6 +9,11 @@ import type { PostgrestError } from '@supabase/supabase-js';
 
 import { supabase } from '@/lib/supabase';
 import type { CreateExpenseInput, ExpenseFilter, UpdateExpenseInput } from '@/lib/schemas/expense';
+import type {
+  CreateExpenseRecurrenceInput,
+  UpdateExpenseRecurrenceInput,
+} from '@/lib/schemas/expense-recurrence';
+import { dayOfMonthFrom, firstFutureOccurrence } from '@/lib/income-recurrence';
 import type { Tables, TablesUpdate } from '@/types/supabase';
 
 export type CategoryRow = Tables<'categories'>;
@@ -317,4 +322,204 @@ export function personalAmount(expense: ExpenseWithItems, userId: string): numbe
   }
   const split = expense.splits.find((s) => s.member.user_id === userId);
   return split != null ? Number(split.share_amount) : 0;
+}
+
+// ---------------------------------------------------------------------------
+// Expense recurrence CRUD
+// ---------------------------------------------------------------------------
+
+export type ExpenseRecurrenceRow = Tables<'expense_recurrences'>;
+
+/** Expense recurrence row joined with its category (left-join — `category` may be null). */
+export interface ExpenseRecurrenceWithCategory extends ExpenseRecurrenceRow {
+  category: CategoryRow | null;
+}
+
+const EXPENSE_RECURRENCE_SELECT = '*, category:categories(*)';
+
+/**
+ * List all active and paused expense recurrences for the current user, joined
+ * with their category. Ordered by created_at descending.
+ */
+export async function listExpenseRecurrences(): Promise<
+  RepoResult<ExpenseRecurrenceWithCategory[]>
+> {
+  const { data, error } = await supabase
+    .from('expense_recurrences')
+    .select(EXPENSE_RECURRENCE_SELECT)
+    .order('created_at', { ascending: false });
+  return { data: data as ExpenseRecurrenceWithCategory[] | null, error };
+}
+
+/**
+ * Create a new expense recurrence.
+ *
+ * `day_of_month` and `next_run_on` are computed client-side:
+ * - `day_of_month` = day component of `start_date` (anchor for monthly rules)
+ * - `next_run_on`  = first occurrence strictly after `today` (injected for testability)
+ *
+ * The caller must pass `today` as `new Date().toISOString().slice(0, 10)`.
+ */
+export async function createExpenseRecurrence(
+  input: CreateExpenseRecurrenceInput,
+  userId: string,
+  today: string,
+): Promise<RepoResult<ExpenseRecurrenceWithCategory>> {
+  const dayOfMonth = dayOfMonthFrom(input.start_date);
+  const nextRunOn = firstFutureOccurrence(input.start_date, input.frequency, today);
+
+  const { data, error } = await supabase
+    .from('expense_recurrences')
+    .insert({
+      user_id: userId,
+      amount: input.amount,
+      currency: input.currency,
+      category_id: input.category_id ?? null,
+      description: input.description ?? null,
+      frequency: input.frequency,
+      start_date: input.start_date,
+      end_date: input.end_date ?? null,
+      day_of_month: dayOfMonth,
+      next_run_on: nextRunOn,
+      status: 'active',
+    })
+    .select(EXPENSE_RECURRENCE_SELECT)
+    .single();
+
+  return { data: data as ExpenseRecurrenceWithCategory | null, error };
+}
+
+/**
+ * Pause an active expense recurrence.
+ */
+export async function pauseExpenseRecurrence(
+  id: string,
+): Promise<RepoResult<ExpenseRecurrenceWithCategory>> {
+  const { data, error } = await supabase
+    .from('expense_recurrences')
+    .update({ status: 'paused' })
+    .eq('id', id)
+    .select(EXPENSE_RECURRENCE_SELECT)
+    .single();
+  return { data: data as ExpenseRecurrenceWithCategory | null, error };
+}
+
+/**
+ * Resume a paused expense recurrence.
+ *
+ * Fetches the row first to retrieve `start_date` + `frequency`, then
+ * recomputes `next_run_on` forward from `today` so the paused gap is
+ * skipped cleanly.
+ *
+ * `today` is injected for testability — callers pass `new Date().toISOString().slice(0, 10)`.
+ */
+export async function resumeExpenseRecurrence(
+  id: string,
+  today: string,
+): Promise<RepoResult<ExpenseRecurrenceWithCategory>> {
+  const { data: existing, error: fetchError } = await supabase
+    .from('expense_recurrences')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (fetchError || !existing) {
+    return { data: null, error: fetchError ?? new Error('No se encontró la recurrencia.') };
+  }
+
+  const row = existing as ExpenseRecurrenceRow;
+  const nextRunOn = firstFutureOccurrence(
+    row.start_date,
+    row.frequency as Parameters<typeof firstFutureOccurrence>[1],
+    today,
+  );
+
+  const { data, error } = await supabase
+    .from('expense_recurrences')
+    .update({ status: 'active', next_run_on: nextRunOn })
+    .eq('id', id)
+    .select(EXPENSE_RECURRENCE_SELECT)
+    .single();
+
+  return { data: data as ExpenseRecurrenceWithCategory | null, error };
+}
+
+/**
+ * Update an existing expense recurrence (patch — only supplied keys are written).
+ *
+ * When either `frequency` or `start_date` changes, `day_of_month` and
+ * `next_run_on` are recomputed using the effective values: the patch value
+ * when present, or the persisted row value when absent. This means a
+ * frequency-only patch still produces a correct `next_run_on` (resolved
+ * against the existing `start_date`), and a start_date-only patch still uses
+ * the existing `frequency`.
+ *
+ * The row is fetched before the update only when a scheduling field changes.
+ * If `today` is absent but a scheduling field changed, the recompute is
+ * skipped — document this at call sites and prefer always passing `today`.
+ */
+export async function updateExpenseRecurrence(
+  id: string,
+  patch: UpdateExpenseRecurrenceInput,
+  today?: string,
+): Promise<RepoResult<ExpenseRecurrenceWithCategory>> {
+  const updateObj: TablesUpdate<'expense_recurrences'> = {};
+
+  if (patch.amount !== undefined) updateObj.amount = patch.amount;
+  if (patch.currency !== undefined) updateObj.currency = patch.currency;
+  if (patch.category_id !== undefined) updateObj.category_id = patch.category_id;
+  if (patch.description !== undefined) updateObj.description = patch.description;
+  if (patch.end_date !== undefined) updateObj.end_date = patch.end_date;
+  if (patch.start_date !== undefined) updateObj.start_date = patch.start_date;
+  if (patch.frequency !== undefined) updateObj.frequency = patch.frequency;
+
+  const scheduleChanged = patch.frequency !== undefined || patch.start_date !== undefined;
+
+  if (scheduleChanged) {
+    if (today === undefined) {
+      // today is required for schedule recomputation; skip silently when absent.
+      // Callers should always supply today when mutating frequency or start_date.
+    } else {
+      const { data: existing, error: fetchError } = await supabase
+        .from('expense_recurrences')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (fetchError || !existing) {
+        return {
+          data: null,
+          error: fetchError ?? new Error('No se encontró la recurrencia.'),
+        };
+      }
+
+      const row = existing as ExpenseRecurrenceRow;
+      const effectiveStart = patch.start_date ?? row.start_date;
+      const effectiveFreq =
+        patch.frequency ?? (row.frequency as Parameters<typeof firstFutureOccurrence>[1]);
+
+      updateObj.day_of_month = dayOfMonthFrom(effectiveStart);
+      updateObj.next_run_on = firstFutureOccurrence(effectiveStart, effectiveFreq, today);
+    }
+  }
+
+  const { data, error } = await supabase
+    .from('expense_recurrences')
+    .update(updateObj)
+    .eq('id', id)
+    .select(EXPENSE_RECURRENCE_SELECT)
+    .single();
+
+  return { data: data as ExpenseRecurrenceWithCategory | null, error };
+}
+
+/**
+ * Delete an expense recurrence rule.
+ *
+ * Already-materialized `expenses` rows survive — the FK is `ON DELETE SET NULL`
+ * so `recurrence_id` becomes null on those rows.
+ */
+export async function deleteExpenseRecurrence(id: string): Promise<RepoResult<{ id: string }>> {
+  const { error } = await supabase.from('expense_recurrences').delete().eq('id', id);
+  return { data: error ? null : { id }, error };
 }
