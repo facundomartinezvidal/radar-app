@@ -25,10 +25,12 @@ import {
   type CreateSharedExpenseInput,
   type ExpenseSplitRow,
   type GroupExpense,
+  type UpdateSharedExpenseInput,
   createSettlement,
   createSharedExpense,
   listGroupExpenses,
   listPendingInvites,
+  updateSharedExpense,
 } from '@/lib/repositories/shared-expenses';
 import type { CreateGroupInput, InviteMemberInput, SettlementInput } from '@/lib/schemas/group';
 import type { Tables } from '@/types/supabase';
@@ -42,6 +44,7 @@ export type {
   GroupRow,
   GroupWithMembers,
   ExpenseSplitRow,
+  UpdateSharedExpenseInput,
 };
 
 // ---------------------------------------------------------------------------
@@ -237,6 +240,30 @@ export function useCheckUserExists() {
       const { data, error } = await checkUserExists(email);
       if (error) throw error;
       return data ?? false;
+    },
+  });
+}
+
+export function useUpdateSharedExpense() {
+  const qc = useQueryClient();
+  return useMutation<
+    import('@/lib/repositories/expenses').ExpenseWithItems,
+    Error,
+    { id: string; input: UpdateSharedExpenseInput; groupId: string }
+  >({
+    mutationFn: async ({ id, input }) => {
+      const { data, error } = await updateSharedExpense(id, input);
+      if (error || !data) throw error ?? new Error('No se pudo actualizar el gasto compartido.');
+      return data;
+    },
+    onSuccess: (row, { groupId }) => {
+      // Shared expense also appears in personal list
+      void qc.invalidateQueries({ queryKey: expenseKeys.all });
+      void qc.invalidateQueries({ queryKey: groupKeys.all });
+      void qc.invalidateQueries({ queryKey: groupKeys.balances(groupId) });
+      void qc.invalidateQueries({ queryKey: groupKeys.expenses(groupId) });
+      // Update the individual expense detail cache immediately
+      qc.setQueryData(expenseKeys.detail(row.id), row);
     },
   });
 }

@@ -24,6 +24,7 @@ import {
   useGroupBalances,
   useGroupExpenses,
   usePendingInvites,
+  useUpdateSharedExpense,
 } from '../use-groups';
 import { expenseKeys } from '../use-expenses';
 
@@ -433,6 +434,117 @@ describe('useCheckUserExists', () => {
     const { result } = renderHook(() => useCheckUserExists(), { wrapper });
 
     await expect(result.current.mutateAsync('bad@example.com')).rejects.toThrow('auth required');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// useUpdateSharedExpense — invalidation
+// ---------------------------------------------------------------------------
+
+describe('useUpdateSharedExpense', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('calls updateSharedExpense repo function with the correct id and input', async () => {
+    mockedShared.updateSharedExpense.mockResolvedValueOnce({
+      data: SHARED_EXPENSE_ROW,
+      error: null,
+    });
+
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useUpdateSharedExpense(), { wrapper });
+
+    const input = {
+      patch: { amount: 4000 },
+      items: null,
+      paid_by_member_id: 'mem-1',
+      splits: [{ member_id: 'mem-1', share_amount: 4000 }],
+    };
+
+    await act(async () => {
+      await result.current.mutateAsync({ id: 'exp-1', input, groupId: 'grp-1' });
+    });
+
+    expect(mockedShared.updateSharedExpense).toHaveBeenCalledWith('exp-1', input);
+  });
+
+  it('invalidates expenseKeys.all, groupKeys.all, balances, and expenses on success', async () => {
+    mockedShared.updateSharedExpense.mockResolvedValueOnce({
+      data: SHARED_EXPENSE_ROW,
+      error: null,
+    });
+
+    const { wrapper, client } = makeWrapper();
+    const invalidate = jest.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useUpdateSharedExpense(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        id: 'exp-1',
+        input: {
+          patch: {},
+          items: null,
+          paid_by_member_id: 'mem-1',
+          splits: [],
+        },
+        groupId: 'grp-1',
+      });
+    });
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: expenseKeys.all });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: groupKeys.all });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: groupKeys.balances('grp-1') });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: groupKeys.expenses('grp-1') });
+  });
+
+  it('sets the expense detail cache immediately on success', async () => {
+    mockedShared.updateSharedExpense.mockResolvedValueOnce({
+      data: SHARED_EXPENSE_ROW,
+      error: null,
+    });
+
+    const { wrapper, client } = makeWrapper();
+    const setQueryData = jest.spyOn(client, 'setQueryData');
+    const { result } = renderHook(() => useUpdateSharedExpense(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        id: 'exp-1',
+        input: {
+          patch: {},
+          items: null,
+          paid_by_member_id: 'mem-1',
+          splits: [],
+        },
+        groupId: 'grp-1',
+      });
+    });
+
+    expect(setQueryData).toHaveBeenCalledWith(expenseKeys.detail('exp-1'), SHARED_EXPENSE_ROW);
+  });
+
+  it('throws on repo error', async () => {
+    mockedShared.updateSharedExpense.mockResolvedValueOnce({
+      data: null,
+      error: new Error('not a shared expense'),
+    });
+
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useUpdateSharedExpense(), { wrapper });
+
+    await expect(
+      result.current.mutateAsync({
+        id: 'exp-1',
+        input: {
+          patch: {},
+          items: null,
+          paid_by_member_id: 'mem-1',
+          splits: [],
+        },
+        groupId: 'grp-1',
+      }),
+    ).rejects.toThrow();
   });
 });
 

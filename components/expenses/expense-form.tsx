@@ -71,6 +71,20 @@ export interface GroupConfig {
   groupId?: string;
 }
 
+/**
+ * Prefilled split state for the shared-expense edit path.
+ *
+ * The caller (expense detail screen) reconstructs this from the loaded
+ * expense's existing splits: type is always 'custom' so the saved amounts are
+ * reproduced faithfully regardless of how they were originally entered.
+ */
+export interface InitialSplitState {
+  /** Member id of the member who originally paid. */
+  paidByMemberId: string | null;
+  /** Reconstructed SplitState — type='custom', values keyed by member_id. */
+  splitState: SplitState;
+}
+
 export interface ExpenseFormProps {
   categories: CategoryRow[];
   /** Optional initial values (edit mode — DB row, optionally with items). Takes precedence over prefill. */
@@ -94,6 +108,15 @@ export interface ExpenseFormProps {
    * When set, the toggle/selector UI is NOT shown (pre-bound group screen).
    */
   groupConfig?: GroupConfig;
+  /**
+   * Optional prefilled split state for the shared-expense edit path.
+   *
+   * When provided, the who-paid selector defaults to `paidByMemberId` and the
+   * SplitEditor is initialised with the given `splitState` (type='custom',
+   * values from the existing splits). Ignored when `groupConfig` is absent.
+   * Does NOT affect the create path.
+   */
+  initialSplit?: InitialSplitState;
   /**
    * Groups the current user belongs to — enables the "¿Gasto compartido?"
    * toggle when non-empty and `groupConfig` is NOT passed. The toggle lets
@@ -142,6 +165,7 @@ export function ExpenseForm({
   prefill,
   lowConfidence = false,
   groupConfig,
+  initialSplit,
   shareableGroups,
   currentUserId,
   onSubmit,
@@ -234,21 +258,38 @@ export function ExpenseForm({
   })();
 
   // Group-specific state: who paid and how to split.
-  // Initial paidByMemberId comes from groupConfig prop (pre-bound group screen).
+  // Resolution order for paidByMemberId:
+  //   1. initialSplit.paidByMemberId  (shared-expense edit — prefill from existing row)
+  //   2. groupConfig.currentMemberId  (pre-bound group screen — default to current user)
+  //   3. groupConfig.members[0].id    (fallback)
+  //   4. null                         (personal expense path)
   const defaultPaidBy =
-    groupConfig != null
-      ? (groupConfig.currentMemberId ?? groupConfig.members[0]?.id ?? null)
-      : null;
+    initialSplit?.paidByMemberId != null
+      ? initialSplit.paidByMemberId
+      : groupConfig != null
+        ? (groupConfig.currentMemberId ?? groupConfig.members[0]?.id ?? null)
+        : null;
   const [paidByMemberId, setPaidByMemberId] = useState<string | null>(defaultPaidBy);
-  const [splitState, setSplitState] = useState<SplitState>({
-    type: 'equal',
-    values: {},
-    includedMemberIds: [],
-  });
+
+  // Resolution order for initial split state:
+  //   1. initialSplit.splitState  (shared-expense edit — restored from DB splits)
+  //   2. default empty equal split (create path)
+  const [splitState, setSplitState] = useState<SplitState>(
+    initialSplit?.splitState ?? {
+      type: 'equal',
+      values: {},
+      includedMemberIds: [],
+    },
+  );
   const [splitError, setSplitError] = useState<string | null>(null);
 
   // When the user selects a group via the toggle, reset payer + splits to that group's defaults.
+  // This effect is intentionally scoped to the in-form toggle path (showShareToggle === true).
+  // When groupConfig is pre-bound (groupConfig != null), this effect must NOT run — the
+  // paidByMemberId and splitState are already seeded from initialSplit / groupConfig defaults
+  // and must not be overwritten by the toggle's reset logic.
   React.useEffect(() => {
+    if (!showShareToggle) return; // pre-bound group path — do not interfere
     if (selectedGroup != null) {
       const activeMembers = selectedGroup.members.filter((m) => m.status === 'active');
       const newDefault =

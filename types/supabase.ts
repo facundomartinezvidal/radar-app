@@ -570,6 +570,34 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      update_shared_expense: {
+        Args: {
+          p_id: string;
+          p_items?: Json;
+          p_paid_by_member_id?: string;
+          p_patch?: Json;
+          p_splits?: Json;
+        };
+        Returns: {
+          amount: number;
+          category_id: string | null;
+          created_at: string;
+          currency: string;
+          description: string | null;
+          group_id: string | null;
+          id: string;
+          occurred_at: string;
+          paid_by_member_id: string | null;
+          updated_at: string;
+          user_id: string;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'expenses';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       user_exists_by_email: { Args: { p_email: string }; Returns: boolean };
     };
     Enums: {

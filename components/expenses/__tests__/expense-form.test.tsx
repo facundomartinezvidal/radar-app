@@ -359,6 +359,118 @@ describe('ExpenseForm — groupConfig', () => {
 });
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// HU-17 — initialSplit (shared-expense edit prefill)
+// ---------------------------------------------------------------------------
+
+describe('ExpenseForm — initialSplit (shared edit prefill)', () => {
+  it('prefills paidByMemberId from initialSplit', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        onSubmit={jest.fn()}
+        groupConfig={{ members: GROUP_MEMBERS, currentMemberId: null }}
+        initialSplit={{
+          paidByMemberId: 'm2',
+          splitState: {
+            type: 'custom',
+            values: { m1: 500, m2: 500 },
+            includedMemberIds: ['m1', 'm2'],
+          },
+        }}
+      />,
+    );
+    // m2 = "Jonathan Mayan" should be the selected payer (radio accessible)
+    const jonathanRadio = screen.getByLabelText('Pagó Jonathan Mayan');
+    expect(jonathanRadio).toBeTruthy();
+  });
+
+  it('initialSplit paidByMemberId takes precedence over currentMemberId', () => {
+    // currentMemberId = m1, but initialSplit says m2 paid
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        onSubmit={jest.fn()}
+        groupConfig={{ members: GROUP_MEMBERS, currentMemberId: 'm1' }}
+        initialSplit={{
+          paidByMemberId: 'm2',
+          splitState: {
+            type: 'custom',
+            values: { m1: 500, m2: 500 },
+            includedMemberIds: ['m1', 'm2'],
+          },
+        }}
+      />,
+    );
+    const jonathanRadio = screen.getByLabelText('Pagó Jonathan Mayan');
+    expect(jonathanRadio).toBeTruthy();
+  });
+
+  it('renders split editor when initialSplit + groupConfig are provided', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        onSubmit={jest.fn()}
+        groupConfig={{ members: GROUP_MEMBERS, currentMemberId: 'm1' }}
+        initialSplit={{
+          paidByMemberId: 'm1',
+          splitState: {
+            type: 'custom',
+            values: { m1: 600, m2: 400 },
+            includedMemberIds: ['m1', 'm2'],
+          },
+        }}
+      />,
+    );
+    expect(screen.getByText('División')).toBeTruthy();
+  });
+
+  it('create path (no initialSplit) defaults to equal split — does not crash', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        onSubmit={jest.fn()}
+        groupConfig={{ members: GROUP_MEMBERS, currentMemberId: 'm1' }}
+      />,
+    );
+    expect(screen.getByText('¿Quién pagó?')).toBeTruthy();
+    expect(screen.getByText('División')).toBeTruthy();
+  });
+
+  it('calls onSubmitShared with the correct paid_by when initialSplit is provided', async () => {
+    const onSubmitShared = jest.fn().mockResolvedValue(undefined);
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        onSubmit={jest.fn()}
+        onSubmitShared={onSubmitShared}
+        groupConfig={{ members: GROUP_MEMBERS, currentMemberId: 'm1', groupId: 'g1' }}
+        initialSplit={{
+          paidByMemberId: 'm2',
+          splitState: {
+            type: 'custom',
+            values: { m1: 500, m2: 500 },
+            includedMemberIds: ['m1', 'm2'],
+          },
+        }}
+        prefill={{ amount: 1000 }}
+        submitLabel="Guardar cambios"
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('Guardar cambios'));
+    });
+
+    expect(onSubmitShared).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paid_by_member_id: 'm2',
+        group_id: 'g1',
+      }),
+    );
+  });
+});
+
 // HU-17 — GroupConfig: "Vos" label + include-toggle subset
 // ---------------------------------------------------------------------------
 
