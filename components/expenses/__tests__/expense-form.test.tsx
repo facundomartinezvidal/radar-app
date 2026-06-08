@@ -14,7 +14,7 @@ import { render, screen, fireEvent, act } from '@testing-library/react-native';
 
 import { ExpenseForm } from '../expense-form';
 import type { CategoryRow } from '@/lib/repositories/expenses';
-import type { GroupMemberRow } from '@/lib/repositories/groups';
+import type { GroupMemberRow, GroupWithMembers } from '@/lib/repositories/groups';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -307,14 +307,14 @@ describe('ExpenseForm — groupConfig', () => {
     expect(screen.queryByText('División')).toBeNull();
   });
 
-  it('calls onSubmitShared with paid_by_member_id and splits on valid submit', async () => {
+  it('calls onSubmitShared with paid_by_member_id, splits, and group_id on valid submit', async () => {
     const onSubmitShared = jest.fn().mockResolvedValue(undefined);
     render(
       <ExpenseForm
         categories={CATEGORIES}
         onSubmit={jest.fn()}
         onSubmitShared={onSubmitShared}
-        groupConfig={{ members: GROUP_MEMBERS, currentMemberId: 'm1' }}
+        groupConfig={{ members: GROUP_MEMBERS, currentMemberId: 'm1', groupId: 'g1' }}
         prefill={{ amount: 1000 }}
         submitLabel="Registrar gasto"
       />,
@@ -327,11 +327,234 @@ describe('ExpenseForm — groupConfig', () => {
     expect(onSubmitShared).toHaveBeenCalledWith(
       expect.objectContaining({
         paid_by_member_id: 'm1',
+        group_id: 'g1',
         splits: expect.arrayContaining([
           expect.objectContaining({ member_id: 'm1' }),
           expect.objectContaining({ member_id: 'm2' }),
         ]),
       }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Share toggle (shareableGroups)
+// ---------------------------------------------------------------------------
+
+function makeGroup(id: string, name: string, members: GroupMemberRow[]): GroupWithMembers {
+  return {
+    id,
+    name,
+    icon: 'House',
+    color: '#0077B6',
+    created_by: 'u1',
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    members,
+  } as GroupWithMembers;
+}
+
+function makeMemberWithUser(
+  id: string,
+  displayName: string,
+  userId: string | null,
+): GroupMemberRow {
+  return {
+    id,
+    group_id: 'g2',
+    user_id: userId,
+    display_name: displayName,
+    role: 'member',
+    status: 'active',
+    joined_at: null,
+    invited_by: null,
+    created_at: '2026-01-01T00:00:00Z',
+  } satisfies GroupMemberRow;
+}
+
+const TOGGLE_MEMBERS: GroupMemberRow[] = [
+  makeMemberWithUser('m10', 'Facundo Martinez', 'u1'),
+  makeMemberWithUser('m11', 'Jonathan Mayan', null),
+];
+
+const SHAREABLE_GROUPS: GroupWithMembers[] = [makeGroup('g2', 'Depto', TOGGLE_MEMBERS)];
+
+describe('ExpenseForm — share toggle (shareableGroups)', () => {
+  it('renders the ¿Gasto compartido? toggle when shareableGroups is non-empty and groupConfig is absent', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        shareableGroups={SHAREABLE_GROUPS}
+        currentUserId="u1"
+        onSubmit={jest.fn()}
+      />,
+    );
+    expect(screen.getByLabelText('¿Gasto compartido?')).toBeTruthy();
+  });
+
+  it('does NOT render the toggle when shareableGroups is empty', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        shareableGroups={[]}
+        currentUserId="u1"
+        onSubmit={jest.fn()}
+      />,
+    );
+    expect(screen.queryByLabelText('¿Gasto compartido?')).toBeNull();
+  });
+
+  it('does NOT render the toggle when shareableGroups is absent', () => {
+    render(<ExpenseForm categories={CATEGORIES} onSubmit={jest.fn()} />);
+    expect(screen.queryByLabelText('¿Gasto compartido?')).toBeNull();
+  });
+
+  it('does NOT render the toggle when groupConfig is provided (pre-bound group screen)', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        onSubmit={jest.fn()}
+        groupConfig={{ members: GROUP_MEMBERS, currentMemberId: 'm1', groupId: 'g1' }}
+        shareableGroups={SHAREABLE_GROUPS}
+        currentUserId="u1"
+      />,
+    );
+    expect(screen.queryByLabelText('¿Gasto compartido?')).toBeNull();
+    // But who-paid is still shown (from groupConfig)
+    expect(screen.getByText('¿Quién pagó?')).toBeTruthy();
+  });
+
+  it('shows the group selector trigger after toggling ON', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        shareableGroups={SHAREABLE_GROUPS}
+        currentUserId="u1"
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    fireEvent.press(screen.getByLabelText('¿Gasto compartido?'));
+
+    expect(screen.getByLabelText('Elegí un grupo')).toBeTruthy();
+  });
+
+  it('shows the group list when group selector trigger is pressed', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        shareableGroups={SHAREABLE_GROUPS}
+        currentUserId="u1"
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    // Toggle ON
+    fireEvent.press(screen.getByLabelText('¿Gasto compartido?'));
+    // Open group selector
+    fireEvent.press(screen.getByLabelText('Elegí un grupo'));
+
+    expect(screen.getByLabelText('Grupo Depto')).toBeTruthy();
+  });
+
+  it('shows ¿Quién pagó? and División after selecting a group', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        shareableGroups={SHAREABLE_GROUPS}
+        currentUserId="u1"
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    // Toggle ON
+    fireEvent.press(screen.getByLabelText('¿Gasto compartido?'));
+    // Open and select group
+    fireEvent.press(screen.getByLabelText('Elegí un grupo'));
+    fireEvent.press(screen.getByLabelText('Grupo Depto'));
+
+    expect(screen.getByText('¿Quién pagó?')).toBeTruthy();
+    expect(screen.getByText('División')).toBeTruthy();
+  });
+
+  it('blocks submit with "Elegí un grupo." when toggle is ON but no group selected', async () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        shareableGroups={SHAREABLE_GROUPS}
+        currentUserId="u1"
+        onSubmit={jest.fn()}
+        prefill={{ amount: 500 }}
+        submitLabel="Registrar gasto"
+      />,
+    );
+
+    // Toggle ON without selecting a group
+    fireEvent.press(screen.getByLabelText('¿Gasto compartido?'));
+
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('Registrar gasto'));
+    });
+
+    expect(screen.getByText('Elegí un grupo.')).toBeTruthy();
+  });
+
+  it('calls onSubmitShared with group_id when toggle ON + group selected + valid form', async () => {
+    const onSubmitShared = jest.fn().mockResolvedValue(undefined);
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        shareableGroups={SHAREABLE_GROUPS}
+        currentUserId="u1"
+        onSubmit={jest.fn()}
+        onSubmitShared={onSubmitShared}
+        prefill={{ amount: 1000 }}
+        submitLabel="Registrar gasto"
+      />,
+    );
+
+    // Toggle ON
+    fireEvent.press(screen.getByLabelText('¿Gasto compartido?'));
+    // Open and select group
+    fireEvent.press(screen.getByLabelText('Elegí un grupo'));
+    fireEvent.press(screen.getByLabelText('Grupo Depto'));
+
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('Registrar gasto'));
+    });
+
+    expect(onSubmitShared).toHaveBeenCalledWith(
+      expect.objectContaining({
+        group_id: 'g2',
+        paid_by_member_id: expect.any(String),
+        splits: expect.arrayContaining([
+          expect.objectContaining({ member_id: expect.any(String) }),
+        ]),
+      }),
+    );
+  });
+
+  it('calls personal onSubmit (not onSubmitShared) when toggle is OFF', async () => {
+    const onSubmit = jest.fn().mockResolvedValue(undefined);
+    const onSubmitShared = jest.fn();
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        shareableGroups={SHAREABLE_GROUPS}
+        currentUserId="u1"
+        onSubmit={onSubmit}
+        onSubmitShared={onSubmitShared}
+        prefill={{ amount: 500 }}
+        submitLabel="Registrar gasto"
+      />,
+    );
+
+    // Do NOT toggle — keep toggle OFF (default)
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('Registrar gasto'));
+    });
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ amount: 500 }));
+    expect(onSubmitShared).not.toHaveBeenCalled();
   });
 });

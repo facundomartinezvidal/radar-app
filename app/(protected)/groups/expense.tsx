@@ -39,6 +39,8 @@ export default function NewSharedExpenseScreen(): React.JSX.Element {
 
   async function handleSubmit(payload: SharedExpenseSubmitPayload): Promise<void> {
     if (groupId == null) return;
+    // group_id is carried in the payload (set via groupConfig.groupId in ExpenseForm)
+    const resolvedGroupId = payload.group_id.length > 0 ? payload.group_id : groupId;
     setSubmitError(null);
     try {
       await createMutation.mutateAsync({
@@ -53,7 +55,7 @@ export default function NewSharedExpenseScreen(): React.JSX.Element {
           unit_price: item.unit_price,
           line_total: item.line_total,
         })),
-        group_id: groupId,
+        group_id: resolvedGroupId,
         paid_by_member_id: payload.paid_by_member_id,
         splits: payload.splits,
       });
@@ -111,7 +113,7 @@ export default function NewSharedExpenseScreen(): React.JSX.Element {
               isSubmitting={createMutation.isPending}
               submitError={submitError}
               submitLabel="Registrar gasto"
-              groupConfig={{ members: activeMembers, currentMemberId }}
+              groupConfig={{ members: activeMembers, currentMemberId, groupId }}
               onSubmit={() => {
                 // No-op: shared path always uses onSubmitShared
               }}

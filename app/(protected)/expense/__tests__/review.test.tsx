@@ -93,6 +93,23 @@ jest.mock('@/lib/repositories/expenses');
 
 const mockedRepo = repo as jest.Mocked<typeof repo>;
 
+// use-groups: default to empty list (no share toggle shown)
+const mockCreateSharedExpenseMutateAsync = jest.fn().mockResolvedValue({ id: 'shared-1' });
+
+jest.mock('@/hooks/use-groups', () => ({
+  useGroups: jest.fn(() => ({ data: [], isLoading: false, error: null })),
+  useCreateSharedExpense: jest.fn(() => ({
+    mutateAsync: mockCreateSharedExpenseMutateAsync,
+    isPending: false,
+  })),
+}));
+
+jest.mock('@/stores/auth-store', () => ({
+  useAuthStore: jest.fn((selector: (s: { user: { id: string } | null }) => unknown) =>
+    selector({ user: { id: 'u1' } }),
+  ),
+}));
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
@@ -189,6 +206,10 @@ function renderWithProviders(): { client: QueryClient } {
 // Tests
 // ---------------------------------------------------------------------------
 
+const { useGroups } = jest.requireMock('@/hooks/use-groups') as {
+  useGroups: jest.Mock;
+};
+
 describe('ReviewScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -202,6 +223,9 @@ describe('ReviewScreen', () => {
     mockExtract.error = null;
 
     mockedRepo.listCategories.mockResolvedValue({ data: CATEGORIES, error: null });
+    // Default: no groups (toggle hidden — doesn't affect existing tests)
+    useGroups.mockReturnValue({ data: [], isLoading: false, error: null });
+    mockCreateSharedExpenseMutateAsync.mockResolvedValue({ id: 'shared-1' });
   });
 
   // -------------------------------------------------------------------------
@@ -557,5 +581,115 @@ describe('ReviewScreen', () => {
 
     // The expense form must be present (not a blank screen).
     expect(screen.getByText('Registrar gasto')).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HU-17: share toggle wiring in ReviewScreen
+// ---------------------------------------------------------------------------
+
+const REVIEW_GROUP_MEMBERS = [
+  {
+    id: 'rm1',
+    group_id: 'rg1',
+    user_id: 'u1',
+    display_name: 'Facundo Martinez',
+    role: 'member',
+    status: 'active',
+    joined_at: null,
+    invited_by: null,
+    created_at: '2026-01-01T00:00:00Z',
+  },
+  {
+    id: 'rm2',
+    group_id: 'rg1',
+    user_id: null,
+    display_name: 'Jonathan Mayan',
+    role: 'member',
+    status: 'active',
+    joined_at: null,
+    invited_by: null,
+    created_at: '2026-01-01T00:00:00Z',
+  },
+];
+
+const REVIEW_MOCK_GROUPS = [
+  {
+    id: 'rg1',
+    name: 'Amigos',
+    icon: 'Users',
+    color: '#10B981',
+    created_by: 'u1',
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    members: REVIEW_GROUP_MEMBERS,
+  },
+];
+
+describe('ReviewScreen — share toggle wiring (HU-17)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockImageUri.current = 'file://x.jpg';
+
+    mockExtract.mutate = jest.fn();
+    mockExtract.reset = jest.fn();
+    mockExtract.isPending = false;
+    mockExtract.data = undefined;
+    mockExtract.error = null;
+
+    mockedRepo.listCategories.mockResolvedValue({ data: CATEGORIES, error: null });
+    useGroups.mockReturnValue({ data: REVIEW_MOCK_GROUPS, isLoading: false, error: null });
+    mockCreateSharedExpenseMutateAsync.mockResolvedValue({ id: 'shared-r1' });
+  });
+
+  it('shows the share toggle on the OCR success form when the user has groups', async () => {
+    mockExtract.isPending = false;
+    mockExtract.data = OCR_RESULT_WITH_DATA;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('¿Gasto compartido?')).toBeTruthy();
+    });
+  });
+
+  it('calls useCreateSharedExpense on shared submit from review screen', async () => {
+    mockExtract.isPending = false;
+    mockExtract.data = OCR_RESULT_WITH_DATA;
+
+    mockedRepo.createExpense.mockResolvedValue({
+      data: { id: 'e1', items: [] } as unknown as repo.ExpenseWithItems,
+      error: null,
+    });
+
+    renderWithProviders();
+
+    // Wait for OCR form to render
+    await waitFor(() => expect(screen.getByDisplayValue('1500')).toBeTruthy());
+
+    // Toggle shared ON
+    fireEvent.press(screen.getByLabelText('¿Gasto compartido?'));
+
+    // Open and select group
+    fireEvent.press(screen.getByLabelText('Elegí un grupo'));
+    await waitFor(() => expect(screen.getByLabelText('Grupo Amigos')).toBeTruthy());
+    fireEvent.press(screen.getByLabelText('Grupo Amigos'));
+
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('Registrar gasto'));
+    });
+
+    await waitFor(() => {
+      expect(mockCreateSharedExpenseMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          amount: 1500,
+          group_id: 'rg1',
+          paid_by_member_id: expect.any(String),
+          splits: expect.arrayContaining([
+            expect.objectContaining({ member_id: expect.any(String) }),
+          ]),
+        }),
+      );
+    });
   });
 });
