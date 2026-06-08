@@ -438,6 +438,88 @@ describe('checkUserExists', () => {
 });
 
 // ---------------------------------------------------------------------------
+// updateMember
+// ---------------------------------------------------------------------------
+
+describe('updateMember', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('calls update → eq → select → single with trimmed display_name', async () => {
+    const handle = makeChain({ data: MEMBER_ROW, error: null });
+    (supabase.from as jest.Mock).mockReturnValueOnce(handle.chain);
+
+    const result = await repo.updateMember('mem-1', '  Carlos  ');
+
+    expect(result.error).toBeNull();
+    expect(result.data?.id).toBe('mem-1');
+
+    const updateCall = handle.calls.find((c) => c.method === 'update');
+    expect(updateCall?.args[0]).toEqual({ display_name: 'Carlos' });
+
+    const eqCall = handle.calls.find((c) => c.method === 'eq');
+    expect(eqCall?.args).toEqual(['id', 'mem-1']);
+
+    expect(handle.calls.find((c) => c.method === 'select')).toBeDefined();
+    expect(handle.calls.find((c) => c.method === 'single')).toBeDefined();
+  });
+
+  it('returns { data: null, error } when the update fails', async () => {
+    const pgError = { code: '42501', message: 'permission denied' };
+    const handle = makeChain({ data: null, error: pgError });
+    (supabase.from as jest.Mock).mockReturnValueOnce(handle.chain);
+
+    const result = await repo.updateMember('mem-1', 'New Name');
+
+    expect(result.data).toBeNull();
+    expect(result.error).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// removeMember
+// ---------------------------------------------------------------------------
+
+describe('removeMember', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('calls delete → eq with the member id and returns { id }', async () => {
+    const handle = makeChain({ data: null, error: null });
+    handle.chain.eq.mockImplementationOnce((...args: unknown[]) => {
+      handle.calls.push({ method: 'eq', args });
+      return Promise.resolve({ data: null, error: null });
+    });
+    (supabase.from as jest.Mock).mockReturnValueOnce(handle.chain);
+
+    const result = await repo.removeMember('mem-1');
+
+    expect(result.error).toBeNull();
+    expect(result.data).toEqual({ id: 'mem-1' });
+
+    const eqCall = handle.calls.find((c) => c.method === 'eq');
+    expect(eqCall?.args).toEqual(['id', 'mem-1']);
+  });
+
+  it('returns { data: null, error } when the delete fails', async () => {
+    const pgError = { code: '42501', message: 'permission denied' };
+    const handle = makeChain({ data: null, error: pgError });
+    handle.chain.eq.mockImplementationOnce((...args: unknown[]) => {
+      handle.calls.push({ method: 'eq', args });
+      return Promise.resolve({ data: null, error: pgError });
+    });
+    (supabase.from as jest.Mock).mockReturnValueOnce(handle.chain);
+
+    const result = await repo.removeMember('mem-1');
+
+    expect(result.data).toBeNull();
+    expect(result.error).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // getGroupBalances
 // ---------------------------------------------------------------------------
 

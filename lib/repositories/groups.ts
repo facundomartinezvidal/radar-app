@@ -202,6 +202,46 @@ export async function checkUserExists(email: string): Promise<RepoResult<boolean
 }
 
 /**
+ * Update a placeholder member's display_name (owner-only; enforced by RLS).
+ *
+ * Only meaningful for placeholder members (user_id IS NULL). The caller is
+ * responsible for guarding the UI so rename is only offered for placeholders.
+ */
+export async function updateMember(
+  memberId: string,
+  displayName: string,
+): Promise<RepoResult<GroupMemberRow>> {
+  try {
+    const { data, error } = await supabase
+      .from('group_members')
+      .update({ display_name: displayName.trim() })
+      .eq('id', memberId)
+      .select('*')
+      .single();
+    if (error) return { data: null, error };
+    return { data: data as GroupMemberRow, error: null };
+  } catch (e) {
+    return { data: null, error: e as Error };
+  }
+}
+
+/**
+ * Remove a member from a group (owner-only; enforced by RLS).
+ *
+ * Cascade-deletes `expense_splits` and `group_settlements` rows for this
+ * member. Balances will recompute on the next fetch.
+ */
+export async function removeMember(memberId: string): Promise<RepoResult<{ id: string }>> {
+  try {
+    const { error } = await supabase.from('group_members').delete().eq('id', memberId);
+    if (error) return { data: null, error };
+    return { data: { id: memberId }, error: null };
+  } catch (e) {
+    return { data: null, error: e as Error };
+  }
+}
+
+/**
  * Fetch per-member net balances for a group via the `get_group_balances` RPC.
  *
  * Each row has `{ member_id, currency, net }` where `net > 0` means the

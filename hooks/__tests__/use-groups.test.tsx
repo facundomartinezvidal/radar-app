@@ -24,6 +24,8 @@ import {
   useGroupBalances,
   useGroupExpenses,
   usePendingInvites,
+  useRemoveMember,
+  useUpdateMember,
   useUpdateSharedExpense,
 } from '../use-groups';
 import { expenseKeys } from '../use-expenses';
@@ -571,5 +573,118 @@ describe('useDeleteGroup', () => {
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: groupKeys.all });
     expect(remove).toHaveBeenCalledWith({ queryKey: groupKeys.detail('grp-1') });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// useUpdateMember
+// ---------------------------------------------------------------------------
+
+describe('useUpdateMember', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('calls updateMember repo function with correct args', async () => {
+    mockedGroups.updateMember.mockResolvedValueOnce({ data: MEMBER_ROW, error: null });
+
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useUpdateMember(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        memberId: 'mem-1',
+        displayName: 'Carlos',
+        groupId: 'grp-1',
+      });
+    });
+
+    expect(mockedGroups.updateMember).toHaveBeenCalledWith('mem-1', 'Carlos');
+  });
+
+  it('invalidates groupKeys.detail and groupKeys.all on success', async () => {
+    mockedGroups.updateMember.mockResolvedValueOnce({ data: MEMBER_ROW, error: null });
+
+    const { wrapper, client } = makeWrapper();
+    const invalidate = jest.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useUpdateMember(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        memberId: 'mem-1',
+        displayName: 'Carlos',
+        groupId: 'grp-1',
+      });
+    });
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: groupKeys.detail('grp-1') });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: groupKeys.all });
+  });
+
+  it('throws on repo error', async () => {
+    mockedGroups.updateMember.mockResolvedValueOnce({
+      data: null,
+      error: new Error('permission denied'),
+    });
+
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useUpdateMember(), { wrapper });
+
+    await expect(
+      result.current.mutateAsync({ memberId: 'mem-1', displayName: 'X', groupId: 'grp-1' }),
+    ).rejects.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// useRemoveMember
+// ---------------------------------------------------------------------------
+
+describe('useRemoveMember', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('calls removeMember repo function with the correct member id', async () => {
+    mockedGroups.removeMember.mockResolvedValueOnce({ data: { id: 'mem-1' }, error: null });
+
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useRemoveMember(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({ memberId: 'mem-1', groupId: 'grp-1' });
+    });
+
+    expect(mockedGroups.removeMember).toHaveBeenCalledWith('mem-1');
+  });
+
+  it('invalidates detail, balances, and all queries for the group on success', async () => {
+    mockedGroups.removeMember.mockResolvedValueOnce({ data: { id: 'mem-1' }, error: null });
+
+    const { wrapper, client } = makeWrapper();
+    const invalidate = jest.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useRemoveMember(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({ memberId: 'mem-1', groupId: 'grp-1' });
+    });
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: groupKeys.detail('grp-1') });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: groupKeys.balances('grp-1') });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: groupKeys.all });
+  });
+
+  it('throws on repo error', async () => {
+    mockedGroups.removeMember.mockResolvedValueOnce({
+      data: null,
+      error: new Error('not found'),
+    });
+
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useRemoveMember(), { wrapper });
+
+    await expect(
+      result.current.mutateAsync({ memberId: 'mem-1', groupId: 'grp-1' }),
+    ).rejects.toThrow();
   });
 });
