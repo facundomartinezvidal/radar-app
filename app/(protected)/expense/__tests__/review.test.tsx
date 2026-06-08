@@ -118,6 +118,7 @@ const OCR_RESULT_WITH_DATA: OcrResult = {
   categoryHint: 'comida',
   occurredAt: '2026-05-31',
   suggestedNewCategory: null,
+  suggestedNewCategoryReason: null,
   confidence: 0.9,
   items: [],
 };
@@ -129,6 +130,7 @@ const OCR_RESULT_EMPTY: OcrResult = {
   categoryHint: null,
   occurredAt: null,
   suggestedNewCategory: null,
+  suggestedNewCategoryReason: null,
   confidence: 0.3,
   items: [],
 };
@@ -141,6 +143,7 @@ const OCR_RESULT_WITH_ITEMS: OcrResult = {
   categoryHint: 'comida',
   occurredAt: '2026-05-31',
   suggestedNewCategory: null,
+  suggestedNewCategoryReason: null,
   confidence: 0.85,
   items: [
     { name: 'Leche entera', quantity: 2, unitPrice: 500, lineTotal: 1000 },
@@ -159,6 +162,7 @@ const OCR_RESULT_ITEMS_ONLY: OcrResult = {
   categoryHint: null,
   occurredAt: null,
   suggestedNewCategory: null,
+  suggestedNewCategoryReason: null,
   confidence: 0.6,
   items: [{ name: 'Producto', quantity: 1, unitPrice: 200, lineTotal: 200 }],
 };

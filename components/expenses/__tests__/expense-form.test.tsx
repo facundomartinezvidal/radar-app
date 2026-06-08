@@ -100,7 +100,7 @@ describe('ExpenseForm', () => {
 });
 
 // ---------------------------------------------------------------------------
-// OCR suggestion CTA
+// OCR suggestion CTA / recommendation card
 // ---------------------------------------------------------------------------
 
 describe('ExpenseForm — OCR suggestion CTA', () => {
@@ -150,5 +150,84 @@ describe('ExpenseForm — OCR suggestion CTA', () => {
     );
 
     expect(screen.getByLabelText('Crear categoría sugerida')).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// OCR recommendation card — heading + reason text
+// ---------------------------------------------------------------------------
+
+describe('ExpenseForm — recommendation card content', () => {
+  it('shows the recommended category name in the card heading', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        prefill={{ suggestedCategoryName: 'Ropa', suggestedCategoryReason: 'Es indumentaria.' }}
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Categoría recomendada: Ropa')).toBeTruthy();
+  });
+
+  it('shows the reason text when suggestedCategoryReason is provided', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        prefill={{
+          suggestedCategoryName: 'Ropa',
+          suggestedCategoryReason:
+            'El comercio es Zara, una tienda de indumentaria; conviene una categoría de ropa separada de tus otros gastos.',
+        }}
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        'El comercio es Zara, una tienda de indumentaria; conviene una categoría de ropa separada de tus otros gastos.',
+      ),
+    ).toBeTruthy();
+  });
+
+  it('shows the fallback text when suggestedCategoryReason is absent', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        prefill={{ suggestedCategoryName: 'Ropa' }}
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Este gasto no encaja en tus categorías actuales.')).toBeTruthy();
+  });
+
+  it('shows the fallback text when suggestedCategoryReason is null', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        prefill={{ suggestedCategoryName: 'Ropa', suggestedCategoryReason: null }}
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Este gasto no encaja en tus categorías actuales.')).toBeTruthy();
+  });
+
+  it('does NOT render the recommendation card when category_id is matched', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        prefill={{
+          suggestedCategoryName: 'Ropa',
+          suggestedCategoryReason: 'Es indumentaria.',
+          category_id: 'cat-1',
+        }}
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    expect(screen.queryByText('Categoría recomendada: Ropa')).toBeNull();
+    expect(screen.queryByText('Es indumentaria.')).toBeNull();
   });
 });

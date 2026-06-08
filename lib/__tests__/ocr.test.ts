@@ -166,6 +166,49 @@ describe('ocrResultSchema — suggestedNewCategory', () => {
 });
 
 // ---------------------------------------------------------------------------
+// ocrResultSchema — suggestedNewCategoryReason field
+// ---------------------------------------------------------------------------
+
+describe('ocrResultSchema — suggestedNewCategoryReason', () => {
+  const BASE_PAYLOAD = {
+    amount: 1000,
+    currency: 'ARS',
+    occurredAt: '2026-05-01',
+    merchant: 'Zara',
+    categoryHint: null,
+    suggestedNewCategory: 'Ropa',
+    confidence: 0.8,
+    items: [],
+  };
+
+  it('parses suggestedNewCategoryReason when present as a string', () => {
+    const result = ocrResultSchema.parse({
+      ...BASE_PAYLOAD,
+      suggestedNewCategoryReason:
+        'El comercio es Zara, una tienda de indumentaria; conviene una categoría de ropa separada.',
+    });
+    expect(result.suggestedNewCategoryReason).toBe(
+      'El comercio es Zara, una tienda de indumentaria; conviene una categoría de ropa separada.',
+    );
+  });
+
+  it('defaults suggestedNewCategoryReason to null when missing from payload (catch)', () => {
+    const result = ocrResultSchema.parse(BASE_PAYLOAD);
+    expect(result.suggestedNewCategoryReason).toBeNull();
+  });
+
+  it('coerces a non-string value (number) to null via catch', () => {
+    const result = ocrResultSchema.parse({ ...BASE_PAYLOAD, suggestedNewCategoryReason: 123 });
+    expect(result.suggestedNewCategoryReason).toBeNull();
+  });
+
+  it('preserves null when explicitly null', () => {
+    const result = ocrResultSchema.parse({ ...BASE_PAYLOAD, suggestedNewCategoryReason: null });
+    expect(result.suggestedNewCategoryReason).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // mapOcrItems
 // ---------------------------------------------------------------------------
 
@@ -362,6 +405,7 @@ describe('mapOcrToPrefill', () => {
       merchant: 'Burguer Palace',
       categoryHint: 'Comida',
       suggestedNewCategory: null,
+      suggestedNewCategoryReason: null,
       confidence: 0.9,
       items: [],
       ...overrides,
@@ -507,6 +551,43 @@ describe('mapOcrToPrefill', () => {
     expect(prefill.category_id).toBeNull();
     expect(prefill.suggestedCategoryName).toBeUndefined();
   });
+
+  it('sets suggestedCategoryReason when there is no match and a reason is provided', () => {
+    const reason =
+      'El comercio es Zara, una tienda de indumentaria; conviene una categoría de ropa separada.';
+    const result = makeResult({
+      categoryHint: null,
+      suggestedNewCategory: 'Ropa',
+      suggestedNewCategoryReason: reason,
+    });
+    const prefill = mapOcrToPrefill(result, CATEGORIES);
+    expect(prefill.suggestedCategoryName).toBe('Ropa');
+    expect(prefill.suggestedCategoryReason).toBe(reason);
+  });
+
+  it('sets suggestedCategoryReason to null when no reason is provided', () => {
+    const result = makeResult({
+      categoryHint: null,
+      suggestedNewCategory: 'Ropa',
+      suggestedNewCategoryReason: null,
+    });
+    const prefill = mapOcrToPrefill(result, CATEGORIES);
+    expect(prefill.suggestedCategoryName).toBe('Ropa');
+    expect(prefill.suggestedCategoryReason).toBeNull();
+  });
+
+  it('does not set suggestedCategoryReason when categoryHint matches a category', () => {
+    const result = makeResult({
+      categoryHint: 'Comida',
+      suggestedNewCategory: 'Ropa',
+      suggestedNewCategoryReason: 'Debería ser ropa',
+    });
+    const prefill = mapOcrToPrefill(result, CATEGORIES);
+    // category matched, so suggestion block is skipped entirely
+    expect(prefill.category_id).toBe('1');
+    expect(prefill.suggestedCategoryName).toBeUndefined();
+    expect(prefill.suggestedCategoryReason).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -525,6 +606,7 @@ describe('extractReceipt', () => {
     merchant: 'Supermercado Día',
     categoryHint: 'Supermercado',
     suggestedNewCategory: null,
+    suggestedNewCategoryReason: null,
     confidence: 0.85,
     items: [],
   };
