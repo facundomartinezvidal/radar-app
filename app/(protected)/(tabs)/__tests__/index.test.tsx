@@ -116,10 +116,16 @@ describe('HomeScreen', () => {
     expect(screen.queryByText('Cerrar sesión')).toBeNull();
   });
 
-  it('pressing "Escanear" navigates to the camera tab', () => {
+  it('renders "Ver categorías" quick action and "Escanear" is gone', () => {
     renderWithClient();
-    fireEvent.press(screen.getByLabelText('Escanear comprobante'));
-    expect(router.push).toHaveBeenCalledWith('/(protected)/(tabs)/camera');
+    expect(screen.getByLabelText('Ver categorías')).toBeTruthy();
+    expect(screen.queryByLabelText('Escanear comprobante')).toBeNull();
+  });
+
+  it('pressing "Ver categorías" navigates to the categories management screen', () => {
+    renderWithClient();
+    fireEvent.press(screen.getByLabelText('Ver categorías'));
+    expect(router.push).toHaveBeenCalledWith('/(protected)/profile/categories');
   });
 
   it('avatar Pressable navigates to profile', () => {

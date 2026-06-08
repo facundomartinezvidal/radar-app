@@ -6,15 +6,14 @@
  *  - Typing in the search box filters the list
  *  - Tapping a tile calls onSelect(id) and onClose
  *  - "Sin categoría" option calls onSelect(null) and onClose
- *  - Custom category (user_id != null) shows edit + delete controls
- *  - System category (user_id === null) does NOT show edit/delete
- *  - Pressing delete triggers Alert.alert with the correct message
+ *  - Per-tile edit/delete controls are NOT present (moved to management screen)
  *  - "Nueva categoría" tile switches to create mode
- *  - Back affordance returns to the list from create/edit modes
+ *  - Back affordance returns to the list from create mode
+ *  - "Gestionar categorías" link calls onClose and navigates to the management screen
  */
 import React from 'react';
-import { Alert } from 'react-native';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
+import { render, screen, fireEvent } from '@testing-library/react-native';
+import { router } from 'expo-router';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -27,26 +26,20 @@ import type { CategoryRow } from '@/lib/repositories/expenses';
 
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
 
+jest.mock('expo-router', () => ({
+  router: {
+    push: jest.fn(),
+  },
+}));
+
 const mockCreateAsync = jest.fn();
-const mockUpdateAsync = jest.fn();
-const mockDeleteAsync = jest.fn();
 
 jest.mock('@/hooks/use-categories', () => ({
   useCreateCategory: jest.fn(() => ({
     mutateAsync: mockCreateAsync,
     isPending: false,
   })),
-  useUpdateCategory: jest.fn(() => ({
-    mutateAsync: mockUpdateAsync,
-    isPending: false,
-  })),
-  useDeleteCategory: jest.fn(() => ({
-    mutateAsync: mockDeleteAsync,
-    isPending: false,
-  })),
 }));
-
-jest.spyOn(Alert, 'alert');
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -232,98 +225,58 @@ describe('CategorySelectorSheet', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Custom vs system categories — edit/delete controls
+  // No per-tile edit/delete controls
   // -------------------------------------------------------------------------
 
-  it('shows edit and delete controls for a custom category (user_id != null)', () => {
+  it('does NOT show per-tile edit controls for any category', () => {
     render(
       <Wrapper>
         <CategorySelectorSheet {...defaultProps} />
       </Wrapper>,
     );
 
-    expect(screen.getByLabelText('Editar Gimnasio')).toBeTruthy();
-    expect(screen.getByLabelText('Eliminar Gimnasio')).toBeTruthy();
+    expect(screen.queryByLabelText('Editar Gimnasio')).toBeNull();
+    expect(screen.queryByLabelText('Editar Comida')).toBeNull();
   });
 
-  it('does NOT show edit/delete controls for a system category (user_id === null)', () => {
+  it('does NOT show per-tile delete controls for any category', () => {
     render(
       <Wrapper>
         <CategorySelectorSheet {...defaultProps} />
       </Wrapper>,
     );
 
-    expect(screen.queryByLabelText('Editar Comida')).toBeNull();
+    expect(screen.queryByLabelText('Eliminar Gimnasio')).toBeNull();
     expect(screen.queryByLabelText('Eliminar Comida')).toBeNull();
   });
 
   // -------------------------------------------------------------------------
-  // Delete flow
+  // Gestionar categorías link
   // -------------------------------------------------------------------------
 
-  it('triggers Alert.alert with the destructive confirm message on delete press', () => {
+  it('renders the "Gestionar categorías" link in list mode', () => {
     render(
       <Wrapper>
         <CategorySelectorSheet {...defaultProps} />
       </Wrapper>,
     );
 
-    fireEvent.press(screen.getByLabelText('Eliminar Gimnasio'));
-
-    expect(Alert.alert).toHaveBeenCalledWith(
-      'Eliminar categoría',
-      '¿Confirmás que querés eliminar esta categoría?',
-      expect.any(Array),
-    );
+    expect(screen.getByLabelText('Gestionar categorías')).toBeTruthy();
   });
 
-  it('calls mutateAsync(id) and onSelect(null) when the selected category is deleted', async () => {
-    mockDeleteAsync.mockResolvedValueOnce({ id: 'cat-custom' });
-
-    const onSelect = jest.fn();
+  it('calls onClose and navigates to the management screen when "Gestionar categorías" is pressed', () => {
+    const onClose = jest.fn();
 
     render(
       <Wrapper>
-        <CategorySelectorSheet {...defaultProps} value="cat-custom" onSelect={onSelect} />
+        <CategorySelectorSheet {...defaultProps} onClose={onClose} />
       </Wrapper>,
     );
 
-    fireEvent.press(screen.getByLabelText('Eliminar Gimnasio'));
+    fireEvent.press(screen.getByLabelText('Gestionar categorías'));
 
-    // Simulate pressing the destructive button in the Alert
-    const alertCall = (Alert.alert as jest.Mock).mock.calls[0];
-    const buttons = alertCall[2] as { text: string; onPress?: () => void }[];
-    const destructiveBtn = buttons.find((b) => b.text === 'Eliminar');
-    await destructiveBtn?.onPress?.();
-
-    await waitFor(() => {
-      expect(mockDeleteAsync).toHaveBeenCalledWith('cat-custom');
-      expect(onSelect).toHaveBeenCalledWith(null);
-    });
-  });
-
-  it('shows an error alert when delete mutateAsync rejects', async () => {
-    mockDeleteAsync.mockRejectedValueOnce(new Error('DB error'));
-
-    render(
-      <Wrapper>
-        <CategorySelectorSheet {...defaultProps} />
-      </Wrapper>,
-    );
-
-    fireEvent.press(screen.getByLabelText('Eliminar Gimnasio'));
-
-    const alertCall = (Alert.alert as jest.Mock).mock.calls[0];
-    const buttons = alertCall[2] as { text: string; onPress?: () => void }[];
-    const destructiveBtn = buttons.find((b) => b.text === 'Eliminar');
-    await destructiveBtn?.onPress?.();
-
-    await waitFor(() => {
-      const calls = (Alert.alert as jest.Mock).mock.calls;
-      const errorCall = calls.find((c: [string, string]) => c[0] === 'Error');
-      expect(errorCall).toBeTruthy();
-      expect(errorCall[1]).toBe('No se pudo eliminar la categoría. Intentá nuevamente.');
-    });
+    expect(onClose).toHaveBeenCalled();
+    expect(router.push).toHaveBeenCalledWith('/(protected)/profile/categories');
   });
 
   // -------------------------------------------------------------------------
@@ -354,63 +307,6 @@ describe('CategorySelectorSheet', () => {
     fireEvent.press(screen.getByLabelText('Volver'));
 
     expect(screen.getByText('Elegir categoría')).toBeTruthy();
-  });
-
-  // -------------------------------------------------------------------------
-  // Edit mode
-  // -------------------------------------------------------------------------
-
-  it('switches to edit mode when the edit button is tapped for a custom category', () => {
-    render(
-      <Wrapper>
-        <CategorySelectorSheet {...defaultProps} />
-      </Wrapper>,
-    );
-
-    fireEvent.press(screen.getByLabelText('Editar Gimnasio'));
-
-    expect(screen.getByText('Editar categoría')).toBeTruthy();
-    expect(screen.getByText('Guardar cambios')).toBeTruthy();
-  });
-
-  it('returns to the list from edit mode via the back button', () => {
-    render(
-      <Wrapper>
-        <CategorySelectorSheet {...defaultProps} />
-      </Wrapper>,
-    );
-
-    fireEvent.press(screen.getByLabelText('Editar Gimnasio'));
-    fireEvent.press(screen.getByLabelText('Volver'));
-
-    expect(screen.getByText('Elegir categoría')).toBeTruthy();
-  });
-
-  it('calls updateMutation.mutateAsync on successful edit submit', async () => {
-    mockUpdateAsync.mockResolvedValueOnce({
-      id: 'cat-custom',
-      name: 'Gimnasio',
-      icon: 'Dumbbell',
-      color: '#10B981',
-    });
-
-    render(
-      <Wrapper>
-        <CategorySelectorSheet {...defaultProps} />
-      </Wrapper>,
-    );
-
-    fireEvent.press(screen.getByLabelText('Editar Gimnasio'));
-
-    // The form is pre-filled; just submit
-    fireEvent.press(screen.getByText('Guardar cambios'));
-
-    await waitFor(() => {
-      expect(mockUpdateAsync).toHaveBeenCalledWith({
-        id: 'cat-custom',
-        patch: expect.objectContaining({ name: 'Gimnasio' }),
-      });
-    });
   });
 
   // -------------------------------------------------------------------------
