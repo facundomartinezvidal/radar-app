@@ -1,6 +1,7 @@
 /**
  * Minimal smoke tests for ExpenseForm — verifies the Fecha (occurred_at) field
- * is rendered in both create and edit modes, and the OCR suggestion CTA.
+ * is rendered in both create and edit modes, the OCR suggestion CTA, and the
+ * group config (who-paid + split-editor) extension.
  *
  * react-native-svg is mocked globally in jest.setup.ts.
  *
@@ -9,10 +10,11 @@
  * imports → test bodies.
  */
 import React from 'react';
-import { render, screen } from '@testing-library/react-native';
+import { render, screen, fireEvent, act } from '@testing-library/react-native';
 
 import { ExpenseForm } from '../expense-form';
 import type { CategoryRow } from '@/lib/repositories/expenses';
+import type { GroupMemberRow } from '@/lib/repositories/groups';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -231,5 +233,105 @@ describe('ExpenseForm — recommendation card content', () => {
 
     expect(screen.queryByText('Categoría recomendada: Ropa')).toBeNull();
     expect(screen.queryByText('Es indumentaria.')).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GroupConfig extension
+// ---------------------------------------------------------------------------
+
+function makeMember(id: string, displayName: string): GroupMemberRow {
+  return {
+    id,
+    group_id: 'g1',
+    user_id: null,
+    display_name: displayName,
+    role: 'member',
+    status: 'active',
+    joined_at: null,
+    invited_by: null,
+    created_at: '2026-01-01T00:00:00Z',
+  } satisfies GroupMemberRow;
+}
+
+const GROUP_MEMBERS: GroupMemberRow[] = [
+  makeMember('m1', 'Facundo Martinez'),
+  makeMember('m2', 'Jonathan Mayan'),
+];
+
+describe('ExpenseForm — groupConfig', () => {
+  it('renders ¿Quién pagó? label when groupConfig is provided', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        onSubmit={jest.fn()}
+        groupConfig={{ members: GROUP_MEMBERS, currentMemberId: 'm1' }}
+      />,
+    );
+    expect(screen.getByText('¿Quién pagó?')).toBeTruthy();
+  });
+
+  it('renders split editor section label "División" when groupConfig is provided', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        onSubmit={jest.fn()}
+        groupConfig={{ members: GROUP_MEMBERS, currentMemberId: 'm1' }}
+      />,
+    );
+    expect(screen.getByText('División')).toBeTruthy();
+  });
+
+  it('renders both member names in who-paid selector', () => {
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        onSubmit={jest.fn()}
+        groupConfig={{ members: GROUP_MEMBERS, currentMemberId: 'm1' }}
+      />,
+    );
+    // Both members should appear in the who-paid row
+    const facundoElements = screen.getAllByText('Facundo Martinez');
+    expect(facundoElements.length).toBeGreaterThanOrEqual(1);
+    const jonathanElements = screen.getAllByText('Jonathan Mayan');
+    expect(jonathanElements.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('does NOT render ¿Quién pagó? when groupConfig is absent', () => {
+    render(<ExpenseForm categories={CATEGORIES} onSubmit={jest.fn()} />);
+    expect(screen.queryByText('¿Quién pagó?')).toBeNull();
+  });
+
+  it('does NOT render División label when groupConfig is absent', () => {
+    render(<ExpenseForm categories={CATEGORIES} onSubmit={jest.fn()} />);
+    expect(screen.queryByText('División')).toBeNull();
+  });
+
+  it('calls onSubmitShared with paid_by_member_id and splits on valid submit', async () => {
+    const onSubmitShared = jest.fn().mockResolvedValue(undefined);
+    render(
+      <ExpenseForm
+        categories={CATEGORIES}
+        onSubmit={jest.fn()}
+        onSubmitShared={onSubmitShared}
+        groupConfig={{ members: GROUP_MEMBERS, currentMemberId: 'm1' }}
+        prefill={{ amount: 1000 }}
+        submitLabel="Registrar gasto"
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('Registrar gasto'));
+    });
+
+    expect(onSubmitShared).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paid_by_member_id: 'm1',
+        splits: expect.arrayContaining([
+          expect.objectContaining({ member_id: 'm1' }),
+          expect.objectContaining({ member_id: 'm2' }),
+        ]),
+      }),
+    );
   });
 });
