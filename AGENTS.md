@@ -87,23 +87,23 @@ The mobile app scaffolded in this repo targets the **2026-06-01 Second Delivery 
 
 ## 4. Tech stack
 
-| Layer          | Tech                            | Version                                            | Why                                                     |
-| -------------- | ------------------------------- | -------------------------------------------------- | ------------------------------------------------------- |
-| Runtime        | Expo (managed)                  | SDK 54                                             | EAS Build cloud → no local Xcode/Android Studio for dev |
-| Lang           | TypeScript                      | 5.9, strict + 4 extra flags                        | type safety from day 0                                  |
-| Routing        | Expo Router                     | 6.x (file-based)                                   | deep linking, web-compat free                           |
-| UI             | React Native                    | 0.81                                               | New Architecture enabled                                |
-| State (client) | Zustand                         | 5.x                                                | tiny, no boilerplate                                    |
-| State (server) | TanStack Query                  | 5.x                                                | cache, retries, optimistic updates                      |
-| Forms          | react-hook-form + zod           | latest                                             | schema sharing with Supabase Edge Functions             |
-| Backend        | Supabase                        | 2.x                                                | Postgres + Auth + Storage + RLS + Edge Functions        |
-| Token storage  | expo-secure-store               | 15.x                                               | Keychain (iOS) / Keystore (Android)                     |
-| Push           | expo-notifications              | 0.32                                               | Expo Push Service initially; FCM/APNs direct if needed  |
-| Media          | expo-camera + expo-image-picker | 17.x                                               | CameraView v17 API (not deprecated Camera)              |
-| Tests          | jest-expo + RNTL                | jest@29 pinned (jest@30 incompatible with RN 0.81) |                                                         |
-| Lint/Format    | ESLint flat config + Prettier   |                                                    | integrated, pre-commit not enforced (yet)               |
-| Build/Submit   | EAS Build + EAS Submit          | CLI 18.x                                           | 3 profiles: development, preview, production            |
-| CI             | GitHub Actions                  |                                                    | runs on push/PR to main+develop                         |
+| Layer          | Tech                            | Version                                            |
+| -------------- | ------------------------------- | -------------------------------------------------- |
+| Runtime        | Expo (managed)                  | SDK 54                                             |
+| Lang           | TypeScript                      | 5.9, strict + 4 extra flags                        |
+| Routing        | Expo Router                     | 6.x (file-based)                                   |
+| UI             | React Native                    | 0.81                                               |
+| State (client) | Zustand                         | 5.x                                                |
+| State (server) | TanStack Query                  | 5.x                                                |
+| Forms          | react-hook-form + zod           | latest                                             |
+| Backend        | Supabase                        | 2.x                                                |
+| Token storage  | expo-secure-store               | 15.x                                               |
+| Push           | expo-notifications              | 0.32                                               |
+| Media          | expo-camera + expo-image-picker | 17.x                                               |
+| Tests          | jest-expo + RNTL                | jest@29 pinned (jest@30 incompatible with RN 0.81) |
+| Lint/Format    | ESLint flat config + Prettier   |                                                    |
+| Build/Submit   | EAS Build + EAS Submit          | CLI 18.x                                           |
+| CI             | GitHub Actions                  |                                                    |
 
 See `docs/decisions/2026-05-16-stack-choices.md` for rationale + alternatives considered.
 
@@ -187,40 +187,19 @@ See `docs/decisions/2026-05-16-auth-strategy.md`.
 
 - **Tokens** → expo-secure-store (Keychain/Keystore)
 - **Media uploads** → Supabase Storage bucket `media`, path `{userId}/{timestamp}-{rand}.{ext}`, ArrayBuffer (not base64)
-- **DB schema** → live in Supabase (`profiles`, `categories`, `expenses`, `expense_items` + RPCs). Source of truth for history: `supabase/migrations/` (see §7 "Database migrations"). Regenerate types after every schema change via Supabase MCP `generate_typescript_types` (or `pnpm dlx supabase gen types typescript --project-id miiorhmqxdqsowqxnpii > types/supabase.ts`)
+- **DB schema** → live in Supabase. Source of truth for history: `supabase/migrations/` (see `docs/conventions/database.md`). Regenerate types after every schema change via Supabase MCP `generate_typescript_types` (or `pnpm dlx supabase gen types typescript --project-id miiorhmqxdqsowqxnpii > types/supabase.ts`)
 
 ### DB schema (current)
 
-| Table                 | Purpose                                                                                                                                                                                                                                                                                                     | RLS                                                                                                              |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `profiles`            | 1:1 with auth.users, first/last name                                                                                                                                                                                                                                                                        | owner select/insert/update                                                                                       |
-| `categories`          | fully per-user; each user owns 9 expense defaults + 7 income defaults (editable/deletable) + custom rows; `kind` column ('expense'/'income') distinguishes sets; slug unique per (user_id, kind, slug) (HU-16 + HU-20/21)                                                                                   | SELECT = own only; INSERT/UPDATE/DELETE = own only                                                               |
-| `expenses`            | core expense rows, numeric(14,2); `group_id` + `paid_by_member_id` nullable (HU-17); `source` ('manual'/'recurrence'), `recurrence_id` FK SET NULL, `occurred_date` DATE added for recurring expenses (HU-19); idempotency index `(recurrence_id, occurred_date) WHERE recurrence_id IS NOT NULL`           | owner CRUD; SELECT extended to active group members via `is_group_member` (HU-17)                                |
-| `expense_items`       | receipt line items (HU-18), ≤50/gasto                                                                                                                                                                                                                                                                       | owner CRUD, denormalized `user_id`                                                                               |
-| `groups`              | shared-expense groups: name (1–60), icon, color, created_by (HU-17)                                                                                                                                                                                                                                         | select: active member or creator; insert: own; update/delete: creator                                            |
-| `group_members`       | group membership: user_id nullable (null = placeholder), role (owner/member), status (active/pending/declined), invited_by, joined_at (HU-17)                                                                                                                                                               | select: own row or active membership; insert: active member or creator; update: self or creator; delete: creator |
-| `expense_splits`      | per-member share of a shared expense: share_amount numeric(14,2) ≥ 0 (HU-17)                                                                                                                                                                                                                                | select + all writes: active group membership via `is_group_member`                                               |
-| `group_settlements`   | debt settlement records: from/to member, amount > 0, currency (ARS/USD) (HU-17)                                                                                                                                                                                                                             | select + all writes: active group membership via `is_group_member`                                               |
-| `income_recurrences`  | recurring income rules: amount > 0, currency, frequency (weekly/biweekly/monthly/yearly), start_date/end_date (DATE), day_of_month smallint, status (active/paused), next_run_on DATE, last_materialized_at (HU-20)                                                                                         | owner CRUD                                                                                                       |
-| `incomes`             | income occurrence rows (manual or pg_cron-materialized): amount > 0, currency, source (manual/recurrence), recurrence_id FK SET NULL, occurred_at timestamptz, occurred_date DATE (idempotency key for materialized rows); unique (recurrence_id, occurred_date) WHERE recurrence_id IS NOT NULL (HU-20/21) | owner CRUD                                                                                                       |
-| `expense_recurrences` | recurring expense rules: amount > 0, currency, frequency (weekly/biweekly/monthly/yearly), start_date/end_date (DATE), day_of_month smallint, status (active/paused), next_run_on DATE, last_materialized_at; pg_cron materializes occurrences into `expenses` as personal rows (HU-19)                     | owner CRUD                                                                                                       |
+- `profiles` — 1:1 with auth.users, first/last name → [`docs/decisions/2026-05-17-expenses-schema.md`](docs/decisions/2026-05-17-expenses-schema.md)
+- `categories` — per-user expense + income defaults + custom rows; `kind` column (HU-16/20/21) → [`docs/decisions/2026-06-07-custom-categories-schema.md`](docs/decisions/2026-06-07-custom-categories-schema.md)
+- `expenses` — core expense rows; extended with `group_id`/`paid_by_member_id` (HU-17), `source`/`recurrence_id`/`occurred_date` (HU-19) → [`docs/decisions/2026-05-17-expenses-schema.md`](docs/decisions/2026-05-17-expenses-schema.md)
+- `expense_items` — receipt line items ≤50/expense (HU-18) → [`docs/decisions/2026-06-03-expense-line-items-schema.md`](docs/decisions/2026-06-03-expense-line-items-schema.md)
+- `groups`, `group_members`, `expense_splits`, `group_settlements` — shared-expense groups, membership, per-member splits, debt settlements (HU-17) → [`docs/decisions/2026-06-07-shared-expenses-schema.md`](docs/decisions/2026-06-07-shared-expenses-schema.md)
+- `income_recurrences`, `incomes` — recurring income rules + materialized occurrences (HU-20/21) → [`docs/decisions/2026-06-08-incomes-schema.md`](docs/decisions/2026-06-08-incomes-schema.md)
+- `expense_recurrences` — recurring expense rules; occurrences materialized into `expenses` by pg_cron (HU-19) → [`docs/decisions/2026-06-08-recurring-expenses-schema.md`](docs/decisions/2026-06-08-recurring-expenses-schema.md)
 
-`expense_items`: `name` (1–120), `quantity numeric(14,3) > 0` (kg OK, default 1), `unit_price numeric(14,2)` nullable, `line_total numeric(14,2) >= 0` required (source of truth — OCR often lacks unit price), `position` preserves order, cascade-deletes with the expense.
-
-**Writes with items go through transactional RPCs** (`security invoker`, run under caller RLS):
-
-- `create_expense_with_items(p_amount, p_currency, p_category_id, p_description, p_occurred_at, p_items jsonb)`
-- `update_expense_with_items(p_id, p_patch jsonb, p_items jsonb)` — `p_patch` only-present-keys-updated; `p_items` null = items untouched, array (incl. `[]`) = replace full set (delete-all + reinsert → item ids rotate on every save, known limitation)
-
-Reads use the nested select `'*, category:categories(*), items:expense_items(*)'` sorted client-side by `position`. See `docs/decisions/2026-06-03-expense-line-items-schema.md`.
-
-`categories` (HU-16 + seed migration): `user_id` is always set — no more system/null rows. Every user owns exactly 9 default rows (seeded on signup via `on_auth_user_created_seed_categories` trigger → `seed_default_categories(uuid)` SECURITY DEFINER fn with REVOKE; existing users backfilled). `updated_at` + trigger. Two partial unique indexes: `(slug) WHERE user_id IS NULL` (now dead) and `(user_id, slug) WHERE user_id IS NOT NULL`. Name check `btrim(name)` length 1–40. No RPC — direct single-table CRUD. `expenses.category_id` FK is `on delete set null` (unchanged). Existing expenses re-pointed from the old global rows to each user's copy by slug. Hogar icon corrected to `House` (was `Home`). See `docs/decisions/2026-06-07-custom-categories-schema.md`.
-
-**Shared expenses (HU-17):** Groups are accessed from Home (no new tab) and via the `¿Gasto compartido?` toggle in the standard `ExpenseForm` and OCR review screen (toggle visible even with no groups — shows CTA "Crear grupo"). Registered users are invited by exact email → `pending` → accept in-app → `active`; only `active` members appear in splits and balances. Non-registered participants are placeholders (`user_id null`, `status active`). Group create adds both con-cuenta (email invites, validated on blur via `user_exists_by_email` RPC) and sin-cuenta (placeholders) in one step. Owner can rename placeholders and remove members via `MemberManageSheet` (`updateMember`/`removeMember` RPCs; cascade on splits/settlements). `is_group_member(group_id, user_id)` is a SECURITY DEFINER helper (REVOKE from anon/public; `authenticated` MUST keep EXECUTE — RLS policies call it as the querying role; revoking breaks all group/expense queries with 403) that breaks the RLS recursion on `group_members`. RPCs beyond the original 7: `update_shared_expense` (INVOKER, owner-only shared expense edit — replaces splits atomically), `user_exists_by_email` (DEFINER, on-blur email existence check, intentional advisor lint + accepted email-enumeration trade-off), `get_personal_totals` (INVOKER, per-currency personal totals using split share for shared expenses + full amount for personal — used by dashboard "Este mes"). Split math (`computeShares`, `simplifyDebts`, `resolveIncluded`) lives in TypeScript (`lib/split-math.ts`); SplitEditor supports per-member include/exclude toggles; current user labeled "Vos" in who-paid and split rows. Dashboard and personal expense list show the user's share for shared expenses (not the full ticket); shared expenses marked with `Users` icon + "Compartido" label. Balances are per (member_id, currency) — ARS and USD never mixed. See `docs/decisions/2026-06-07-shared-expenses-schema.md`.
-
-**Incomes (HU-20/21):** Incomes live in separate `income_recurrences` + `incomes` tables — not in `expenses` — because incomes have no items, no group splits, and a distinct set of category defaults. `income_recurrences` stores the rule (frequency, start/end dates, `next_run_on`, `day_of_month`, status); `incomes` stores occurrences (manual or materialized). The pg_cron job `'materialize-due-incomes'` (daily, 06:00 UTC) calls `materialize_due_incomes()` SECURITY DEFINER (REVOKE all client roles — Pattern 1) which catches up all missed occurrences since `next_run_on`, inserts with `ON CONFLICT DO NOTHING`, and advances `next_run_on`. `advance_occurrence()` is IMMUTABLE SQL (also Pattern 1, REVOKE all) with NOT STRICT — `p_dom` is legitimately NULL for non-monthly frequencies. Occurrence dedup uses a plain `occurred_date DATE` column (not an expression on `occurred_at::date`, which is STABLE not IMMUTABLE and cannot appear in a btree expression index). `get_income_totals(p_from, p_to)` is SECURITY INVOKER. No backfill: `next_run_on` starts from the first future date at rule creation. Net balance (income − expense per currency) is computed client-side from `useIncomeTotals` + `get_personal_totals`. The Ingresos tab is the 4th tab. `categories.kind` ('expense'/'income') extended the categories table; 7 income defaults seeded on signup. See `docs/decisions/2026-06-08-incomes-schema.md`.
-
-**Recurring expenses (HU-19):** Rules live in `expense_recurrences`; occurrences are materialized directly into the existing `expenses` table (not a separate table) as personal-only rows (`group_id=NULL`, `paid_by_member_id=NULL`, `source='recurrence'`). Three columns added to `expenses`: `source`, `recurrence_id` FK SET NULL, `occurred_date DATE` (idempotency key). The pg_cron job `'materialize-due-expenses'` (daily, 06:00 UTC) calls `materialize_due_expenses()` SECURITY DEFINER (REVOKE all client roles — Pattern 1). Reuses `advance_occurrence()` from HU-20 (not redefined); `lib/income-recurrence.ts` date math (`firstFutureOccurrence`, `dayOfMonthFrom`) and `FREQUENCIES` are imported directly. "Gastos recurrentes" section in the Gastos tab; "Recurrente" badge on `expense-row` for `source='recurrence'` rows. See `docs/decisions/2026-06-08-recurring-expenses-schema.md`.
+Full schema, RLS policies, RPC signatures and column detail → see the linked `docs/decisions/*-schema.md`.
 
 ### Push notifications
 
@@ -232,14 +211,7 @@ Reads use the nested select `'*, category:categories(*), items:expense_items(*)'
 
 ## 7. Conventions
 
-### Database migrations (MANDATORY practice)
-
-Every schema change ships as **both**:
-
-1. A SQL file in `supabase/migrations/<version>_<name>.sql` (committed to the repo), AND
-2. The same SQL applied to the remote project via Supabase MCP `apply_migration` with the **same name** — the MCP assigns the version timestamp; rename the local file to match it (`list_migrations` to confirm).
-
-Remote migration history and local files must always be 1:1. The two pre-existing migrations (`20260517025226`, `20260518005107`) are baseline reconstructions — documented in-file, never re-applied. After applying: run `get_advisors` (security) and regenerate `types/supabase.ts`.
+**Database conventions** (migrations dual-ship rule, SECURITY DEFINER patterns, pg_cron materializers) → `docs/conventions/database.md` — read before any schema change.
 
 ### File naming
 
@@ -252,28 +224,6 @@ Remote migration history and local files must always be 1:1. The two pre-existin
 
 - Always use `@/` alias for in-repo imports: `import { supabase } from '@/lib/supabase'`
 - Group order: react/RN, third-party, `@/` internal, relative
-
-### SECURITY DEFINER RPCs — intentional advisor lints
-
-RADAR uses two patterns for SECURITY DEFINER functions:
-
-1. **Helper functions called only from triggers/other functions** (`seed_default_categories`, `materialize_due_incomes`, `advance_occurrence`): REVOKE EXECUTE from anon, public, authenticated. Never invoked by a client or inside an RLS policy evaluated as the client role. Supabase advisor does not flag these.
-2. **DEFINER functions invoked from RLS policies** (`is_group_member`): MUST retain EXECUTE for `authenticated`. RLS policies that call a function are evaluated as the _querying_ role, so Postgres checks EXECUTE on `authenticated` even though the function is SECURITY DEFINER. Revoking it makes every query on `expenses`/`groups`/`group_members`/`expense_splits`/`group_settlements` fail with 403 (permission denied for function). REVOKE from anon/public only. The advisor `authenticated_security_definer_function_executable` lint is an **accepted false positive** — the function is a pure boolean membership check. (Learned the hard way: migration `20260608013250` revoked it and broke all expense reads/writes; `20260608033734` re-granted it.)
-3. **RPCs callable by authenticated but DEFINER by necessity** (`invite_group_member`, `user_exists_by_email`): need to read `auth.users` by email — impossible with INVOKER. REVOKE from anon/public; `authenticated` retains EXECUTE. The Supabase advisor flags `authenticated_security_definer_function_executable` for these functions. **This lint is intentional and accepted by design.** `invite_group_member` contains its own `is_group_member` authorization guard. `user_exists_by_email` is a pure boolean check used for on-blur form validation; it intentionally permits email enumeration by authenticated users (same information already leaks via `invite_group_member` status codes). Document any future DEFINER RPC that follows this pattern with a comment in the migration file and an entry here.
-
-### pg_cron materialization jobs
-
-RADAR uses pg_cron for two daily materializers running at 06:00 UTC:
-
-- `'materialize-due-incomes'` (`'0 6 * * *'`) — recurring income occurrences into `incomes`.
-- `'materialize-due-expenses'` (`'0 6 * * *'`) — recurring expense occurrences into `expenses` (HU-19).
-
-Key rules:
-
-- **Materialization functions follow Pattern 1** (`materialize_due_incomes`, `materialize_due_expenses`, `advance_occurrence`): SECURITY DEFINER, REVOKE EXECUTE from `anon`, `authenticated`, `public`. Called only by pg_cron (running as the `postgres` role). Supabase advisor does not flag Pattern 1.
-- **`advance_occurrence` is IMMUTABLE, NOT STRICT**: pure date arithmetic, no session-state calls. NOT STRICT because `p_dom` is legitimately NULL for weekly/biweekly/yearly rules — STRICT would short-circuit the entire function to NULL on any NULL argument, breaking non-monthly frequencies. Shared by both materializers — defined once in migration `20260608144434`, not redefined for HU-19.
-- **Idempotency via `occurred_date DATE` column**: `timestamptz::date` is STABLE (session-timezone dependent) and cannot appear in a btree expression index. Both `incomes.occurred_date` and `expenses.occurred_date` are plain DATE columns; the unique index `(recurrence_id, occurred_date) WHERE recurrence_id IS NOT NULL` on each table is a standard non-expression btree index. Manual entries leave `occurred_date = NULL` and are excluded from the uniqueness constraint.
-- **Local dev without pg_cron**: run `select public.materialize_due_incomes();` or `select public.materialize_due_expenses();` manually via Supabase MCP to simulate the cron jobs.
 
 ### Commits
 
@@ -355,84 +305,7 @@ When building screens, **start by reading `desing-system/README.md`**, then `col
 
 **Forbidden:** purple, pink, gradient "fintech-slop", left-border accent colors. Just blue + neutrals + two semantics.
 
-### Typography
-
-- **Inter** 400/500/600/700/800 (Google Fonts CDN — local in `fonts/` if needed)
-- **JetBrains Mono** only for amount inputs (numeric keypad) and CBU/CVU alias
-- Scale: `display 44 / h1 32 / h2 24 / h3 20 / body 16 / body-sm 14 / caption 12`
-- Hero balance = `display` (44px, weight 700, letter-spacing `-0.02em`)
-- **All amounts** use `font-variant-numeric: tabular-nums` — non-negotiable
-
-### Spacing / layout
-
-- Mobile-first, safe areas respected (44px top, 34px bottom)
-- Default padding: `16px` (screens), `20px` (hero pantallas)
-- Tap targets ≥ `44px` height
-- 4px grid base → `--s-1` ... `--s-10`
-- Lists use 1px dividers (`--line-1`), not card-per-row
-
-### Radii / shadows / motion
-
-- Radii: cards `20px` · inputs/buttons `14px` · pills/avatars `999px`
-- Shadows: subtle, prefer 1px borders with alpha tint; modals/sheets use `--shadow-3`
-- Inner-highlight: `inset 0 1px 0 rgba(255,255,255,0.05)` on elevated buttons/cards
-- Easing default: `cubic-bezier(0.2, 0.8, 0.2, 1)` · spring `cubic-bezier(0.34, 1.56, 0.64, 1)` (micro-celebrations only)
-- Durations: 120 / 200 / 320ms · no slower
-- Press (mobile): `transform: scale(0.97)` 120ms + opacity 0.85 · NO Material ripple
-- Focus visible: `2px solid var(--radar-400)` offset `2px`
-
-### Content fundamentals (copy rules)
-
-- **Idioma:** español rioplatense, voseo permitido no obligatorio. Tono formal-cercano, claro, sin slang.
-- **Persona del producto:** profesional, claro, respetuoso. Tono formal sin ser frío. Voseo argentino como estándar regional, sin slang ("un toque", "che", "joya", "por acá" → fuera).
-- **Verbs:** active + short. "Registrá un gasto", NOT "Proceder al registro de un gasto". Verbos formales en voseo (`Ingresá`, `Aguardá`, `Intentá`, `Modificá`, `Confirmá`); evitar `probá`, `mandate`, `dale`.
-- **CTAs principales:** voseo formal — _Registrá · Dividí · Saldá · Agregá_. CTAs de cuenta en infinitivo — _Iniciar sesión · Crear cuenta · Verificar código · Continuar_.
-- **Navigation labels:** infinitivo — _Gastos · Grupos · Perfil_.
-- **Title/button casing:** sentence case. `Nuevo gasto`, NOT `Nuevo Gasto`.
-- **Numbers:** local format — `$ 12.500,00` (punto miles, coma decimal).
-- **Currency:** always explicit — `$ 12.500 ARS`, `US$ 85,00`. Never mix without indicating.
-- **Email convention:** "correo electrónico" en copy formal (labels, errores); "email" sólo en logs/dev/console.
-- **No financial jargon coloquial:** "Plata que te deben" sigue siendo OK en marketing, pero microcopy de errores e instrucciones usa "dinero", "monto", "saldo", "gasto".
-- **Empty states:** claros y descriptivos, sin humor. "No hay gastos registrados." NOT "Sin gastos por acá. Por ahora."
-- **Errors:** impersonales, formales. "No se pudo guardar el gasto. Intentá nuevamente." NOT "No pudimos guardar el gasto. Probá de nuevo." NOT "Error 500".
-- **No emoji in UI base.** Emoji OK in push notifs when emotional context adds (rarely).
-
-### Microcopy reference (use these verbatim)
-
-| Context                   | Copy                                                             |
-| ------------------------- | ---------------------------------------------------------------- |
-| CTA primary "new expense" | `Registrar gasto`                                                |
-| Empty state home          | `Aún no se registraron gastos este mes.`                         |
-| Empty state list          | `No hay gastos registrados`                                      |
-| Debt settled confirmation | `Deuda saldada correctamente.`                                   |
-| Push notification         | `Juan registró un gasto de $ 4.200 en Pizza del viernes.`        |
-| Generic error             | `No se pudo establecer la conexión. Reintentando en 5 segundos.` |
-| Onboarding hook           | `Visualizá en qué se invirtió tu dinero este mes.`               |
-| Amount input placeholder  | `0,00`                                                           |
-| Destructive confirm       | `¿Confirmás que querés eliminar este gasto?`                     |
-| Resend rate-limited       | `Aguardá unos minutos antes de solicitar un nuevo código.`       |
-
-### Iconography
-
-- **Lucide** library only (https://lucide.dev). ~1500 icons including all fintech essentials.
-- Stroke `1.5`, base size `20px` (`24px` tab bar, `16px` inline with text).
-- `stroke="currentColor"` — never hardcode color.
-- Never fill Lucide icons (except `star` for favorites + `check-circle` for confirmations).
-- Wallet brand logos (MP, Ualá, etc.) in `desing-system/assets/brands/` if available — never redraw.
-- For RN: use `lucide-react-native` package when implementing.
-
-### Imagery rules
-
-- **No photos** in app — utility fintech, not lifestyle
-- Empty-state illustrations: monochrome line-art in `--radar-300`, no fills
-- Avatars: initials on hash-derived color circle (8-hue approved palette)
-- Backgrounds: flat. Gradients only for the radar sweep on empty hero.
-
-### Caveats (from `desing-system/README.md`)
-
-- DS is a proposal, not recreation — pre-product, expect iteration
-- Original brief had `#10B981` (esmerald) as primary; was overridden to `#0077B6` (ocean blue). Green is now semantic only ("ingreso/te deben").
-- Folder name typo (`desing-system` instead of `design-system`) — preserved to avoid breaking references. Rename only as a coordinated atomic change.
+Full DS — typography, spacing, motion, content/copy rules, microcopy table, iconography → `desing-system/README.md` + `desing-system/colors_and_type.css`. Read before any UI work.
 
 ---
 
@@ -487,16 +360,16 @@ CI enforces these on every push/PR via `.github/workflows/ci.yml`.
 - ❌ Don't put server data in Zustand
 - ❌ Don't write English permission strings — the market is Argentina
 - ❌ Don't add native modules without checking Expo SDK 54 compatibility (Expo Go vs dev build)
-- ❌ Don't apply DB changes without a matching file in `supabase/migrations/` (see §7 "Database migrations")
+- ❌ Don't apply DB changes without a matching file in `supabase/migrations/` (see `docs/conventions/database.md`)
 - ❌ Don't finish a feature without updating this AGENTS.md — schema tables, business logic, conventions/practices, and §10 shipped/pending MUST reflect the new state before the final PR
 
 ### After every feature (MANDATORY)
 
 Update **AGENTS.md** as part of the feature's final PR:
 
-1. §6 DB schema table if the schema changed
+1. Edit `docs/conventions/database.md` + the relevant `docs/decisions/*-schema.md` / `docs/features/*.md`; in AGENTS.md add only a one-line §6 table-summary row + one-line §10 entry (keep AGENTS.md lean — detail goes in docs/).
 2. §7 conventions if a new practice was introduced
-3. §10 "Already shipped" (add entry with doc links) + "Still pending" (prune/add)
+3. §10 "Already shipped" (add one-line entry with doc links) + "Still pending" (prune/add)
 4. Test baseline count in §9 quality gates
 
 ---
@@ -505,104 +378,14 @@ Update **AGENTS.md** as part of the feature's final PR:
 
 ### Already shipped
 
-- `profiles` + `categories` + `expenses` tables with RLS — see
-  `docs/decisions/2026-05-17-expenses-schema.md`
-- Categories seeded (9 rows) for the default Argentine taxonomy
-- Trigger `handle_new_user()` auto-creates profile rows on signup
-- Expenses CRUD UI + list + filter + search — see
-  `docs/features/expenses-crud.md`
-- Custom OTP email template for sign-up — `docs/auth/email-templates/`
-- User identity capture (first_name + last_name) at sign-up, persisted
-  via `auth.users.raw_user_meta_data` + synced into `profiles` by a
-  pair of triggers. Onboarding gate for legacy users. New Perfil stack
-  with edit + sign-out. Reusable `<Avatar />` primitive. See
-  `docs/decisions/2026-05-17-user-profile-fields.md` and
-  `docs/features/user-name-capture.md`.
-- Receipt scan → OCR → validate (HU-02/03/05/06): camera capture +
-  gallery pick → `compressForOcr` → `extract-receipt` Supabase Edge
-  Function (Groq vision `llama-4-scout-17b`) → pre-filled `ExpenseForm`
-  → save. Date picker (`DateField`) shipped as part of this feature.
-  See `docs/features/receipt-scan-ocr.md` and
-  `docs/decisions/2026-05-31-ocr-groq-edge-function.md`.
-- Receipt line items (HU-18): `expense_items` table + transactional RPCs,
-  OCR extraction of per-line detail (name/qty/unit price/line total, cap 50),
-  full manual CRUD in `ExpenseItemsField` (collapsible "Detalle" section),
-  non-blocking mismatch warning when Σitems ≠ total. Versioned
-  `supabase/migrations/` introduced with this feature. See
-  `docs/features/expense-line-items.md`,
-  `docs/decisions/2026-06-03-expense-line-items-schema.md` and
-  `docs/user-flows/HU-18-items-detallados.md`.
-- Custom categories (HU-16): `categories` extended with nullable `user_id`
-  (null = system, own = CRUD), `updated_at`, partial unique slug indexes, and
-  4 ownership-aware RLS policies. Curated icon/color picker, `CategoryForm`
-  with live preview, `CategoryCreateSheet` for inline creation from the
-  expense picker, Perfil → Categorías screen. The expense category field is a
-  compact trigger opening a searchable bottom-sheet (`CategorySelectorSheet`)
-  with a grid of all categories + inline create/edit/delete of custom ones
-  (system rows read-only). OCR edge fn v4 accepts a dynamic category list,
-  matches conservatively by rubro, and returns `suggestedNewCategory` when no
-  match (edge fn v5: always suggests when none fit + returns a one-line
-  `suggestedNewCategoryReason`); the review form shows a recommendation card
-  (name + why + one-tap create). Home quick-action "Categorías" opens the
-  management screen (scanning lives on the Cámara tab); the selector sheet is
-  select+create only, with a "Gestionar categorías" link. Tests: 472 → 603.
-  See `docs/features/custom-categories.md`,
-  `docs/decisions/2026-06-07-custom-categories-schema.md` and
-  `docs/user-flows/HU-16-categorias-personalizadas.md`.
-- Per-user default categories (HU-16 seed migration): the 9 shared/global
-  category rows are retired. Each user now owns their own editable/deletable
-  copy of the 9 defaults, seeded on signup by `seed_default_categories(uuid)`
-  (SECURITY DEFINER, REVOKE from anon/authenticated/public). Existing users
-  backfilled; existing expenses re-pointed from global rows to the owner's copy
-  by slug. Hogar icon corrected to `House`. Applied as migration
-  `20260608004254_seed_default_categories_per_user.sql`.
-- Shared expenses (HU-17): `groups`, `group_members`, `expense_splits`,
-  `group_settlements` tables + RLS; `expenses` extended with `group_id` +
-  `paid_by_member_id`; `is_group_member()` SECURITY DEFINER breaks RLS recursion
-  (`authenticated` MUST retain EXECUTE); 10 RPCs total — `create_group`,
-  `add_group_member`, `invite_group_member` DEFINER, `respond_group_invite`,
-  `create_shared_expense`, `update_shared_expense` (owner edit), `create_settlement`,
-  `get_group_balances`, `user_exists_by_email` DEFINER (on-blur email check, intentional
-  lint, accepted email-enumeration trade-off), `get_personal_totals` (per-currency share
-  accounting); consent model (pending → active); group create adds con-cuenta + sin-cuenta
-  in one step; `¿Gasto compartido?` toggle in standard `ExpenseForm` + OCR review screen;
-  participant subset in `SplitEditor` (include/exclude per member); current user labeled
-  "Vos" in who-paid + split rows; dashboard/list show user's share for shared expenses
-  (not full ticket) via `get_personal_totals`, with `Users` + "Compartido" indicator;
-  owner can rename placeholders + remove members via `MemberManageSheet` (cascade on
-  splits/settlements); split math in TS (`computeShares`, `simplifyDebts`,
-  `resolveIncluded`); balances per currency (ARS/USD separate). Tests: 603 → 996
-  (68 suites). See `docs/features/shared-expenses.md`,
-  `docs/decisions/2026-06-07-shared-expenses-schema.md` and
-  `docs/user-flows/HU-17-gastos-compartidos.md`.
-- Incomes (HU-20/21): `income_recurrences` + `incomes` tables + RLS; `categories`
-  extended with `kind` ('expense'/'income') + slug uniqueness updated to
-  `(user_id, kind, slug)` + 7 income defaults seeded; `materialize_due_incomes()`
-  SECURITY DEFINER (Pattern 1, REVOKE all) called by pg_cron daily at 06:00 UTC —
-  catch-up loop, `FOR UPDATE SKIP LOCKED`, `ON CONFLICT DO NOTHING` idempotency;
-  `advance_occurrence()` IMMUTABLE SQL (Pattern 1, NOT STRICT — NULL `p_dom` handled
-  by COALESCE inside monthly branch); `occurred_date DATE` column for idempotency index
-  (timestamptz::date is STABLE not IMMUTABLE — cannot be an expression index); no
-  backfill on creation (`next_run_on` = first future date); end_date inclusive;
-  `get_income_totals(p_from, p_to)` SECURITY INVOKER; net balance per currency
-  computed client-side (`incomes − expenses`); Ingresos tab (4th tab) with totals
-  strip + recurrences section + day-grouped list + filter bar; Home quick-action
-  "Ingresos" + net balance in hero card. Tests: 996 → 1276 (82 suites). See
-  `docs/features/incomes.md`, `docs/decisions/2026-06-08-incomes-schema.md`,
-  `docs/user-flows/HU-20-ingresos-recurrentes.md` and
-  `docs/user-flows/HU-21-ingresos-ocasionales.md`.
-- Recurring expenses (HU-19): `expense_recurrences` table + RLS; `expenses` extended with
-  `source`, `recurrence_id` FK SET NULL, `occurred_date DATE`; idempotency index
-  `(recurrence_id, occurred_date) WHERE recurrence_id IS NOT NULL`; `materialize_due_expenses()`
-  SECURITY DEFINER (Pattern 1, REVOKE all) called by pg_cron `'materialize-due-expenses'`
-  daily at 06:00 UTC — reuses `advance_occurrence()` from HU-20 (not redefined); personal-only
-  scope (`group_id=NULL` on all materialized rows); `lib/income-recurrence.ts` date math
-  (`firstFutureOccurrence`, `dayOfMonthFrom`, `FREQUENCIES`) reused without modification;
-  "Gastos recurrentes" section in Gastos tab; "Recurrente" badge on expense-row for
-  `source='recurrence'` rows; `ExpenseRecurrenceForm` with "Sin fecha de fin" toggle.
-  Tests: 1276 → 1432 (89 suites). See `docs/features/recurring-expenses.md`,
-  `docs/decisions/2026-06-08-recurring-expenses-schema.md` and
-  `docs/user-flows/HU-19-gastos-recurrentes.md`.
+- `profiles` + `categories` + `expenses` tables with RLS → [`docs/decisions/2026-05-17-expenses-schema.md`](docs/decisions/2026-05-17-expenses-schema.md), [`docs/features/expenses-crud.md`](docs/features/expenses-crud.md)
+- User identity capture at sign-up (first/last name), Perfil stack, `<Avatar />` primitive → [`docs/decisions/2026-05-17-user-profile-fields.md`](docs/decisions/2026-05-17-user-profile-fields.md), [`docs/features/user-name-capture.md`](docs/features/user-name-capture.md)
+- Receipt scan → OCR → validate (HU-02/03/05/06): camera + gallery → Groq `llama-4-scout-17b` edge function → pre-filled `ExpenseForm` → [`docs/features/receipt-scan-ocr.md`](docs/features/receipt-scan-ocr.md), [`docs/decisions/2026-05-31-ocr-groq-edge-function.md`](docs/decisions/2026-05-31-ocr-groq-edge-function.md)
+- Receipt line items (HU-18): `expense_items` + transactional RPCs, OCR per-line detail, `ExpenseItemsField` manual CRUD (tests +0 → baseline) → [`docs/features/expense-line-items.md`](docs/features/expense-line-items.md), [`docs/decisions/2026-06-03-expense-line-items-schema.md`](docs/decisions/2026-06-03-expense-line-items-schema.md), [`docs/user-flows/HU-18-items-detallados.md`](docs/user-flows/HU-18-items-detallados.md)
+- Custom categories (HU-16): per-user CRUD, icon/color picker, `CategorySelectorSheet`, OCR category suggestion (tests 472 → 603) → [`docs/features/custom-categories.md`](docs/features/custom-categories.md), [`docs/decisions/2026-06-07-custom-categories-schema.md`](docs/decisions/2026-06-07-custom-categories-schema.md), [`docs/user-flows/HU-16-categorias-personalizadas.md`](docs/user-flows/HU-16-categorias-personalizadas.md)
+- Shared expenses (HU-17): `groups`/`group_members`/`expense_splits`/`group_settlements` + 10 RPCs, consent flow, `SplitEditor`, per-currency balances (tests 603 → 996) → [`docs/features/shared-expenses.md`](docs/features/shared-expenses.md), [`docs/decisions/2026-06-07-shared-expenses-schema.md`](docs/decisions/2026-06-07-shared-expenses-schema.md), [`docs/user-flows/HU-17-gastos-compartidos.md`](docs/user-flows/HU-17-gastos-compartidos.md)
+- Incomes (HU-20/21): `income_recurrences` + `incomes` tables, pg_cron materializer, Ingresos tab, net balance hero (tests 996 → 1276) → [`docs/features/incomes.md`](docs/features/incomes.md), [`docs/decisions/2026-06-08-incomes-schema.md`](docs/decisions/2026-06-08-incomes-schema.md), [`docs/user-flows/HU-20-ingresos-recurrentes.md`](docs/user-flows/HU-20-ingresos-recurrentes.md), [`docs/user-flows/HU-21-ingresos-ocasionales.md`](docs/user-flows/HU-21-ingresos-ocasionales.md)
+- Recurring expenses (HU-19): `expense_recurrences` table, pg_cron materializer into `expenses`, "Gastos recurrentes" section + "Recurrente" badge (tests 1276 → 1432) → [`docs/features/recurring-expenses.md`](docs/features/recurring-expenses.md), [`docs/decisions/2026-06-08-recurring-expenses-schema.md`](docs/decisions/2026-06-08-recurring-expenses-schema.md), [`docs/user-flows/HU-19-gastos-recurrentes.md`](docs/user-flows/HU-19-gastos-recurrentes.md)
 
 ### Still pending
 
