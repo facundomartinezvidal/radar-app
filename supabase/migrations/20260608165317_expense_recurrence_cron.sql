@@ -1,7 +1,7 @@
 -- Applied to remote: 20260608165317 via Supabase MCP
 -- Migration: expense_recurrence_cron
 -- HU-19 — schedule the daily expense materializer job via pg_cron.
--- Must run AFTER expense_recurrence_functions (20260608150100).
+-- Must run AFTER expense_recurrence_functions (20260608165308).
 --
 -- pg_cron is available on Supabase but must be explicitly enabled.
 -- The extension is created in the pg_catalog schema (Supabase default for
