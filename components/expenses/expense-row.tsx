@@ -35,6 +35,7 @@ export function ExpenseRow({
   const iconColor = cat?.color ?? colors.fg[2];
   const iconName: IconName = (cat?.icon as IconName | undefined) ?? 'CircleDashed';
   const isShared = expense.group_id != null;
+  const isRecurrent = expense.source === 'recurrence';
 
   return (
     <Pressable
@@ -88,6 +89,20 @@ export function ExpenseRow({
                 <Icon name="Users" size={12} color={colors.fg[3]} strokeWidth={1.5} />
                 <Text variant="caption" color={colors.fg[3]}>
                   Compartido
+                </Text>
+              </View>
+            )}
+            {isRecurrent && (
+              <View
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}
+                testID="recurrent-indicator"
+              >
+                <Text variant="caption" color={colors.fg[3]}>
+                  ·
+                </Text>
+                <Icon name="Repeat" size={12} color={colors.money.out} strokeWidth={1.5} />
+                <Text variant="caption" color={colors.money.out}>
+                  Recurrente
                 </Text>
               </View>
             )}

@@ -92,6 +92,9 @@ describe('ExpenseForm', () => {
       updated_at: '2026-03-10T15:00:00.000Z',
       group_id: null,
       paid_by_member_id: null,
+      source: 'manual',
+      recurrence_id: null,
+      occurred_date: null,
       category: CATEGORIES[0] ?? null,
     } satisfies Parameters<typeof ExpenseForm>[0]['initial'] & object;
 

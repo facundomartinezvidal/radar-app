@@ -97,6 +97,68 @@ export type Database = {
           },
         ];
       };
+      expense_recurrences: {
+        Row: {
+          amount: number;
+          category_id: string | null;
+          created_at: string;
+          currency: string;
+          day_of_month: number | null;
+          description: string | null;
+          end_date: string | null;
+          frequency: string;
+          id: string;
+          last_materialized_at: string | null;
+          next_run_on: string;
+          start_date: string;
+          status: string;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          amount: number;
+          category_id?: string | null;
+          created_at?: string;
+          currency: string;
+          day_of_month?: number | null;
+          description?: string | null;
+          end_date?: string | null;
+          frequency: string;
+          id?: string;
+          last_materialized_at?: string | null;
+          next_run_on: string;
+          start_date: string;
+          status?: string;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          amount?: number;
+          category_id?: string | null;
+          created_at?: string;
+          currency?: string;
+          day_of_month?: number | null;
+          description?: string | null;
+          end_date?: string | null;
+          frequency?: string;
+          id?: string;
+          last_materialized_at?: string | null;
+          next_run_on?: string;
+          start_date?: string;
+          status?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'expense_recurrences_category_id_fkey';
+            columns: ['category_id'];
+            isOneToOne: false;
+            referencedRelation: 'categories';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       expense_splits: {
         Row: {
           created_at: string;
@@ -156,7 +218,10 @@ export type Database = {
           group_id: string | null;
           id: string;
           occurred_at: string;
+          occurred_date: string | null;
           paid_by_member_id: string | null;
+          recurrence_id: string | null;
+          source: string;
           updated_at: string;
           user_id: string;
         };
@@ -169,7 +234,10 @@ export type Database = {
           group_id?: string | null;
           id?: string;
           occurred_at?: string;
+          occurred_date?: string | null;
           paid_by_member_id?: string | null;
+          recurrence_id?: string | null;
+          source?: string;
           updated_at?: string;
           user_id: string;
         };
@@ -182,7 +250,10 @@ export type Database = {
           group_id?: string | null;
           id?: string;
           occurred_at?: string;
+          occurred_date?: string | null;
           paid_by_member_id?: string | null;
+          recurrence_id?: string | null;
+          source?: string;
           updated_at?: string;
           user_id?: string;
         };
@@ -206,6 +277,13 @@ export type Database = {
             columns: ['paid_by_member_id'];
             isOneToOne: false;
             referencedRelation: 'group_members';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'expenses_recurrence_id_fkey';
+            columns: ['recurrence_id'];
+            isOneToOne: false;
+            referencedRelation: 'expense_recurrences';
             referencedColumns: ['id'];
           },
         ];
@@ -543,7 +621,10 @@ export type Database = {
           group_id: string | null;
           id: string;
           occurred_at: string;
+          occurred_date: string | null;
           paid_by_member_id: string | null;
+          recurrence_id: string | null;
+          source: string;
           updated_at: string;
           user_id: string;
         };
@@ -623,7 +704,10 @@ export type Database = {
           group_id: string | null;
           id: string;
           occurred_at: string;
+          occurred_date: string | null;
           paid_by_member_id: string | null;
+          recurrence_id: string | null;
+          source: string;
           updated_at: string;
           user_id: string;
         };
@@ -702,7 +786,10 @@ export type Database = {
           group_id: string | null;
           id: string;
           occurred_at: string;
+          occurred_date: string | null;
           paid_by_member_id: string | null;
+          recurrence_id: string | null;
+          source: string;
           updated_at: string;
           user_id: string;
         };
@@ -730,7 +817,10 @@ export type Database = {
           group_id: string | null;
           id: string;
           occurred_at: string;
+          occurred_date: string | null;
           paid_by_member_id: string | null;
+          recurrence_id: string | null;
+          source: string;
           updated_at: string;
           user_id: string;
         };
