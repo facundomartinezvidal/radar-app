@@ -150,6 +150,28 @@ export function useRecurrences() {
   });
 }
 
+/**
+ * Fetch a single recurrence by id.
+ *
+ * Resolves from the list cache — calls `listRecurrences` and finds the row
+ * matching `id`. There is no single-row endpoint; the list is small (per-user
+ * active/paused rules only) so this is acceptable.
+ *
+ * Returns `null` when no recurrence matches `id`.
+ */
+export function useRecurrence(id: string | undefined) {
+  return useQuery<IncomeRecurrenceWithCategory | null>({
+    queryKey: recurrenceKeys.detail(id ?? ''),
+    enabled: Boolean(id),
+    queryFn: async () => {
+      if (!id) return null;
+      const { data, error } = await listRecurrences();
+      if (error) throw error;
+      return (data ?? []).find((r) => r.id === id) ?? null;
+    },
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Recurrences — mutations
 // ---------------------------------------------------------------------------
