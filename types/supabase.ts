@@ -648,6 +648,14 @@ export type Database = {
           net: number
         }[]
       }
+      get_income_totals: {
+        Args: { p_from?: string; p_to?: string }
+        Returns: {
+          count: number
+          currency: string
+          total: number
+        }[]
+      }
       get_personal_totals: {
         Args: { p_from?: string; p_to?: string }
         Returns: {
