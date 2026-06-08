@@ -340,8 +340,16 @@ export async function resumeRecurrence(
 /**
  * Update an existing recurrence (patch — only supplied keys are written).
  *
- * When `frequency` or `start_date` change, `day_of_month` and `next_run_on`
- * are recomputed. `today` is required when either scheduling field changes.
+ * When either `frequency` or `start_date` changes, `day_of_month` and
+ * `next_run_on` are recomputed using the effective values: the patch value
+ * when present, or the persisted row value when absent. This means a
+ * frequency-only patch still produces a correct `next_run_on` (resolved
+ * against the existing `start_date`), and a start_date-only patch still uses
+ * the existing `frequency`.
+ *
+ * The row is fetched before the update only when a scheduling field changes.
+ * If `today` is absent but a scheduling field changed, the recompute is
+ * skipped — document this at call sites and prefer always passing `today`.
  */
 export async function updateRecurrence(
   id: string,
@@ -360,13 +368,32 @@ export async function updateRecurrence(
 
   // Recompute scheduling fields when either anchor changes.
   const scheduleChanged = patch.frequency !== undefined || patch.start_date !== undefined;
-  if (scheduleChanged && today !== undefined) {
-    // Resolve the effective start_date and frequency (may come from patch or row).
-    // We recompute unconditionally for simplicity — the caller already owns the row.
-    const effectiveStart = patch.start_date;
-    const effectiveFreq = patch.frequency;
 
-    if (effectiveStart !== undefined && effectiveFreq !== undefined) {
+  if (scheduleChanged) {
+    if (today === undefined) {
+      // today is required for schedule recomputation; skip silently when absent.
+      // Callers should always supply today when mutating frequency or start_date.
+    } else {
+      // Fetch the existing row so we can resolve whichever field was NOT in the
+      // patch. Mirrors the row-fetch pattern used in resumeRecurrence.
+      const { data: existing, error: fetchError } = await supabase
+        .from('income_recurrences')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (fetchError || !existing) {
+        return {
+          data: null,
+          error: fetchError ?? new Error('No se encontró la recurrencia.'),
+        };
+      }
+
+      const row = existing as IncomeRecurrenceRow;
+      const effectiveStart = patch.start_date ?? row.start_date;
+      const effectiveFreq =
+        patch.frequency ?? (row.frequency as Parameters<typeof firstFutureOccurrence>[1]);
+
       updateObj.day_of_month = dayOfMonthFrom(effectiveStart);
       updateObj.next_run_on = firstFutureOccurrence(effectiveStart, effectiveFreq, today);
     }

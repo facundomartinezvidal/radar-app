@@ -172,8 +172,27 @@ describe('HomeScreen', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Balance card hero
+  // Balance card hero — month-scoped totals
   // -------------------------------------------------------------------------
+
+  it('passes current-month from/to range to sumExpensesByCurrency and sumIncomesByCurrency', async () => {
+    renderWithClient();
+    // Wait for the async queries to fire
+    await screen.findByText('$ 0,00');
+
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    const expectedFrom = new Date(y, m, 1, 0, 0, 0, 0).toISOString();
+    const expectedTo = new Date(y, m + 1, 0, 23, 59, 59, 999).toISOString();
+
+    expect(sumExpensesByCurrency).toHaveBeenCalledWith(
+      expect.objectContaining({ from: expectedFrom, to: expectedTo }),
+    );
+    expect(sumIncomesByCurrency).toHaveBeenCalledWith(
+      expect.objectContaining({ from: expectedFrom, to: expectedTo }),
+    );
+  });
 
   it('shows "BALANCE DEL MES" section label', () => {
     renderWithClient();

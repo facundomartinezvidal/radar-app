@@ -220,10 +220,21 @@ function ExpenseRowItem({
 // Main screen
 // ---------------------------------------------------------------------------
 
+/** Build an ISO-string range covering the current calendar month (local time). */
+function currentMonthRange(): { from: string; to: string } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth(); // 0-based
+  const from = new Date(y, m, 1, 0, 0, 0, 0).toISOString();
+  const to = new Date(y, m + 1, 0, 23, 59, 59, 999).toISOString();
+  return { from, to };
+}
+
 export default function HomeScreen(): React.JSX.Element {
   const { user } = useSession();
-  const totalsQuery = useExpenseTotals({});
-  const incomeTotalsQuery = useIncomeTotals({});
+  const monthRange = React.useMemo(() => currentMonthRange(), []);
+  const totalsQuery = useExpenseTotals(monthRange);
+  const incomeTotalsQuery = useIncomeTotals(monthRange);
   const recentQuery = useExpenses({ limit: 4 });
   const recentIncomesQuery = useIncomes({ limit: 4 });
   const groupsQuery = useGroups();

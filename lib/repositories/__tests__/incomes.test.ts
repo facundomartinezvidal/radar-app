@@ -592,6 +592,166 @@ describe('incomes repository — deleteRecurrence', () => {
 });
 
 // ---------------------------------------------------------------------------
+// updateRecurrence
+// ---------------------------------------------------------------------------
+
+describe('incomes repository — updateRecurrence', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('recomputes next_run_on when only frequency changes (fetches row for start_date)', async () => {
+    // RECURRENCE_ROW has start_date='2026-01-15', frequency='monthly'.
+    // Patch: only frequency='weekly'. today='2026-06-08'.
+    // effectiveStart='2026-01-15', effectiveFreq='weekly'.
+    // weekly from 2026-01-15 in 7-day steps until > 2026-06-08:
+    //   2026-01-15 → … → 2026-06-04 → 2026-06-11 (first strictly after 2026-06-08)
+    const fetchHandle = makeChain({ data: RECURRENCE_ROW, error: null });
+    const updateHandle = makeChain({ data: RECURRENCE_ROW, error: null });
+
+    (supabase.from as jest.Mock)
+      .mockReturnValueOnce(fetchHandle.chain)
+      .mockReturnValueOnce(updateHandle.chain);
+
+    const result = await repo.updateRecurrence('rec-1', { frequency: 'weekly' }, '2026-06-08');
+
+    expect(result.error).toBeNull();
+
+    const updateCall = updateHandle.calls.find((c) => c.method === 'update');
+    const payload = updateCall?.args[0] as Record<string, unknown>;
+
+    // frequency is written in the patch
+    expect(payload.frequency).toBe('weekly');
+    // day_of_month comes from effectiveStart = existing start_date = 2026-01-15 → 15
+    expect(payload.day_of_month).toBe(15);
+    // next_run_on must be strictly after today
+    expect((payload.next_run_on as string) > '2026-06-08').toBe(true);
+    // weekly from 2026-01-15 advancing past 2026-06-08 → 2026-06-11
+    expect(payload.next_run_on).toBe('2026-06-11');
+  });
+
+  it('recomputes next_run_on when only start_date changes (fetches row for frequency)', async () => {
+    // RECURRENCE_ROW has frequency='monthly'. Patch: only start_date='2026-03-20'.
+    // effectiveStart='2026-03-20', effectiveFreq='monthly'.
+    // monthly with day=20, today='2026-06-08' → next_run_on='2026-06-20'
+    const fetchHandle = makeChain({ data: RECURRENCE_ROW, error: null });
+    const updateHandle = makeChain({ data: RECURRENCE_ROW, error: null });
+
+    (supabase.from as jest.Mock)
+      .mockReturnValueOnce(fetchHandle.chain)
+      .mockReturnValueOnce(updateHandle.chain);
+
+    const result = await repo.updateRecurrence('rec-1', { start_date: '2026-03-20' }, '2026-06-08');
+
+    expect(result.error).toBeNull();
+
+    const updateCall = updateHandle.calls.find((c) => c.method === 'update');
+    const payload = updateCall?.args[0] as Record<string, unknown>;
+
+    expect(payload.start_date).toBe('2026-03-20');
+    expect(payload.day_of_month).toBe(20);
+    expect(payload.next_run_on).toBe('2026-06-20');
+  });
+
+  it('recomputes next_run_on when both frequency and start_date change', async () => {
+    // Patch: frequency='biweekly', start_date='2026-06-10'. today='2026-06-08'.
+    // effectiveStart='2026-06-10' is in the future → next_run_on = '2026-06-10'
+    const fetchHandle = makeChain({ data: RECURRENCE_ROW, error: null });
+    const updateHandle = makeChain({ data: RECURRENCE_ROW, error: null });
+
+    (supabase.from as jest.Mock)
+      .mockReturnValueOnce(fetchHandle.chain)
+      .mockReturnValueOnce(updateHandle.chain);
+
+    const result = await repo.updateRecurrence(
+      'rec-1',
+      { frequency: 'biweekly', start_date: '2026-06-10' },
+      '2026-06-08',
+    );
+
+    expect(result.error).toBeNull();
+
+    const updateCall = updateHandle.calls.find((c) => c.method === 'update');
+    const payload = updateCall?.args[0] as Record<string, unknown>;
+
+    expect(payload.frequency).toBe('biweekly');
+    expect(payload.start_date).toBe('2026-06-10');
+    expect(payload.day_of_month).toBe(10);
+    // start_date is in the future → next_run_on = start_date
+    expect(payload.next_run_on).toBe('2026-06-10');
+  });
+
+  it('skips schedule recompute and does NOT fetch the row when no scheduling field changes', async () => {
+    const updateHandle = makeChain({ data: RECURRENCE_ROW, error: null });
+    (supabase.from as jest.Mock).mockReturnValueOnce(updateHandle.chain);
+
+    const result = await repo.updateRecurrence('rec-1', { amount: 60000 }, '2026-06-08');
+
+    expect(result.error).toBeNull();
+    // Only one from() call (the update); no fetch
+    expect((supabase.from as jest.Mock).mock.calls.length).toBe(1);
+
+    const updateCall = updateHandle.calls.find((c) => c.method === 'update');
+    const payload = updateCall?.args[0] as Record<string, unknown>;
+    expect(payload.amount).toBe(60000);
+    expect(payload.day_of_month).toBeUndefined();
+    expect(payload.next_run_on).toBeUndefined();
+  });
+
+  it('skips schedule recompute when today is absent even if scheduling field changed', async () => {
+    // today absent → recompute skipped; still only an update (no fetch needed
+    // since we guard before fetching when today is undefined)
+    const updateHandle = makeChain({ data: RECURRENCE_ROW, error: null });
+    (supabase.from as jest.Mock).mockReturnValueOnce(updateHandle.chain);
+
+    const result = await repo.updateRecurrence('rec-1', { frequency: 'weekly' }); // no today
+
+    expect(result.error).toBeNull();
+    expect((supabase.from as jest.Mock).mock.calls.length).toBe(1);
+
+    const updateCall = updateHandle.calls.find((c) => c.method === 'update');
+    const payload = updateCall?.args[0] as Record<string, unknown>;
+    expect(payload.frequency).toBe('weekly');
+    expect(payload.next_run_on).toBeUndefined();
+  });
+
+  it('returns error when the existing row fetch fails during schedule recompute', async () => {
+    const fetchHandle = makeChain({
+      data: null,
+      error: { message: 'not found', code: 'PGRST116' },
+    });
+    (supabase.from as jest.Mock).mockReturnValueOnce(fetchHandle.chain);
+
+    const result = await repo.updateRecurrence('rec-1', { frequency: 'weekly' }, '2026-06-08');
+
+    expect(result.data).toBeNull();
+    expect(result.error).not.toBeNull();
+  });
+
+  it('updates non-scheduling fields without touching day_of_month / next_run_on', async () => {
+    const updateHandle = makeChain({ data: RECURRENCE_ROW, error: null });
+    (supabase.from as jest.Mock).mockReturnValueOnce(updateHandle.chain);
+
+    await repo.updateRecurrence(
+      'rec-1',
+      { amount: 55000, description: 'Sueldo actualizado', currency: 'USD' },
+      '2026-06-08',
+    );
+
+    // Only one from() call — no row fetch because scheduleChanged = false
+    expect((supabase.from as jest.Mock).mock.calls.length).toBe(1);
+
+    const updateCall = updateHandle.calls.find((c) => c.method === 'update');
+    const payload = updateCall?.args[0] as Record<string, unknown>;
+    expect(payload.amount).toBe(55000);
+    expect(payload.description).toBe('Sueldo actualizado');
+    expect(payload.currency).toBe('USD');
+    expect(payload.day_of_month).toBeUndefined();
+    expect(payload.next_run_on).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // deleteIncome
 // ---------------------------------------------------------------------------
 
