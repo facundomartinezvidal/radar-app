@@ -450,7 +450,7 @@ Gotchas in SDK 54:
 pnpm format:check   # Prettier
 pnpm lint           # ESLint flat config
 pnpm typecheck      # tsc --noEmit strict
-pnpm test           # jest-expo + RNTL (888 tests baseline)
+pnpm test           # jest-expo + RNTL (906 tests baseline)
 ```
 
 CI enforces these on every push/PR via `.github/workflows/ci.yml`.
@@ -555,8 +555,20 @@ Update **AGENTS.md** as part of the feature's final PR:
   rows in `GroupForm`: shows "Verificando…" while pending, inline error
   "No existe una cuenta con ese correo electrónico." when false, blocks
   Invitar/Crear grupo. `MemberSelectorSheet` wrapped in `KeyboardAvoidingView`
-  + `ScrollView` so the input, feedback, and action button stay visible above
-  the on-screen keyboard. Tests: 834 → 888.
+  - `ScrollView` so the input, feedback, and action button stay visible above
+    the on-screen keyboard. Tests: 834 → 888.
+- HU-17 split-participant UX (atomic feat/shared-expenses-split-participants):
+  (1) Current-user labeling — `currentMemberId` prop added to `SplitEditor`;
+  when a member's id matches it is displayed as "Vos" in the División rows and
+  the "¿Quién pagó?" selector in `ExpenseForm` (no DB changes). (2) Participant
+  subset — `SplitState.includedMemberIds: string[]` field; empty = all included
+  (backward-compat default). Per-member checkbox toggle in each `MemberRow`;
+  excluded members are grayed out and omitted from rightSlot inputs.
+  `resolveIncluded` helper exported for tests. `deriveShares` runs over included
+  subset only; final `splits` payload contains only included members. Guard:
+  zero-included renders "Elegí al menos un participante." and blocks submit.
+  No constraint on who paid vs who participates (payer may be excluded). Tests:
+  888 → 906.
 
 ### Still pending
 
