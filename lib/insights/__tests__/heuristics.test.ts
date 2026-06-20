@@ -28,9 +28,7 @@ function makeInput(overrides: Partial<GenerateInsightsInput> = {}): GenerateInsi
 
 describe('buildLocalInsights — rule 1: no movements', () => {
   it('returns [] when expenses and incomes are both 0', () => {
-    const result = buildLocalInsights(
-      makeInput({ totals: { expenses: 0, incomes: 0, net: 0 } }),
-    );
+    const result = buildLocalInsights(makeInput({ totals: { expenses: 0, incomes: 0, net: 0 } }));
     expect(result).toEqual([]);
   });
 
@@ -60,7 +58,9 @@ describe('buildLocalInsights — rule 2: negative balance', () => {
     const result = buildLocalInsights(
       makeInput({ totals: { expenses: 20_000, incomes: 10_000, net: -10_000 } }),
     );
-    const warning = result.find((i) => i.kind === 'warning' && i.title === 'Gastaste más de lo que ingresó');
+    const warning = result.find(
+      (i) => i.kind === 'warning' && i.title === 'Gastaste más de lo que ingresó',
+    );
     expect(warning).toBeDefined();
   });
 

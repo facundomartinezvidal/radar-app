@@ -35,7 +35,11 @@ const MINIMAL_INPUT: GenerateInsightsInput = {
 
 const VALID_INSIGHTS: Insight[] = [
   { kind: 'positive', title: 'Buen ahorro este mes', body: 'Gastaste menos de lo que ingresaste.' },
-  { kind: 'tip', title: 'Reducí gastos en Comida', body: 'Comida representa el 40 % de tus gastos.' },
+  {
+    kind: 'tip',
+    title: 'Reducí gastos en Comida',
+    body: 'Comida representa el 40 % de tus gastos.',
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -253,11 +257,7 @@ describe('generateInsights — filtering and capping', () => {
   });
 
   it('drops non-object entries in the insights array', async () => {
-    const raw = [
-      'not an object',
-      42,
-      { kind: 'neutral', title: 'OK', body: 'Fine.' },
-    ];
+    const raw = ['not an object', 42, { kind: 'neutral', title: 'OK', body: 'Fine.' }];
     mockInvoke.mockResolvedValue(makeInvokeSuccess(raw));
 
     const result = await generateInsights(MINIMAL_INPUT);
