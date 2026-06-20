@@ -49,3 +49,7 @@ app-example
 
 # local agent/MCP config
 .mcp.json
+
+# OpenSpec-generated Claude assets (sk8 wraps OpenSpec; these are unused)
+.claude/commands/opsx/
+.claude/skills/openspec-*/
