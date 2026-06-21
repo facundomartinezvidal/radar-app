@@ -26,10 +26,13 @@ import {
 } from '@/components/expenses/expense-form';
 import { ScanOverlay } from '@/components/expenses/scan-overlay';
 import { ScanStatus } from '@/components/expenses/scan-status';
+import { TransactionImportList } from '@/components/expenses/transaction-import-list';
 import { IncomeForm, type IncomeFormPrefill } from '@/components/incomes/income-form';
 import { Body, BodySm, Button, H1, Icon, Loader } from '@/components/ui';
 import { useExtractDocument } from '@/hooks/use-extract-document';
 import { useCategories, useCreateExpense } from '@/hooks/use-expenses';
+import { useImportTransactions } from '@/hooks/use-import-transactions';
+import type { ImportTransactionRow } from '@/hooks/use-import-transactions';
 import { useGroups, useCreateSharedExpense } from '@/hooks/use-groups';
 import { useCreateIncome } from '@/hooks/use-incomes';
 import { useAuthStore } from '@/stores/auth-store';
@@ -135,6 +138,8 @@ export default function ReviewScreen(): React.JSX.Element {
   const groupsQuery = useGroups();
   const createSharedMutation = useCreateSharedExpense();
   const currentUserId = useAuthStore((s) => s.user?.id ?? null);
+
+  const importTransactionsMutation = useImportTransactions();
 
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [doc, setDoc] = useState<DocumentPrefill | null>(null);
@@ -336,6 +341,20 @@ export default function ReviewScreen(): React.JSX.Element {
     }
   }
 
+  async function handleImport(rows: ImportTransactionRow[]): Promise<void> {
+    setSubmitError(null);
+    try {
+      await importTransactionsMutation.mutateAsync(rows);
+      router.replace('/(protected)/(tabs)' as Parameters<typeof router.replace>[0]);
+    } catch (e) {
+      setSubmitError(
+        e instanceof Error
+          ? e.message
+          : 'No se pudieron importar las transacciones. Intentá nuevamente.',
+      );
+    }
+  }
+
   // -------------------------------------------------------------------------
   // Derived state
   // -------------------------------------------------------------------------
@@ -344,7 +363,8 @@ export default function ReviewScreen(): React.JSX.Element {
   const isSubmitting =
     createExpenseMutation.isPending ||
     createIncomeMutation.isPending ||
-    createSharedMutation.isPending;
+    createSharedMutation.isPending ||
+    importTransactionsMutation.isPending;
 
   // compressionError takes priority over the OCR mutation error.
   const ocrError: Error | null = compressionError ?? extractMutation.error;
@@ -730,23 +750,16 @@ export default function ReviewScreen(): React.JSX.Element {
             <>
               {renderTruncatedNotice()}
 
-              {/* >1 transactions — card_statement placeholder */}
+              {/* >1 transactions — bulk import */}
               {doc.transactions.length > 1 && (
-                <View
-                  style={{
-                    backgroundColor: colors.bg[1],
-                    borderLeftWidth: 3,
-                    borderLeftColor: colors.brand[500],
-                    borderRadius: radii.sm,
-                    padding: spacing[4],
-                  }}
-                >
-                  {/* TODO(group-5): transaction-import-list */}
-                  <BodySm color={colors.fg[1]}>
-                    Detectamos {doc.transactions.length} movimientos en este resumen. Pronto vas a
-                    poder elegir cuáles importar.
-                  </BodySm>
-                </View>
+                <TransactionImportList
+                  transactions={doc.transactions}
+                  expenseCategories={expenseCategories}
+                  incomeCategories={incomeCategories}
+                  isSubmitting={importTransactionsMutation.isPending}
+                  submitError={submitError}
+                  onImport={handleImport}
+                />
               )}
 
               {/* 0 or 1 transaction — single routing */}

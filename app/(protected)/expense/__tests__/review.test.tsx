@@ -138,6 +138,15 @@ jest.mock('@/hooks/use-incomes', () => ({
   })),
 }));
 
+// Mock useImportTransactions
+const mockImportTransactionsMutateAsync = jest.fn().mockResolvedValue(3);
+jest.mock('@/hooks/use-import-transactions', () => ({
+  useImportTransactions: jest.fn(() => ({
+    mutateAsync: mockImportTransactionsMutateAsync,
+    isPending: false,
+  })),
+}));
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
@@ -370,6 +379,7 @@ describe('ReviewScreen — HU-25: document routing', () => {
     useGroups.mockReturnValue({ data: [], isLoading: false, error: null });
     mockCreateSharedExpenseMutateAsync.mockResolvedValue({ id: 'shared-1' });
     mockCreateIncomeMutateAsync.mockResolvedValue({ id: 'inc-new' });
+    mockImportTransactionsMutateAsync.mockResolvedValue(3);
     mockReadAsStringAsync.mockResolvedValue('pdfbase64data');
   });
 
@@ -587,21 +597,31 @@ describe('ReviewScreen — HU-25: document routing', () => {
   });
 
   // -------------------------------------------------------------------------
-  // >1 transactions — card statement placeholder
+  // >1 transactions — TransactionImportList (Group 5)
   // -------------------------------------------------------------------------
 
-  it('shows placeholder notice with transaction count for >1 transactions', async () => {
+  it('renders the import list with an "Importar (N)" button for >1 transactions', async () => {
     mockExtract.isPending = false;
     mockExtract.data = DOC_RESULT_MULTI;
 
     renderWithProviders();
 
     await waitFor(() => {
-      expect(
-        screen.getByText(
-          'Detectamos 3 movimientos en este resumen. Pronto vas a poder elegir cuáles importar.',
-        ),
-      ).toBeTruthy();
+      // The TransactionImportList renders an import button
+      expect(screen.getByLabelText('Importar 3 transacciones')).toBeTruthy();
+    });
+  });
+
+  it('renders merchant names from the multi-transaction result', async () => {
+    mockExtract.isPending = false;
+    mockExtract.data = DOC_RESULT_MULTI;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByText('Netflix')).toBeTruthy();
+      expect(screen.getByText('Spotify')).toBeTruthy();
+      expect(screen.getByText('Supermercado')).toBeTruthy();
     });
   });
 
@@ -612,7 +632,45 @@ describe('ReviewScreen — HU-25: document routing', () => {
     renderWithProviders();
 
     await waitFor(() => {
+      // The import list renders, not a single-expense form
       expect(screen.queryByLabelText('Registrar gasto')).toBeNull();
+    });
+  });
+
+  it('calls importTransactions mutation and navigates on successful import', async () => {
+    mockExtract.isPending = false;
+    mockExtract.data = DOC_RESULT_MULTI;
+    mockImportTransactionsMutateAsync.mockResolvedValueOnce(3);
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Importar 3 transacciones')).toBeTruthy();
+    });
+
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('Importar 3 transacciones'));
+    });
+
+    await waitFor(() => {
+      expect(mockImportTransactionsMutateAsync).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ direction: 'expense', description: 'Netflix' }),
+        ]),
+      );
+      expect(router.replace).toHaveBeenCalledWith('/(protected)/(tabs)');
+    });
+  });
+
+  it('shows a truncated-PDF notice above the import list when doc is truncated', async () => {
+    mockExtract.isPending = false;
+    mockExtract.data = DOC_RESULT_TRUNCATED;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByText('Procesamos las primeras 3 páginas del PDF.')).toBeTruthy();
+      expect(screen.getByLabelText('Importar 2 transacciones')).toBeTruthy();
     });
   });
 
@@ -991,6 +1049,7 @@ describe('ReviewScreen — share toggle wiring (HU-17)', () => {
     useGroups.mockReturnValue({ data: REVIEW_MOCK_GROUPS, isLoading: false, error: null });
     mockCreateSharedExpenseMutateAsync.mockResolvedValue({ id: 'shared-r1' });
     mockCreateIncomeMutateAsync.mockResolvedValue({ id: 'inc-new' });
+    mockImportTransactionsMutateAsync.mockResolvedValue(0);
     mockReadAsStringAsync.mockResolvedValue('pdfbase64data');
   });
 
