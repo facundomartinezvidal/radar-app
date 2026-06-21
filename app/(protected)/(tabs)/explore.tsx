@@ -138,9 +138,7 @@ export default function InsightsScreen(): React.JSX.Element {
         {/* ── Filters (always visible) ────────────────────────────────── */}
         <View style={styles.filtersBlock} testID="filters-block">
           <PeriodFilterBar period={period} onChange={setPeriod} />
-          <View style={styles.currencyRow}>
-            <CurrencyToggle value={currency} onChange={setCurrency} />
-          </View>
+          <CurrencyToggle value={currency} onChange={setCurrency} />
         </View>
 
         {/* ── Loading state ───────────────────────────────────────────── */}
@@ -266,9 +264,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[5],
     paddingBottom: spacing[3],
     gap: spacing[3],
-  },
-  currencyRow: {
-    alignSelf: 'flex-start',
   },
 
   // Loading
