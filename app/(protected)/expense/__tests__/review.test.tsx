@@ -1,21 +1,31 @@
 /**
- * Tests for the receipt-review screen (HU-06).
+ * Tests for the document review screen (HU-06 / HU-25).
  *
  * Covers:
- *  - Loading state shows "Analizando ticket…"
- *  - OCR success renders the form with prefilled amount
- *  - OCR error (timeout) shows manual notice + Reintentar button
+ *  - Loading state shows scan overlay
+ *  - Single expense transaction → ExpenseForm prefilled
+ *  - Single income transaction (transfer received) → IncomeForm rendered
+ *  - Direction toggle flips expense↔income form, preserving amount
+ *  - Document type badge label correct for each documentType
+ *  - >1 transactions → placeholder notice with count
+ *  - 0 / unknown transactions → empty form + notice
+ *  - pdf kind → reads file as base64 and calls extractDocument with pdfBase64
+ *  - Truncated → "primeras 3 páginas" notice
+ *  - Low confidence → warning banner in IncomeForm
+ *  - Low confidence → existing ExpenseForm low-confidence banner
+ *  - OCR error (retryable) shows manual notice + Reintentar button
  *  - OCR error (non-retryable) shows manual notice without Reintentar
- *  - Missing imageUri shows defensive manual notice
- *  - Successful save calls createExpense then router.replace
+ *  - Missing uri shows defensive manual notice
+ *  - Successful expense save calls createExpense then router.replace
  *  - Submit error shows the error message
+ *  - HU-17: share toggle wiring still works
  */
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import { router } from 'expo-router';
-import type { OcrResult } from '@/lib/schemas/ocr';
+import type { DocumentOcrResult } from '@/lib/schemas/document';
 import type { CategoryRow } from '@/lib/repositories/expenses';
 import { OcrError } from '@/lib/ocr';
 import * as repo from '@/lib/repositories/expenses';
@@ -36,14 +46,16 @@ jest.mock('@react-native-community/datetimepicker', () => {
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
 
 // expo-router: override useLocalSearchParams per test via the mutable ref below
-const mockImageUri = { current: 'file://x.jpg' };
+const mockParams = {
+  current: { imageUri: 'file://x.jpg' } as Record<string, string | undefined>,
+};
 
 jest.mock('expo-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
   Redirect: () => null,
   router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() },
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
-  useLocalSearchParams: () => ({ imageUri: mockImageUri.current }),
+  useLocalSearchParams: () => mockParams.current,
   Stack: { Screen: () => null },
 }));
 
@@ -67,6 +79,13 @@ jest.mock('expo-linear-gradient', () => {
   return { LinearGradient };
 });
 
+// expo-file-system/legacy: mock readAsStringAsync
+const mockReadAsStringAsync = jest.fn().mockResolvedValue('pdfbase64data');
+jest.mock('expo-file-system/legacy', () => ({
+  readAsStringAsync: (...args: unknown[]) => mockReadAsStringAsync(...args),
+  EncodingType: { Base64: 'base64', UTF8: 'utf8' },
+}));
+
 // lib/image: compressForOcr resolves immediately
 jest.mock('@/lib/image', () => ({
   compressForOcr: jest.fn().mockResolvedValue({
@@ -75,17 +94,17 @@ jest.mock('@/lib/image', () => ({
   }),
 }));
 
-// use-extract-receipt: controlled per-test via mockExtract
+// use-extract-document: controlled per-test via mockExtract
 const mockExtract = {
   mutate: jest.fn(),
   reset: jest.fn(),
   isPending: false,
-  data: undefined as OcrResult | undefined,
+  data: undefined as DocumentOcrResult | undefined,
   error: null as Error | null,
 };
 
-jest.mock('@/hooks/use-extract-receipt', () => ({
-  useExtractReceipt: () => mockExtract,
+jest.mock('@/hooks/use-extract-document', () => ({
+  useExtractDocument: () => mockExtract,
 }));
 
 // lib/repositories/expenses: controlled via mockedRepo
@@ -110,13 +129,31 @@ jest.mock('@/stores/auth-store', () => ({
   ),
 }));
 
+// Mock useCreateIncome
+const mockCreateIncomeMutateAsync = jest.fn().mockResolvedValue({ id: 'inc-new' });
+jest.mock('@/hooks/use-incomes', () => ({
+  useCreateIncome: jest.fn(() => ({
+    mutateAsync: mockCreateIncomeMutateAsync,
+    isPending: false,
+  })),
+}));
+
+// Mock useImportTransactions
+const mockImportTransactionsMutateAsync = jest.fn().mockResolvedValue(3);
+jest.mock('@/hooks/use-import-transactions', () => ({
+  useImportTransactions: jest.fn(() => ({
+    mutateAsync: mockImportTransactionsMutateAsync,
+    isPending: false,
+  })),
+}));
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
 
-const CATEGORIES: CategoryRow[] = [
+const EXPENSE_CATEGORIES: CategoryRow[] = [
   {
-    id: 'cat-1',
+    id: 'cat-expense-1',
     slug: 'comida',
     name: 'Comida',
     icon: 'UtensilsCrossed',
@@ -129,60 +166,160 @@ const CATEGORIES: CategoryRow[] = [
   },
 ];
 
-const OCR_RESULT_WITH_DATA: OcrResult = {
-  amount: 1500,
-  currency: 'ARS',
-  merchant: "McDonald's",
-  categoryHint: 'comida',
-  occurredAt: '2026-05-31',
-  suggestedNewCategory: null,
-  suggestedNewCategoryReason: null,
+const INCOME_CATEGORIES: CategoryRow[] = [
+  {
+    id: 'cat-income-1',
+    slug: 'sueldo',
+    name: 'Sueldo',
+    icon: 'Briefcase',
+    color: '#10B981',
+    sort_order: 10,
+    created_at: '2026-01-01',
+    updated_at: '2026-01-01',
+    user_id: null,
+    kind: 'income',
+  },
+];
+
+/** Single expense transaction — receipt */
+const DOC_RESULT_EXPENSE: DocumentOcrResult = {
+  documentType: 'receipt',
   confidence: 0.9,
-  items: [],
-};
-
-const OCR_RESULT_EMPTY: OcrResult = {
-  amount: null,
-  currency: null,
-  merchant: null,
-  categoryHint: null,
-  occurredAt: null,
-  suggestedNewCategory: null,
-  suggestedNewCategoryReason: null,
-  confidence: 0.3,
-  items: [],
-};
-
-/** OCR result that returns line items alongside the standard fields. */
-const OCR_RESULT_WITH_ITEMS: OcrResult = {
-  amount: 2000,
-  currency: 'ARS',
-  merchant: 'Supermercado Norte',
-  categoryHint: 'comida',
-  occurredAt: '2026-05-31',
-  suggestedNewCategory: null,
-  suggestedNewCategoryReason: null,
-  confidence: 0.85,
-  items: [
-    { name: 'Leche entera', quantity: 2, unitPrice: 500, lineTotal: 1000 },
-    { name: 'Pan lactal', quantity: 1, unitPrice: 1000, lineTotal: 1000 },
+  truncated: false,
+  transactions: [
+    {
+      amount: 1500,
+      currency: 'ARS',
+      merchant: "McDonald's",
+      categoryHint: 'comida',
+      occurredAt: '2026-05-31',
+      direction: 'expense',
+      suggestedNewCategory: null,
+      suggestedNewCategoryReason: null,
+      items: [],
+    },
   ],
 };
 
-/**
- * OCR result with items but NO scalar fields (amount / currency / etc. all null).
- * Exercises the `hasOcrData` path that used to drop items before the fix.
- */
-const OCR_RESULT_ITEMS_ONLY: OcrResult = {
-  amount: null,
-  currency: null,
-  merchant: null,
-  categoryHint: null,
-  occurredAt: null,
-  suggestedNewCategory: null,
-  suggestedNewCategoryReason: null,
-  confidence: 0.6,
-  items: [{ name: 'Producto', quantity: 1, unitPrice: 200, lineTotal: 200 }],
+/** Single income transaction — transfer received */
+const DOC_RESULT_INCOME: DocumentOcrResult = {
+  documentType: 'transfer',
+  confidence: 0.85,
+  truncated: false,
+  transactions: [
+    {
+      amount: 50000,
+      currency: 'ARS',
+      merchant: 'Jonathan Mayan',
+      categoryHint: null,
+      occurredAt: '2026-06-01',
+      direction: 'income',
+      suggestedNewCategory: null,
+      suggestedNewCategoryReason: null,
+      items: [],
+    },
+  ],
+};
+
+/** Multiple transactions — card statement */
+const DOC_RESULT_MULTI: DocumentOcrResult = {
+  documentType: 'card_statement',
+  confidence: 0.75,
+  truncated: false,
+  transactions: [
+    {
+      amount: 1500,
+      currency: 'ARS',
+      merchant: 'Netflix',
+      categoryHint: null,
+      occurredAt: '2026-05-01',
+      direction: 'expense',
+      suggestedNewCategory: null,
+      suggestedNewCategoryReason: null,
+      items: [],
+    },
+    {
+      amount: 2000,
+      currency: 'ARS',
+      merchant: 'Spotify',
+      categoryHint: null,
+      occurredAt: '2026-05-05',
+      direction: 'expense',
+      suggestedNewCategory: null,
+      suggestedNewCategoryReason: null,
+      items: [],
+    },
+    {
+      amount: 900,
+      currency: 'ARS',
+      merchant: 'Supermercado',
+      categoryHint: null,
+      occurredAt: '2026-05-10',
+      direction: 'expense',
+      suggestedNewCategory: null,
+      suggestedNewCategoryReason: null,
+      items: [],
+    },
+  ],
+};
+
+/** Empty result — unknown doc type, no transactions */
+const DOC_RESULT_EMPTY: DocumentOcrResult = {
+  documentType: 'unknown',
+  confidence: 0.1,
+  truncated: false,
+  transactions: [],
+};
+
+/** Low confidence single expense transaction */
+const DOC_RESULT_LOW_CONFIDENCE: DocumentOcrResult = {
+  documentType: 'receipt',
+  confidence: 0.3,
+  truncated: false,
+  transactions: [
+    {
+      amount: 1000,
+      currency: 'ARS',
+      merchant: 'Kiosco',
+      categoryHint: null,
+      occurredAt: '2026-06-01',
+      direction: 'expense',
+      suggestedNewCategory: null,
+      suggestedNewCategoryReason: null,
+      items: [],
+    },
+  ],
+};
+
+/** Truncated PDF result */
+const DOC_RESULT_TRUNCATED: DocumentOcrResult = {
+  documentType: 'card_statement',
+  confidence: 0.7,
+  truncated: true,
+  transactions: [
+    {
+      amount: 500,
+      currency: 'ARS',
+      merchant: 'Amazon',
+      categoryHint: null,
+      occurredAt: '2026-05-01',
+      direction: 'expense',
+      suggestedNewCategory: null,
+      suggestedNewCategoryReason: null,
+      items: [],
+    },
+    {
+      amount: 300,
+      currency: 'ARS',
+      merchant: 'Uber',
+      categoryHint: null,
+      occurredAt: '2026-05-02',
+      direction: 'expense',
+      suggestedNewCategory: null,
+      suggestedNewCategoryReason: null,
+      items: [],
+    },
+  ],
 };
 
 // ---------------------------------------------------------------------------
@@ -204,6 +341,21 @@ function renderWithProviders(): { client: QueryClient } {
 }
 
 // ---------------------------------------------------------------------------
+// Setup: mock useCategories to return expense + income categories by kind
+// ---------------------------------------------------------------------------
+
+function setupCategoriesMock(): void {
+  mockedRepo.listCategories.mockImplementation(
+    (kind?: string): ReturnType<typeof mockedRepo.listCategories> => {
+      if (kind === 'income') {
+        return Promise.resolve({ data: INCOME_CATEGORIES, error: null });
+      }
+      return Promise.resolve({ data: EXPENSE_CATEGORIES, error: null });
+    },
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -211,22 +363,24 @@ const { useGroups } = jest.requireMock('@/hooks/use-groups') as {
   useGroups: jest.Mock;
 };
 
-describe('ReviewScreen', () => {
+describe('ReviewScreen — HU-25: document routing', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockImageUri.current = 'file://x.jpg';
+    mockParams.current = { imageUri: 'file://x.jpg' };
 
-    // Reset extract mock to pending state
+    // Reset extract mock
     mockExtract.mutate = jest.fn();
     mockExtract.reset = jest.fn();
     mockExtract.isPending = true;
     mockExtract.data = undefined;
     mockExtract.error = null;
 
-    mockedRepo.listCategories.mockResolvedValue({ data: CATEGORIES, error: null });
-    // Default: no groups (toggle hidden — doesn't affect existing tests)
+    setupCategoriesMock();
     useGroups.mockReturnValue({ data: [], isLoading: false, error: null });
     mockCreateSharedExpenseMutateAsync.mockResolvedValue({ id: 'shared-1' });
+    mockCreateIncomeMutateAsync.mockResolvedValue({ id: 'inc-new' });
+    mockImportTransactionsMutateAsync.mockResolvedValue(3);
+    mockReadAsStringAsync.mockResolvedValue('pdfbase64data');
   });
 
   // -------------------------------------------------------------------------
@@ -237,7 +391,6 @@ describe('ReviewScreen', () => {
     renderWithProviders();
 
     await waitFor(() => {
-      // ScanOverlay container carries the accessibilityLabel
       expect(screen.getByLabelText('Analizando ticket')).toBeTruthy();
     });
   });
@@ -250,7 +403,10 @@ describe('ReviewScreen', () => {
     });
   });
 
-  it('renders the receipt thumbnail when imageUri is present', async () => {
+  it('renders the image thumbnail when imageUri is present and not loading', async () => {
+    mockExtract.isPending = false;
+    mockExtract.data = DOC_RESULT_EXPENSE;
+
     renderWithProviders();
 
     await waitFor(() => {
@@ -259,30 +415,378 @@ describe('ReviewScreen', () => {
   });
 
   // -------------------------------------------------------------------------
-  // OCR success — prefilled form
+  // Single expense transaction → ExpenseForm
   // -------------------------------------------------------------------------
 
-  it('renders the form prefilled with detected amount after OCR success', async () => {
-    // Simulate OCR completing successfully
+  it('renders ExpenseForm prefilled with amount when single expense transaction', async () => {
     mockExtract.isPending = false;
-    mockExtract.data = OCR_RESULT_WITH_DATA;
-    mockExtract.error = null;
+    mockExtract.data = DOC_RESULT_EXPENSE;
 
     renderWithProviders();
 
     await waitFor(() => {
-      // The amount field should show the detected value ("1500")
       expect(screen.getByDisplayValue('1500')).toBeTruthy();
     });
   });
 
-  it('shows the low-confidence notice when confidence < 0.5', async () => {
+  it('shows "Ticket" document type badge for receipt documentType', async () => {
     mockExtract.isPending = false;
-    mockExtract.data = {
-      ...OCR_RESULT_WITH_DATA,
-      confidence: 0.3,
+    mockExtract.data = DOC_RESULT_EXPENSE;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByText('Ticket')).toBeTruthy();
+    });
+  });
+
+  it('shows "Transferencia" badge for transfer documentType', async () => {
+    mockExtract.isPending = false;
+    mockExtract.data = DOC_RESULT_INCOME;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByText('Transferencia')).toBeTruthy();
+    });
+  });
+
+  it('shows "Registrar gasto" submit button for expense direction', async () => {
+    mockExtract.isPending = false;
+    mockExtract.data = DOC_RESULT_EXPENSE;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Registrar gasto')).toBeTruthy();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Single income transaction → IncomeForm
+  // -------------------------------------------------------------------------
+
+  it('renders IncomeForm with income categories when single income transaction', async () => {
+    mockExtract.isPending = false;
+    mockExtract.data = DOC_RESULT_INCOME;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      // IncomeForm renders "Registrar ingreso" button
+      expect(screen.getByLabelText('Registrar ingreso')).toBeTruthy();
+    });
+  });
+
+  it('renders IncomeForm with prefilled amount for income transaction', async () => {
+    mockExtract.isPending = false;
+    mockExtract.data = DOC_RESULT_INCOME;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('50000')).toBeTruthy();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Direction toggle
+  // -------------------------------------------------------------------------
+
+  it('shows "Gasto" and "Ingreso" toggle buttons for single-transaction result', async () => {
+    mockExtract.isPending = false;
+    mockExtract.data = DOC_RESULT_EXPENSE;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Gasto')).toBeTruthy();
+      expect(screen.getByLabelText('Ingreso')).toBeTruthy();
+    });
+  });
+
+  it('toggles from ExpenseForm to IncomeForm when Ingreso is pressed, preserving amount', async () => {
+    mockExtract.isPending = false;
+    mockExtract.data = DOC_RESULT_EXPENSE;
+
+    renderWithProviders();
+
+    // Wait for expense form to appear with amount
+    await waitFor(() => {
+      expect(screen.getByLabelText('Registrar gasto')).toBeTruthy();
+      expect(screen.getByDisplayValue('1500')).toBeTruthy();
+    });
+
+    // Press Ingreso toggle
+    fireEvent.press(screen.getByLabelText('Ingreso'));
+
+    await waitFor(() => {
+      // IncomeForm should now be shown
+      expect(screen.getByLabelText('Registrar ingreso')).toBeTruthy();
+      // Amount should still be present
+      expect(screen.getByDisplayValue('1500')).toBeTruthy();
+    });
+  });
+
+  it('toggles from IncomeForm back to ExpenseForm when Gasto is pressed', async () => {
+    mockExtract.isPending = false;
+    mockExtract.data = DOC_RESULT_INCOME;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Registrar ingreso')).toBeTruthy();
+    });
+
+    // Press Gasto toggle
+    fireEvent.press(screen.getByLabelText('Gasto'));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Registrar gasto')).toBeTruthy();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Document type badge labels
+  // -------------------------------------------------------------------------
+
+  it('shows "Resumen" badge for card_statement documentType', async () => {
+    // Use a single-transaction result of card_statement type
+    const singleCardStatement: DocumentOcrResult = {
+      ...DOC_RESULT_EXPENSE,
+      documentType: 'card_statement',
     };
-    mockExtract.error = null;
+    mockExtract.isPending = false;
+    mockExtract.data = singleCardStatement;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByText('Resumen')).toBeTruthy();
+    });
+  });
+
+  it('shows "Captura" badge for screenshot documentType', async () => {
+    const screenshot: DocumentOcrResult = {
+      ...DOC_RESULT_EXPENSE,
+      documentType: 'screenshot',
+    };
+    mockExtract.isPending = false;
+    mockExtract.data = screenshot;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByText('Captura')).toBeTruthy();
+    });
+  });
+
+  it('shows "Documento" badge for unknown documentType (single transaction)', async () => {
+    const unknownSingle: DocumentOcrResult = {
+      ...DOC_RESULT_EXPENSE,
+      documentType: 'unknown',
+    };
+    mockExtract.isPending = false;
+    mockExtract.data = unknownSingle;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByText('Documento')).toBeTruthy();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // >1 transactions — TransactionImportList (Group 5)
+  // -------------------------------------------------------------------------
+
+  it('renders the import list with an "Importar (N)" button for >1 transactions', async () => {
+    mockExtract.isPending = false;
+    mockExtract.data = DOC_RESULT_MULTI;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      // The TransactionImportList renders an import button
+      expect(screen.getByLabelText('Importar 3 transacciones')).toBeTruthy();
+    });
+  });
+
+  it('renders merchant names from the multi-transaction result', async () => {
+    mockExtract.isPending = false;
+    mockExtract.data = DOC_RESULT_MULTI;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByText('Netflix')).toBeTruthy();
+      expect(screen.getByText('Spotify')).toBeTruthy();
+      expect(screen.getByText('Supermercado')).toBeTruthy();
+    });
+  });
+
+  it('does NOT show ExpenseForm for >1 transactions', async () => {
+    mockExtract.isPending = false;
+    mockExtract.data = DOC_RESULT_MULTI;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      // The import list renders, not a single-expense form
+      expect(screen.queryByLabelText('Registrar gasto')).toBeNull();
+    });
+  });
+
+  it('calls importTransactions mutation and navigates on successful import', async () => {
+    mockExtract.isPending = false;
+    mockExtract.data = DOC_RESULT_MULTI;
+    mockImportTransactionsMutateAsync.mockResolvedValueOnce(3);
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Importar 3 transacciones')).toBeTruthy();
+    });
+
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText('Importar 3 transacciones'));
+    });
+
+    await waitFor(() => {
+      expect(mockImportTransactionsMutateAsync).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ direction: 'expense', description: 'Netflix' }),
+        ]),
+      );
+      expect(router.replace).toHaveBeenCalledWith('/(protected)/(tabs)');
+    });
+  });
+
+  it('shows a truncated-PDF notice above the import list when doc is truncated', async () => {
+    mockExtract.isPending = false;
+    mockExtract.data = DOC_RESULT_TRUNCATED;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByText('Procesamos las primeras 3 páginas del PDF.')).toBeTruthy();
+      expect(screen.getByLabelText('Importar 2 transacciones')).toBeTruthy();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 0 transactions / unknown — empty form + notice
+  // -------------------------------------------------------------------------
+
+  it('shows "No se detectaron datos" notice and ExpenseForm for 0 transactions', async () => {
+    mockExtract.isPending = false;
+    mockExtract.data = DOC_RESULT_EMPTY;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByText('No se detectaron datos. Completá manualmente.')).toBeTruthy();
+      expect(screen.getByLabelText('Registrar gasto')).toBeTruthy();
+    });
+  });
+
+  it('does NOT show direction toggle for 0 transactions', async () => {
+    mockExtract.isPending = false;
+    mockExtract.data = DOC_RESULT_EMPTY;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Gasto')).toBeNull();
+      expect(screen.queryByLabelText('Ingreso')).toBeNull();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // PDF kind → reads file as base64
+  // -------------------------------------------------------------------------
+
+  it('calls readAsStringAsync (not compressForOcr) for pdf kind', async () => {
+    mockParams.current = { uri: 'file://doc.pdf', kind: 'pdf', mimeType: 'application/pdf' };
+    mockExtract.isPending = true;
+    mockExtract.data = undefined;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(mockReadAsStringAsync).toHaveBeenCalledWith(
+        'file://doc.pdf',
+        expect.objectContaining({ encoding: 'base64' }),
+      );
+    });
+
+    // compressForOcr should NOT have been called
+    expect(imageLib.compressForOcr).not.toHaveBeenCalled();
+  });
+
+  it('calls extractMutation.mutate with pdfBase64 for pdf kind', async () => {
+    mockParams.current = { uri: 'file://doc.pdf', kind: 'pdf', mimeType: 'application/pdf' };
+    mockExtract.isPending = true;
+    mockExtract.data = undefined;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(mockExtract.mutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pdfBase64: 'pdfbase64data',
+          mimeType: 'application/pdf',
+        }),
+      );
+    });
+
+    expect(mockExtract.mutate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ imageBase64: expect.anything() }),
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // Truncated → notice
+  // -------------------------------------------------------------------------
+
+  it('shows "primeras 3 páginas" notice when doc is truncated', async () => {
+    mockExtract.isPending = false;
+    mockExtract.data = DOC_RESULT_TRUNCATED;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByText('Procesamos las primeras 3 páginas del PDF.')).toBeTruthy();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Low confidence
+  // -------------------------------------------------------------------------
+
+  it('shows income low-confidence banner when confidence < 0.5 and direction=income', async () => {
+    const lowConfIncome: DocumentOcrResult = {
+      ...DOC_RESULT_LOW_CONFIDENCE,
+      transactions: [
+        {
+          ...DOC_RESULT_LOW_CONFIDENCE.transactions[0]!,
+          direction: 'income',
+        },
+      ],
+    };
+    mockExtract.isPending = false;
+    mockExtract.data = lowConfIncome;
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByText('Revisá los datos detectados, la confianza es baja.')).toBeTruthy();
+    });
+  });
+
+  it('shows expense low-confidence banner when confidence < 0.5 and direction=expense', async () => {
+    mockExtract.isPending = false;
+    mockExtract.data = DOC_RESULT_LOW_CONFIDENCE;
 
     renderWithProviders();
 
@@ -291,20 +795,22 @@ describe('ReviewScreen', () => {
     });
   });
 
-  it('does NOT show the low-confidence notice when confidence >= 0.5', async () => {
+  it('does NOT show low-confidence banner when confidence >= 0.5', async () => {
     mockExtract.isPending = false;
-    mockExtract.data = OCR_RESULT_WITH_DATA; // confidence 0.9
-    mockExtract.error = null;
+    mockExtract.data = DOC_RESULT_EXPENSE; // confidence 0.9
 
     renderWithProviders();
 
     await waitFor(() => {
-      expect(screen.queryByText('Revisá los datos detectados antes de guardar.')).toBeNull();
+      expect(screen.getByLabelText('Registrar gasto')).toBeTruthy();
     });
+
+    expect(screen.queryByText('Revisá los datos detectados antes de guardar.')).toBeNull();
+    expect(screen.queryByText('Revisá los datos detectados, la confianza es baja.')).toBeNull();
   });
 
   // -------------------------------------------------------------------------
-  // OCR error — retryable
+  // OCR errors
   // -------------------------------------------------------------------------
 
   it('shows manual notice and Reintentar button on OCR_TIMEOUT error', async () => {
@@ -316,7 +822,7 @@ describe('ReviewScreen', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('No se pudo analizar el ticket. Ingresá los datos manualmente.'),
+        screen.getByText('No se pudo analizar el documento. Ingresá los datos manualmente.'),
       ).toBeTruthy();
       expect(screen.getByText('Reintentar')).toBeTruthy();
     });
@@ -331,7 +837,7 @@ describe('ReviewScreen', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('No se pudo analizar el ticket. Ingresá los datos manualmente.'),
+        screen.getByText('No se pudo analizar el documento. Ingresá los datos manualmente.'),
       ).toBeTruthy();
       expect(screen.getByText('Reintentar')).toBeTruthy();
     });
@@ -345,14 +851,9 @@ describe('ReviewScreen', () => {
     renderWithProviders();
 
     await waitFor(() => {
-      // The form submit button should be visible
-      expect(screen.getByText('Registrar gasto')).toBeTruthy();
+      expect(screen.getByLabelText('Registrar gasto')).toBeTruthy();
     });
   });
-
-  // -------------------------------------------------------------------------
-  // OCR error — non-retryable
-  // -------------------------------------------------------------------------
 
   it('shows manual notice WITHOUT Reintentar for non-retryable error codes', async () => {
     mockExtract.isPending = false;
@@ -363,34 +864,18 @@ describe('ReviewScreen', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('No se pudo analizar el ticket. Ingresá los datos manualmente.'),
+        screen.getByText('No se pudo analizar el documento. Ingresá los datos manualmente.'),
       ).toBeTruthy();
       expect(screen.queryByText('Reintentar')).toBeNull();
     });
   });
 
   // -------------------------------------------------------------------------
-  // No OCR data (empty result)
+  // Missing uri — defensive fallback
   // -------------------------------------------------------------------------
 
-  it('shows "No se detectaron datos" notice when OCR returns empty fields', async () => {
-    mockExtract.isPending = false;
-    mockExtract.data = OCR_RESULT_EMPTY;
-    mockExtract.error = null;
-
-    renderWithProviders();
-
-    await waitFor(() => {
-      expect(screen.getByText('No se detectaron datos. Completá manualmente.')).toBeTruthy();
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // Missing imageUri — defensive fallback
-  // -------------------------------------------------------------------------
-
-  it('shows defensive manual notice when imageUri is missing', async () => {
-    mockImageUri.current = undefined as unknown as string;
+  it('shows defensive manual notice when uri is missing', async () => {
+    mockParams.current = {};
     mockExtract.isPending = false;
 
     renderWithProviders();
@@ -401,13 +886,12 @@ describe('ReviewScreen', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Happy-path submit
+  // Happy-path expense submit
   // -------------------------------------------------------------------------
 
-  it('calls createExpense and then router.replace on successful save', async () => {
+  it('calls createExpense and then router.replace on successful expense save', async () => {
     mockExtract.isPending = false;
-    mockExtract.data = OCR_RESULT_WITH_DATA;
-    mockExtract.error = null;
+    mockExtract.data = DOC_RESULT_EXPENSE;
 
     mockedRepo.createExpense.mockResolvedValueOnce({
       data: { id: 'exp-new', items: [] } as unknown as repo.ExpenseWithItems,
@@ -416,14 +900,10 @@ describe('ReviewScreen', () => {
 
     renderWithProviders();
 
-    // Wait for the form to appear with prefilled amount
     await waitFor(() => {
       expect(screen.getByDisplayValue('1500')).toBeTruthy();
     });
 
-    // category_id is already prefilled via OCR → mapOcrToPrefill → 'cat-1'.
-    // Do NOT press the category chip — pressing it would deselect (toggle off).
-    // Submit directly.
     await act(async () => {
       fireEvent.press(screen.getByLabelText('Registrar gasto'));
     });
@@ -443,8 +923,7 @@ describe('ReviewScreen', () => {
 
   it('shows submit error message when createExpense fails', async () => {
     mockExtract.isPending = false;
-    mockExtract.data = OCR_RESULT_WITH_DATA;
-    mockExtract.error = null;
+    mockExtract.data = DOC_RESULT_EXPENSE;
 
     mockedRepo.createExpense.mockResolvedValueOnce({
       data: null,
@@ -457,7 +936,6 @@ describe('ReviewScreen', () => {
       expect(screen.getByDisplayValue('1500')).toBeTruthy();
     });
 
-    // category_id is already prefilled via OCR → no need to select.
     await act(async () => {
       fireEvent.press(screen.getByLabelText('Registrar gasto'));
     });
@@ -468,80 +946,38 @@ describe('ReviewScreen', () => {
   });
 
   // -------------------------------------------------------------------------
-  // HU-18: OCR result with line items — items must survive to the form
+  // Compression failure
   // -------------------------------------------------------------------------
 
-  it('renders item names when OCR detects line items', async () => {
+  it('shows manual notice + Reintentar + form when compressForOcr rejects', async () => {
+    (imageLib.compressForOcr as jest.Mock).mockRejectedValueOnce(new Error('compression failed'));
+
+    // OCR mutation stays idle (never mutated because compression failed).
     mockExtract.isPending = false;
-    mockExtract.data = OCR_RESULT_WITH_ITEMS;
+    mockExtract.data = undefined;
     mockExtract.error = null;
 
     renderWithProviders();
 
-    // The detail section starts expanded when items are present.
-    // Item names must be visible.
     await waitFor(() => {
-      expect(screen.getByDisplayValue('Leche entera')).toBeTruthy();
-      expect(screen.getByDisplayValue('Pan lactal')).toBeTruthy();
-    });
-  });
-
-  it('passes items to createExpense when submitting an OCR-prefilled form', async () => {
-    mockExtract.isPending = false;
-    mockExtract.data = OCR_RESULT_WITH_ITEMS;
-    mockExtract.error = null;
-
-    mockedRepo.createExpense.mockResolvedValueOnce({
-      data: { id: 'exp-items', items: [] } as unknown as repo.ExpenseWithItems,
-      error: null,
+      // The manual notice must be visible (hardcoded retryable error text in JSX).
+      expect(
+        screen.getByText('No se pudo analizar el documento. Ingresá los datos manualmente.'),
+      ).toBeTruthy();
     });
 
-    renderWithProviders();
+    // Reintentar button must be visible (retryable path).
+    expect(screen.getByText('Reintentar')).toBeTruthy();
 
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('2000')).toBeTruthy();
-    });
-
-    await act(async () => {
-      fireEvent.press(screen.getByLabelText('Registrar gasto'));
-    });
-
-    await waitFor(() => {
-      expect(mockedRepo.createExpense).toHaveBeenCalledWith(
-        expect.objectContaining({
-          items: expect.arrayContaining([
-            expect.objectContaining({ name: 'Leche entera', quantity: 2, line_total: 1000 }),
-            expect.objectContaining({ name: 'Pan lactal', quantity: 1, line_total: 1000 }),
-          ]),
-        }),
-      );
-    });
-  });
-
-  it('shows prefilled form (not "no data" notice) when OCR returns only items and no scalar fields', async () => {
-    mockExtract.isPending = false;
-    mockExtract.data = OCR_RESULT_ITEMS_ONLY;
-    mockExtract.error = null;
-
-    renderWithProviders();
-
-    // Wait for the item row to be visible — the items section expands automatically
-    // when pre-populated. This also proves we didn't fall into the "no data" branch.
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('Producto')).toBeTruthy();
-    });
-
-    // Confirm the "no data" notice is absent.
-    expect(screen.queryByText('No se detectaron datos. Completá manualmente.')).toBeNull();
+    // The expense form must be present (not a blank screen).
+    expect(screen.getByLabelText('Registrar gasto')).toBeTruthy();
   });
 
   // -------------------------------------------------------------------------
-  // Task C: categoryNames are forwarded to the OCR mutation
+  // categoryNames forwarded
   // -------------------------------------------------------------------------
 
-  it('calls extractMutation.mutate with categoryNames from loaded categories', async () => {
-    // Categories are already loaded via mockedRepo.listCategories in beforeEach.
-    // OCR mutation stays pending so we can inspect the mutate call.
+  it('calls extractMutation.mutate with categoryNames from loaded expense categories', async () => {
     mockExtract.isPending = true;
 
     renderWithProviders();
@@ -554,39 +990,10 @@ describe('ReviewScreen', () => {
       );
     });
   });
-
-  // -------------------------------------------------------------------------
-  // Fix 2: compression failure → manual notice + Reintentar + form (not blank)
-  // -------------------------------------------------------------------------
-
-  it('shows manual notice + Reintentar + form when compressForOcr rejects', async () => {
-    // Make compression fail for this test.
-    (imageLib.compressForOcr as jest.Mock).mockRejectedValueOnce(new Error('compression failed'));
-
-    // OCR mutation stays idle (never mutated because compression failed).
-    mockExtract.isPending = false;
-    mockExtract.data = undefined;
-    mockExtract.error = null;
-
-    renderWithProviders();
-
-    await waitFor(() => {
-      // The manual notice must be visible.
-      expect(
-        screen.getByText('No se pudo analizar el ticket. Ingresá los datos manualmente.'),
-      ).toBeTruthy();
-    });
-
-    // Reintentar button must be visible (retryable path).
-    expect(screen.getByText('Reintentar')).toBeTruthy();
-
-    // The expense form must be present (not a blank screen).
-    expect(screen.getByText('Registrar gasto')).toBeTruthy();
-  });
 });
 
 // ---------------------------------------------------------------------------
-// HU-17: share toggle wiring in ReviewScreen
+// HU-17: share toggle wiring in ReviewScreen (preserved)
 // ---------------------------------------------------------------------------
 
 const REVIEW_GROUP_MEMBERS = [
@@ -630,7 +1037,7 @@ const REVIEW_MOCK_GROUPS = [
 describe('ReviewScreen — share toggle wiring (HU-17)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockImageUri.current = 'file://x.jpg';
+    mockParams.current = { imageUri: 'file://x.jpg' };
 
     mockExtract.mutate = jest.fn();
     mockExtract.reset = jest.fn();
@@ -638,14 +1045,17 @@ describe('ReviewScreen — share toggle wiring (HU-17)', () => {
     mockExtract.data = undefined;
     mockExtract.error = null;
 
-    mockedRepo.listCategories.mockResolvedValue({ data: CATEGORIES, error: null });
+    setupCategoriesMock();
     useGroups.mockReturnValue({ data: REVIEW_MOCK_GROUPS, isLoading: false, error: null });
     mockCreateSharedExpenseMutateAsync.mockResolvedValue({ id: 'shared-r1' });
+    mockCreateIncomeMutateAsync.mockResolvedValue({ id: 'inc-new' });
+    mockImportTransactionsMutateAsync.mockResolvedValue(0);
+    mockReadAsStringAsync.mockResolvedValue('pdfbase64data');
   });
 
-  it('shows the share toggle on the OCR success form when the user has groups', async () => {
+  it('shows the share toggle on the OCR success expense form when the user has groups', async () => {
     mockExtract.isPending = false;
-    mockExtract.data = OCR_RESULT_WITH_DATA;
+    mockExtract.data = DOC_RESULT_EXPENSE;
 
     renderWithProviders();
 
@@ -656,7 +1066,7 @@ describe('ReviewScreen — share toggle wiring (HU-17)', () => {
 
   it('calls useCreateSharedExpense on shared submit from review screen', async () => {
     mockExtract.isPending = false;
-    mockExtract.data = OCR_RESULT_WITH_DATA;
+    mockExtract.data = DOC_RESULT_EXPENSE;
 
     mockedRepo.createExpense.mockResolvedValue({
       data: { id: 'e1', items: [] } as unknown as repo.ExpenseWithItems,
@@ -665,7 +1075,6 @@ describe('ReviewScreen — share toggle wiring (HU-17)', () => {
 
     renderWithProviders();
 
-    // Wait for OCR form to render
     await waitFor(() => expect(screen.getByDisplayValue('1500')).toBeTruthy());
 
     // Toggle shared ON

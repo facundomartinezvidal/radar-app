@@ -779,6 +779,7 @@ export type Database = {
           total: number;
         }[];
       };
+      import_transactions: { Args: { p_rows: Json }; Returns: number };
       invite_group_member: {
         Args: { p_email: string; p_group_id: string };
         Returns: Json;

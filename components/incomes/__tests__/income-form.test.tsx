@@ -346,3 +346,97 @@ describe('IncomeForm — submitError', () => {
     expect(screen.queryByText(/No se pudo/)).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Tests — prefill props (OCR review mode)
+// ---------------------------------------------------------------------------
+
+describe('IncomeForm — prefill props', () => {
+  it('pre-fills the amount from prefill when no initial is given', () => {
+    render(
+      <IncomeForm
+        categories={CATEGORIES}
+        prefill={{ amount: 25000, currency: 'ARS' }}
+        onSubmit={jest.fn()}
+      />,
+    );
+    expect(screen.getByDisplayValue('25000')).toBeTruthy();
+  });
+
+  it('pre-fills the description from prefill', () => {
+    render(
+      <IncomeForm
+        categories={CATEGORIES}
+        prefill={{ description: 'Honorarios cliente X' }}
+        onSubmit={jest.fn()}
+      />,
+    );
+    expect(screen.getByDisplayValue('Honorarios cliente X')).toBeTruthy();
+  });
+
+  it('initial takes precedence over prefill for amount', () => {
+    const initial = {
+      id: 'inc-1',
+      user_id: 'user-1',
+      amount: 9999,
+      currency: 'ARS',
+      category_id: null,
+      description: null,
+      occurred_at: new Date().toISOString(),
+      occurred_date: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      recurrence_id: null,
+      source: 'manual',
+      category: null,
+    };
+
+    render(
+      <IncomeForm
+        categories={CATEGORIES}
+        initial={initial}
+        prefill={{ amount: 12345 }}
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    // Should show initial amount, not prefill amount
+    expect(screen.getByDisplayValue('9999')).toBeTruthy();
+    expect(screen.queryByDisplayValue('12345')).toBeNull();
+  });
+
+  it('shows low-confidence warning banner when lowConfidence=true', () => {
+    render(
+      <IncomeForm
+        categories={CATEGORIES}
+        prefill={{ amount: 1000 }}
+        lowConfidence
+        onSubmit={jest.fn()}
+      />,
+    );
+    expect(screen.getByText('Revisá los datos detectados, la confianza es baja.')).toBeTruthy();
+  });
+
+  it('does NOT show low-confidence banner when lowConfidence=false', () => {
+    render(
+      <IncomeForm
+        categories={CATEGORIES}
+        prefill={{ amount: 1000 }}
+        lowConfidence={false}
+        onSubmit={jest.fn()}
+      />,
+    );
+    expect(screen.queryByText('Revisá los datos detectados, la confianza es baja.')).toBeNull();
+  });
+
+  it('does NOT show low-confidence banner when prop is omitted', () => {
+    render(<IncomeForm categories={CATEGORIES} prefill={{ amount: 1000 }} onSubmit={jest.fn()} />);
+    expect(screen.queryByText('Revisá los datos detectados, la confianza es baja.')).toBeNull();
+  });
+
+  it('renders with blank amount when no initial and no prefill', () => {
+    render(<IncomeForm categories={CATEGORIES} onSubmit={jest.fn()} />);
+    // Amount field should be empty (blank)
+    expect(screen.getByLabelText('Monto')).toBeTruthy();
+  });
+});

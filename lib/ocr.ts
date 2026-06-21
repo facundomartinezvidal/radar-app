@@ -1,14 +1,23 @@
 /**
  * Client-side OCR helpers.
  *
- * - `normalizeName`     — strips diacritics, lowercases, trims. Exported for tests.
- * - `matchCategory`     — finds the best-matching category ID from a hint string.
- * - `mapOcrToPrefill`   — maps an OcrResult to a partial expense-form pre-fill shape.
- * - `extractReceipt`    — calls the `extract-receipt` edge function via supabase-js.
+ * - `normalizeName`          — strips diacritics, lowercases, trims. Exported for tests.
+ * - `matchCategory`          — finds the best-matching category ID from a hint string.
+ * - `mapOcrToPrefill`        — maps an OcrResult to a partial expense-form pre-fill shape.
+ * - `extractReceipt`         — calls the `extract-receipt` edge function via supabase-js.
+ * - `mapDocumentToPrefill`   — maps a DocumentOcrResult to a DocumentPrefill shape.
+ * - `partitionByDirection`   — splits DocumentTransactionPrefill[] by direction.
+ * - `extractDocument`        — calls the `extract-document` edge function via supabase-js.
  */
 import type { CategoryRow } from '@/lib/repositories/expenses';
 import type { Currency, ExpenseItemInput } from '@/lib/schemas/expense';
 import { type OcrItem, type OcrResult, ocrResultSchema } from '@/lib/schemas/ocr';
+import {
+  type DocumentOcrResult,
+  type DocumentTransaction,
+  type DocumentType,
+  documentOcrResultSchema,
+} from '@/lib/schemas/document';
 import { supabase } from '@/lib/supabase';
 
 // ---------------------------------------------------------------------------
@@ -256,4 +265,218 @@ export async function extractReceipt(
   const rawOcr = (invokeData as { data?: unknown } | null)?.data;
 
   return ocrResultSchema.parse(rawOcr);
+}
+
+// ---------------------------------------------------------------------------
+// Document OCR — prefill interface
+// ---------------------------------------------------------------------------
+
+/**
+ * Pre-fill shape for a single transaction extracted from a document.
+ *
+ * Mirrors `ReceiptPrefill` but adds `direction` and is scoped to one
+ * transaction within a multi-transaction result.
+ */
+export interface DocumentTransactionPrefill {
+  /** Whether money was sent (expense) or received (income). */
+  direction: 'expense' | 'income';
+  /** Detected transaction amount. Omitted when null or <= 0. */
+  amount?: number;
+  /** Detected currency. Omitted when null (form defaults to ARS). */
+  currency?: Currency;
+  /** Merchant name or counterparty used as the description. */
+  description?: string | null;
+  /** Matched category ID, or null when no match was found. */
+  category_id?: string | null;
+  /** Suggested new-category name when OCR found no matching category. */
+  suggestedCategoryName?: string | null;
+  /** One-sentence reason why the suggested category deserves its own slot. */
+  suggestedCategoryReason?: string | null;
+  /** Transaction date as ISO 8601 datetime. Omitted when future or null. */
+  occurred_at?: string;
+  /** True when overall document `confidence < 0.5` — the UI should warn the user. */
+  lowConfidence: boolean;
+  /** Mapped line items from OCR. Omitted when none detected. */
+  items?: ExpenseItemInput[];
+}
+
+/**
+ * Pre-fill shape for the full document result — wraps metadata + per-transaction data.
+ */
+export interface DocumentPrefill {
+  documentType: DocumentType;
+  truncated: boolean;
+  confidence: number;
+  transactions: DocumentTransactionPrefill[];
+}
+
+// ---------------------------------------------------------------------------
+// Map DocumentOcrResult → DocumentPrefill
+// ---------------------------------------------------------------------------
+
+/**
+ * Map a single `DocumentTransaction` to a `DocumentTransactionPrefill`.
+ *
+ * Mirrors `mapOcrToPrefill` for each transaction.
+ */
+function mapTransactionToPrefill(
+  tx: DocumentTransaction,
+  categories: CategoryRow[],
+  lowConfidence: boolean,
+): DocumentTransactionPrefill {
+  const prefill: DocumentTransactionPrefill = {
+    direction: tx.direction,
+    lowConfidence,
+  };
+
+  if (tx.amount !== null && tx.amount > 0) {
+    prefill.amount = tx.amount;
+  }
+
+  if (tx.currency !== null) {
+    prefill.currency = tx.currency;
+  }
+
+  prefill.description = tx.merchant ?? null;
+
+  prefill.category_id = matchCategory(tx.categoryHint, categories);
+
+  if (prefill.category_id === null && tx.suggestedNewCategory) {
+    prefill.suggestedCategoryName = tx.suggestedNewCategory;
+    prefill.suggestedCategoryReason = tx.suggestedNewCategoryReason ?? null;
+  }
+
+  if (tx.occurredAt !== null) {
+    const parsed = new Date(tx.occurredAt);
+    if (!Number.isNaN(parsed.getTime()) && parsed <= new Date()) {
+      prefill.occurred_at = parsed.toISOString();
+    }
+  }
+
+  const mappedItems = mapOcrItems(tx.items);
+  if (mappedItems.length > 0) {
+    prefill.items = mappedItems;
+  }
+
+  return prefill;
+}
+
+/**
+ * Map a validated `DocumentOcrResult` to a `DocumentPrefill`.
+ *
+ * - `lowConfidence` is derived from `result.confidence < 0.5` and applied to
+ *   every transaction.
+ * - Each transaction is mapped with the same rules as `mapOcrToPrefill`.
+ */
+export function mapDocumentToPrefill(
+  result: DocumentOcrResult,
+  categories: CategoryRow[],
+): DocumentPrefill {
+  const lowConfidence = result.confidence < 0.5;
+
+  return {
+    documentType: result.documentType,
+    truncated: result.truncated,
+    confidence: result.confidence,
+    transactions: result.transactions.map((tx) =>
+      mapTransactionToPrefill(tx, categories, lowConfidence),
+    ),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Partition by direction
+// ---------------------------------------------------------------------------
+
+/**
+ * Split an array of `DocumentTransactionPrefill` into expenses and incomes.
+ */
+export function partitionByDirection(transactions: DocumentTransactionPrefill[]): {
+  expenses: DocumentTransactionPrefill[];
+  incomes: DocumentTransactionPrefill[];
+} {
+  const expenses: DocumentTransactionPrefill[] = [];
+  const incomes: DocumentTransactionPrefill[] = [];
+
+  for (const tx of transactions) {
+    if (tx.direction === 'income') {
+      incomes.push(tx);
+    } else {
+      expenses.push(tx);
+    }
+  }
+
+  return { expenses, incomes };
+}
+
+// ---------------------------------------------------------------------------
+// extractDocument edge function invocation
+// ---------------------------------------------------------------------------
+
+/**
+ * Call the `extract-document` Supabase edge function and return a validated
+ * `DocumentOcrResult`.
+ *
+ * The edge function wraps its success payload as `{ data: DocumentResult }`,
+ * so the invoke `data` field is `{ data: <doc> }` — we unwrap one level before
+ * parsing.
+ *
+ * @throws {OcrError} on network / HTTP / parse failures.
+ */
+export async function extractDocument(input: {
+  imageBase64?: string;
+  pdfBase64?: string;
+  mimeType: string;
+  categoryNames?: string[];
+}): Promise<DocumentOcrResult> {
+  const { imageBase64, pdfBase64, mimeType, categoryNames } = input;
+
+  const { data: invokeData, error: invokeError } = await supabase.functions.invoke(
+    'extract-document',
+    {
+      body: {
+        imageBase64,
+        pdfBase64,
+        mimeType,
+        categories: categoryNames ?? [],
+      },
+    },
+  );
+
+  if (invokeError) {
+    // supabase-js FunctionsFetchError indicates an offline / network-level
+    // failure (device offline, function unreachable). Treat as retryable.
+    const errorName = (invokeError as unknown as { name?: string }).name;
+    if (
+      errorName === 'FunctionsFetchError' ||
+      (invokeError.constructor && invokeError.constructor.name === 'FunctionsFetchError')
+    ) {
+      throw new OcrError(
+        'NETWORK_ERROR',
+        'No se pudo analizar el documento. Ingresá los datos manualmente.',
+      );
+    }
+
+    // supabase-js FunctionsHttpError exposes the raw response body via
+    // `.context` (when available). We try to read the edge function's
+    // structured error from there.
+    const context = (invokeError as unknown as { context?: unknown }).context;
+    if (context && typeof context === 'object') {
+      const edgeError = (context as { error?: { code?: string; message?: string } }).error;
+      if (edgeError?.code && edgeError?.message) {
+        throw new OcrError(edgeError.code, edgeError.message);
+      }
+    }
+
+    // Generic fallback
+    throw new OcrError(
+      'OCR_ERROR',
+      'No se pudo analizar el documento. Ingresá los datos manualmente.',
+    );
+  }
+
+  // The edge fn wraps its response as { data: DocumentResult }
+  const rawDoc = (invokeData as { data?: unknown } | null)?.data;
+
+  return documentOcrResultSchema.parse(rawDoc);
 }
