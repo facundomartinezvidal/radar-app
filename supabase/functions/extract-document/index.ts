@@ -150,12 +150,7 @@ async function rasterisePdf(pdfBytes: Uint8Array): Promise<PdfRasterResult> {
 
   for (let i = 0; i < pagesToProcess; i++) {
     const page = doc.loadPage(i);
-    const pix = page.toPixmap(
-      mupdf.Matrix.scale(2, 2),
-      mupdf.ColorSpace.DeviceRGB,
-      false,
-      true,
-    );
+    const pix = page.toPixmap(mupdf.Matrix.scale(2, 2), mupdf.ColorSpace.DeviceRGB, false, true);
     const pngBytes: Uint8Array = pix.asPNG();
     const b64 = encodeBase64(pngBytes);
     pageDataUrls.push(`data:image/png;base64,${b64}`);
@@ -268,8 +263,7 @@ function normaliseTransaction(raw: Record<string, unknown>): DocumentTransaction
     typeof raw.merchant === 'string' && raw.merchant.trim() !== '' ? raw.merchant.trim() : null;
 
   // direction: 'expense' | 'income', default 'expense'
-  const direction: 'expense' | 'income' =
-    raw.direction === 'income' ? 'income' : 'expense';
+  const direction: 'expense' | 'income' = raw.direction === 'income' ? 'income' : 'expense';
 
   // categoryHint: string or null
   const categoryHint =
@@ -462,22 +456,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
     try {
       body = (await req.json()) as RequestBody;
     } catch {
-      return jsonResponse(
-        { error: { code: 'BAD_REQUEST', message: 'Falta el documento.' } },
-        400,
-      );
+      return jsonResponse({ error: { code: 'BAD_REQUEST', message: 'Falta el documento.' } }, 400);
     }
 
     // -- Validate: exactly one of imageBase64 / pdfBase64 must be present
-    const hasImage =
-      typeof body.imageBase64 === 'string' && body.imageBase64.trim() !== '';
+    const hasImage = typeof body.imageBase64 === 'string' && body.imageBase64.trim() !== '';
     const hasPdf = typeof body.pdfBase64 === 'string' && body.pdfBase64.trim() !== '';
 
     if (!hasImage && !hasPdf) {
-      return jsonResponse(
-        { error: { code: 'BAD_REQUEST', message: 'Falta el documento.' } },
-        400,
-      );
+      return jsonResponse({ error: { code: 'BAD_REQUEST', message: 'Falta el documento.' } }, 400);
     }
     if (hasImage && hasPdf) {
       return jsonResponse(
