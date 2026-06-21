@@ -199,6 +199,7 @@ See `docs/decisions/2026-05-16-auth-strategy.md`.
 - `income_recurrences`, `incomes` — recurring income rules + materialized occurrences (HU-20/21) → [`docs/decisions/2026-06-08-incomes-schema.md`](docs/decisions/2026-06-08-incomes-schema.md)
 - `expense_recurrences` — recurring expense rules; occurrences materialized into `expenses` by pg_cron (HU-19) → [`docs/decisions/2026-06-08-recurring-expenses-schema.md`](docs/decisions/2026-06-08-recurring-expenses-schema.md)
 - Insights aggregation RPCs — `get_expense_by_category`, `get_expense_by_period`, `get_income_by_period`; SECURITY INVOKER; share-aware CASE identical to `get_personal_totals` (HU-23/24) → [`docs/decisions/2026-06-20-insights-aggregation-rpcs.md`](docs/decisions/2026-06-20-insights-aggregation-rpcs.md)
+- `import_transactions(p_rows jsonb)` RPC — SECURITY INVOKER; atomic bulk insert of selected document transactions into `expenses`/`incomes` by `direction` under caller RLS; `extract-document` edge fn classifies uploads (PDF→PNG via mupdf `npm:` + Groq vision) (HU-25) → [`docs/decisions/2026-06-21-document-classification-ocr.md`](docs/decisions/2026-06-21-document-classification-ocr.md)
 
 Full schema, RLS policies, RPC signatures and column detail → see the linked `docs/decisions/*-schema.md`.
 
@@ -345,7 +346,7 @@ Gotchas in SDK 54:
 pnpm format:check   # Prettier
 pnpm lint           # ESLint flat config
 pnpm typecheck      # tsc --noEmit strict
-pnpm test           # jest-expo + RNTL (1668 tests, 102 suites baseline)
+pnpm test           # jest-expo + RNTL (1839 tests, 106 suites baseline)
 ```
 
 CI enforces these on every push/PR via `.github/workflows/ci.yml`.
@@ -388,6 +389,7 @@ Update **AGENTS.md** as part of the feature's final PR:
 - Incomes (HU-20/21): `income_recurrences` + `incomes` tables, pg_cron materializer, Ingresos tab, net balance hero (tests 996 → 1276) → [`docs/features/incomes.md`](docs/features/incomes.md), [`docs/decisions/2026-06-08-incomes-schema.md`](docs/decisions/2026-06-08-incomes-schema.md), [`docs/user-flows/HU-20-ingresos-recurrentes.md`](docs/user-flows/HU-20-ingresos-recurrentes.md), [`docs/user-flows/HU-21-ingresos-ocasionales.md`](docs/user-flows/HU-21-ingresos-ocasionales.md)
 - Recurring expenses (HU-19): `expense_recurrences` table, pg_cron materializer into `expenses`, "Gastos recurrentes" section + "Recurrente" badge (tests 1276 → 1432) → [`docs/features/recurring-expenses.md`](docs/features/recurring-expenses.md), [`docs/decisions/2026-06-08-recurring-expenses-schema.md`](docs/decisions/2026-06-08-recurring-expenses-schema.md), [`docs/user-flows/HU-19-gastos-recurrentes.md`](docs/user-flows/HU-19-gastos-recurrentes.md)
 - Insights (HU-23/24): 3 SECURITY INVOKER RPCs, `generate-insights` Groq edge fn + local-heuristics fallback, 4 charts (`react-native-gifted-charts`), temporal filter + month selector + ARS/USD toggle, AI card, empty state (tests 1432 → 1668) → [`docs/features/insights.md`](docs/features/insights.md), [`docs/decisions/2026-06-20-insights-aggregation-rpcs.md`](docs/decisions/2026-06-20-insights-aggregation-rpcs.md), [`docs/user-flows/HU-23-filtros-temporales-insights.md`](docs/user-flows/HU-23-filtros-temporales-insights.md), [`docs/user-flows/HU-24-grafico-barras-gastos.md`](docs/user-flows/HU-24-grafico-barras-gastos.md)
+- Document capture & classification (HU-25): "Documento" picker mode (PDF + images via `expo-document-picker`), `extract-document` edge fn (mupdf `npm:` PDF→PNG ≤3 págs + Groq vision) classifies receipt/transfer/card_statement/screenshot/unknown and infers direction; review routes single tx → expense/income forms (badge + toggle), multi-tx → `TransactionImportList` + `import_transactions` RPC (tests 1668 → 1839) → [`docs/features/document-capture-classify.md`](docs/features/document-capture-classify.md), [`docs/decisions/2026-06-21-document-classification-ocr.md`](docs/decisions/2026-06-21-document-classification-ocr.md), [`docs/user-flows/HU-25-adjuntar-comprobantes.md`](docs/user-flows/HU-25-adjuntar-comprobantes.md)
 
 ### Still pending
 
