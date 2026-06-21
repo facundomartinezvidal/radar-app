@@ -6,12 +6,19 @@
  *  - loading state → loader shown
  *  - with insights → titles/bodies rendered, kind icon testIDs present
  *  - CTA button rendered and labelled when cta is present
+ *  - resolveInsightRoute helper maps kinds to correct tab routes
+ *  - pressing a CTA calls router.push with the resolved route
  */
+import { router } from 'expo-router';
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import type { Insight } from '@/lib/insights/types';
-import { AiInsightsCard } from '../ai-insights-card';
+import { AiInsightsCard, resolveInsightRoute } from '../ai-insights-card';
+
+jest.mock('expo-router', () => ({
+  router: { push: jest.fn() },
+}));
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -40,6 +47,28 @@ const NEUTRAL_INSIGHT: Insight = {
   kind: 'neutral',
   title: 'Comida concentra el 50%',
   body: 'Comida concentra el 50% de tus gastos.',
+};
+
+// Variants with CTAs for navigation tests
+const WARNING_WITH_CTA: Insight = {
+  kind: 'warning',
+  title: 'Revisar presupuesto',
+  body: 'Estás gastando más de lo que ingresa.',
+  cta: { label: 'Revisar presupuesto', route: '' },
+};
+
+const NEUTRAL_WITH_CTA: Insight = {
+  kind: 'neutral',
+  title: 'Ver oportunidades',
+  body: 'Info neutral con CTA.',
+  cta: { label: 'Ver oportunidades', route: '' },
+};
+
+const POSITIVE_WITH_CTA: Insight = {
+  kind: 'positive',
+  title: 'Ver evolución del balance',
+  body: 'Tu balance mejoró.',
+  cta: { label: 'Ver evolución del balance', route: '' },
 };
 
 // ---------------------------------------------------------------------------
@@ -166,6 +195,56 @@ describe('AiInsightsCard', () => {
       render(<AiInsightsCard insights={[TIP_INSIGHT]} />);
       const cta = screen.getByLabelText('Registrar gasto');
       expect(() => fireEvent.press(cta)).not.toThrow();
+    });
+  });
+
+  describe('resolveInsightRoute (unit)', () => {
+    it('warning → /(protected)/(tabs)/expenses', () => {
+      expect(resolveInsightRoute('warning')).toBe('/(protected)/(tabs)/expenses');
+    });
+
+    it('neutral → /(protected)/(tabs)/expenses', () => {
+      expect(resolveInsightRoute('neutral')).toBe('/(protected)/(tabs)/expenses');
+    });
+
+    it('tip → /(protected)/(tabs)/incomes', () => {
+      expect(resolveInsightRoute('tip')).toBe('/(protected)/(tabs)/incomes');
+    });
+
+    it('positive → /(protected)/(tabs)/incomes', () => {
+      expect(resolveInsightRoute('positive')).toBe('/(protected)/(tabs)/incomes');
+    });
+  });
+
+  describe('CTA navigation', () => {
+    const mockPush = router.push as jest.Mock;
+
+    beforeEach(() => {
+      mockPush.mockClear();
+    });
+
+    it('warning kind CTA calls router.push with expenses tab route', () => {
+      render(<AiInsightsCard insights={[WARNING_WITH_CTA]} />);
+      fireEvent.press(screen.getByLabelText('Revisar presupuesto'));
+      expect(mockPush).toHaveBeenCalledWith('/(protected)/(tabs)/expenses');
+    });
+
+    it('neutral kind CTA calls router.push with expenses tab route', () => {
+      render(<AiInsightsCard insights={[NEUTRAL_WITH_CTA]} />);
+      fireEvent.press(screen.getByLabelText('Ver oportunidades'));
+      expect(mockPush).toHaveBeenCalledWith('/(protected)/(tabs)/expenses');
+    });
+
+    it('tip kind CTA calls router.push with incomes tab route', () => {
+      render(<AiInsightsCard insights={[TIP_INSIGHT]} />);
+      fireEvent.press(screen.getByLabelText('Registrar gasto'));
+      expect(mockPush).toHaveBeenCalledWith('/(protected)/(tabs)/incomes');
+    });
+
+    it('positive kind CTA calls router.push with incomes tab route', () => {
+      render(<AiInsightsCard insights={[POSITIVE_WITH_CTA]} />);
+      fireEvent.press(screen.getByLabelText('Ver evolución del balance'));
+      expect(mockPush).toHaveBeenCalledWith('/(protected)/(tabs)/incomes');
     });
   });
 });

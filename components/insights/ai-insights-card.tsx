@@ -12,6 +12,7 @@
  *  tip      → brand  Lightbulb
  *  neutral  → muted  Info
  */
+import { router } from 'expo-router';
 import React from 'react';
 import { Pressable, View } from 'react-native';
 
@@ -44,6 +45,28 @@ const KIND_STYLES: Record<InsightKind, KindStyle> = {
   tip: { iconName: 'Lightbulb', color: colors.brand[300] },
   neutral: { iconName: 'Info', color: colors.fg[3] },
 };
+
+// ---------------------------------------------------------------------------
+// Route resolver
+// ---------------------------------------------------------------------------
+
+/**
+ * Maps an insight kind to the relevant existing tab route.
+ * warning/neutral → review spending in expenses tab.
+ * tip/positive    → review earnings in incomes tab.
+ * LLM-provided cta.route is intentionally ignored — targets are resolved
+ * client-side from kind so untrusted route strings never reach the router.
+ */
+export function resolveInsightRoute(kind: InsightKind): string {
+  switch (kind) {
+    case 'warning':
+    case 'neutral':
+      return '/(protected)/(tabs)/expenses';
+    case 'tip':
+    case 'positive':
+      return '/(protected)/(tabs)/incomes';
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -132,12 +155,18 @@ export function AiInsightsCard({
                 {insight.cta != null && (
                   <Pressable
                     onPress={() => {
-                      // CTA navigation is wired by the parent screen when route is available.
-                      // No-op default keeps the component self-contained.
+                      router.push(
+                        resolveInsightRoute(insight.kind) as Parameters<typeof router.push>[0],
+                      );
                     }}
                     accessibilityRole="button"
                     accessibilityLabel={insight.cta.label}
-                    style={{ marginTop: spacing[1] }}
+                    style={{
+                      marginTop: spacing[1],
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: spacing[1],
+                    }}
                   >
                     <Text
                       variant="caption"
@@ -146,6 +175,12 @@ export function AiInsightsCard({
                     >
                       {insight.cta.label}
                     </Text>
+                    <Icon
+                      name="ChevronRight"
+                      size={12}
+                      color={colors.brand[300]}
+                      strokeWidth={1.5}
+                    />
                   </Pressable>
                 )}
               </View>
