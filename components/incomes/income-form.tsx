@@ -22,13 +22,48 @@ import { type CreateIncomeInput, type Currency, createIncomeSchema } from '@/lib
 import { colors, spacing } from '@/lib/theme';
 
 // ---------------------------------------------------------------------------
+// Prefill interface (OCR review path)
+// ---------------------------------------------------------------------------
+
+/**
+ * Partial prefill from document OCR — used by the review screen when no DB row
+ * exists yet. Mirrors `ExpenseFormPrefill` but scoped to income fields.
+ */
+export interface IncomeFormPrefill {
+  /** Detected income amount. Omitted when null or <= 0. */
+  amount?: number;
+  /** Detected currency. Omitted when null (form defaults to ARS). */
+  currency?: Currency;
+  /**
+   * Matched income category ID. Pass null (not undefined) to leave the
+   * category blank — expense-matched category ids don't map to income
+   * categories.
+   */
+  category_id?: string | null;
+  /** Description / counterparty name. Omitted when null. */
+  description?: string | null;
+  /** Transaction date as ISO 8601 datetime. Omitted when future or null. */
+  occurred_at?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
 
 export interface IncomeFormProps {
   categories: CategoryRow[];
-  /** Optional initial values (edit mode — DB row). */
+  /** Optional initial values (edit mode — DB row). Takes precedence over prefill. */
   initial?: IncomeWithCategory | null;
+  /**
+   * Optional OCR-detected prefill (review mode — no DB row yet).
+   * Only used when `initial` is absent/null.
+   */
+  prefill?: IncomeFormPrefill;
+  /**
+   * When true, renders a low-confidence notice above the form asking the user
+   * to verify the detected data. Does NOT block submit.
+   */
+  lowConfidence?: boolean;
   onSubmit: (input: CreateIncomeInput) => Promise<void> | void;
   submitLabel?: string;
   isSubmitting?: boolean;
@@ -53,18 +88,31 @@ interface IncomeFormInternalFields {
 export function IncomeForm({
   categories,
   initial,
+  prefill,
+  lowConfidence = false,
   onSubmit,
   submitLabel = 'Registrar ingreso',
   isSubmitting = false,
   submitError = null,
 }: IncomeFormProps): React.JSX.Element {
-  // Resolve default values: initial (edit mode) > blank
-  const resolvedAmount = initial ? Number(initial.amount) : 0;
-  const resolvedAmountText = initial ? String(initial.amount).replace('.', ',') : '';
-  const resolvedCurrency = (initial?.currency ?? 'ARS') as Currency;
-  const resolvedCategoryId = initial?.category_id ?? null;
-  const resolvedDescription = initial?.description ?? '';
-  const resolvedOccurredAt = initial?.occurred_at ?? new Date().toISOString();
+  // Resolve default values: initial (edit mode) > prefill (OCR review) > blank
+  const resolvedAmount = initial ? Number(initial.amount) : (prefill?.amount ?? 0);
+  const resolvedAmountText = initial
+    ? String(initial.amount).replace('.', ',')
+    : prefill?.amount != null
+      ? String(prefill.amount).replace('.', ',')
+      : '';
+  const resolvedCurrency = (initial?.currency ?? prefill?.currency ?? 'ARS') as Currency;
+  const resolvedCategoryId =
+    initial !== undefined && initial !== null
+      ? (initial.category_id ?? null)
+      : (prefill?.category_id ?? null);
+  const resolvedDescription =
+    initial !== undefined && initial !== null
+      ? (initial.description ?? '')
+      : (prefill?.description ?? '');
+  const resolvedOccurredAt =
+    initial?.occurred_at ?? prefill?.occurred_at ?? new Date().toISOString();
 
   const {
     control,
@@ -101,6 +149,13 @@ export function IncomeForm({
 
   return (
     <View style={{ gap: spacing[5] }}>
+      {/* Low-confidence OCR notice */}
+      {lowConfidence && (
+        <BodySm color={colors.amber[500]}>
+          Revisá los datos detectados, la confianza es baja.
+        </BodySm>
+      )}
+
       {/* Amount */}
       <View style={{ gap: spacing[2] }}>
         <BodySm color={colors.fg[3]}>Monto</BodySm>
