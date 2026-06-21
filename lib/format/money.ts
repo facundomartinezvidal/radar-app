@@ -59,6 +59,37 @@ export function formatMoney(
 }
 
 /**
+ * Format a money amount compactly for chart axis labels.
+ *
+ *   formatMoneyCompact(1_200_000, 'ARS') → "$1,2M"
+ *   formatMoneyCompact(2_000_000, 'ARS') → "$2M"   (drop ,0)
+ *   formatMoneyCompact(80_000,    'ARS') → "$80k"
+ *   formatMoneyCompact(1_000,     'ARS') → "$1k"
+ *   formatMoneyCompact(850,       'ARS') → "$850"
+ *   formatMoneyCompact(1_800_000, 'USD') → "US$1,8M"
+ *   formatMoneyCompact(-50_000,   'ARS') → "-$50k"
+ */
+export function formatMoneyCompact(amount: number, currency: 'ARS' | 'USD'): string {
+  const sign = amount < 0 ? '-' : '';
+  const abs = Math.abs(amount);
+  const prefix = currency === 'USD' ? 'US$' : '$';
+
+  if (abs >= 1_000_000) {
+    // One decimal place, using es-AR comma separator
+    const raw = (abs / 1_000_000).toFixed(1).replace('.', ',');
+    // Drop the trailing ",0" when the decimal is zero
+    const compact = raw.endsWith(',0') ? raw.slice(0, -2) : raw;
+    return `${sign}${prefix}${compact}M`;
+  }
+
+  if (abs >= 1_000) {
+    return `${sign}${prefix}${Math.round(abs / 1_000)}k`;
+  }
+
+  return `${sign}${prefix}${Math.round(abs)}`;
+}
+
+/**
  * Parse a user-typed amount (Spanish punctuation) into a number.
  * Accepts "12.500,50" / "12500.50" / "12500,50" / "12500". Returns NaN on
  * malformed input.

@@ -718,12 +718,49 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      get_expense_by_category: {
+        Args: { p_currency: string; p_from?: string; p_to?: string };
+        Returns: {
+          category_id: string;
+          category_name: string;
+          color: string;
+          count: number;
+          icon: string;
+          total: number;
+        }[];
+      };
+      get_expense_by_period: {
+        Args: {
+          p_bucket?: string;
+          p_currency: string;
+          p_from?: string;
+          p_to?: string;
+        };
+        Returns: {
+          bucket: string;
+          count: number;
+          total: number;
+        }[];
+      };
       get_group_balances: {
         Args: { p_group_id: string };
         Returns: {
           currency: string;
           member_id: string;
           net: number;
+        }[];
+      };
+      get_income_by_period: {
+        Args: {
+          p_bucket?: string;
+          p_currency: string;
+          p_from?: string;
+          p_to?: string;
+        };
+        Returns: {
+          bucket: string;
+          count: number;
+          total: number;
         }[];
       };
       get_income_totals: {
@@ -750,6 +787,7 @@ export type Database = {
         Args: { p_group_id: string; p_user_id: string };
         Returns: boolean;
       };
+      materialize_due_expenses: { Args: never; Returns: number };
       materialize_due_incomes: { Args: never; Returns: number };
       respond_group_invite: {
         Args: { p_accept: boolean; p_member_id: string };

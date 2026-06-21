@@ -1,4 +1,4 @@
-import { formatMoney, parseAmount } from '../money';
+import { formatMoney, formatMoneyCompact, parseAmount } from '../money';
 
 describe('formatMoney', () => {
   it('formats ARS with es-AR punctuation', () => {
@@ -23,6 +23,69 @@ describe('formatMoney', () => {
 
   it('hides currency when requested', () => {
     expect(formatMoney(1234.5, 'ARS', { hideCurrency: true })).toBe('1.234,50');
+  });
+});
+
+describe('formatMoneyCompact', () => {
+  // ARS — millions
+  it('formats ARS 1_200_000 as $1,2M', () => {
+    expect(formatMoneyCompact(1_200_000, 'ARS')).toBe('$1,2M');
+  });
+
+  it('formats ARS 2_000_000 as $2M (drops ,0 decimal)', () => {
+    expect(formatMoneyCompact(2_000_000, 'ARS')).toBe('$2M');
+  });
+
+  it('formats ARS 1_800_000 as $1,8M', () => {
+    expect(formatMoneyCompact(1_800_000, 'ARS')).toBe('$1,8M');
+  });
+
+  // ARS — thousands
+  it('formats ARS 80_000 as $80k', () => {
+    expect(formatMoneyCompact(80_000, 'ARS')).toBe('$80k');
+  });
+
+  it('formats ARS 1_000 as $1k', () => {
+    expect(formatMoneyCompact(1_000, 'ARS')).toBe('$1k');
+  });
+
+  it('formats ARS 999 as $999 (rounds)', () => {
+    expect(formatMoneyCompact(999, 'ARS')).toBe('$999');
+  });
+
+  // ARS — sub-thousand
+  it('formats ARS 850 as $850', () => {
+    expect(formatMoneyCompact(850, 'ARS')).toBe('$850');
+  });
+
+  it('formats ARS 0 as $0', () => {
+    expect(formatMoneyCompact(0, 'ARS')).toBe('$0');
+  });
+
+  // USD prefix
+  it('formats USD 1_800_000 as US$1,8M', () => {
+    expect(formatMoneyCompact(1_800_000, 'USD')).toBe('US$1,8M');
+  });
+
+  it('formats USD 1_000 as US$1k', () => {
+    expect(formatMoneyCompact(1_000, 'USD')).toBe('US$1k');
+  });
+
+  it('formats USD 500 as US$500', () => {
+    expect(formatMoneyCompact(500, 'USD')).toBe('US$500');
+  });
+
+  // Negative amounts
+  it('formats negative ARS 50_000 as -$50k', () => {
+    expect(formatMoneyCompact(-50_000, 'ARS')).toBe('-$50k');
+  });
+
+  it('formats negative ARS 1_500_000 as -$1,5M', () => {
+    expect(formatMoneyCompact(-1_500_000, 'ARS')).toBe('-$1,5M');
+  });
+
+  it('formats negative USD 200 as -US$200', () => {
+    expect(formatMoneyCompact(-200, 'USD')).toBe('-US$200');
   });
 });
 
