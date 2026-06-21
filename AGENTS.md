@@ -198,6 +198,7 @@ See `docs/decisions/2026-05-16-auth-strategy.md`.
 - `groups`, `group_members`, `expense_splits`, `group_settlements` — shared-expense groups, membership, per-member splits, debt settlements (HU-17) → [`docs/decisions/2026-06-07-shared-expenses-schema.md`](docs/decisions/2026-06-07-shared-expenses-schema.md)
 - `income_recurrences`, `incomes` — recurring income rules + materialized occurrences (HU-20/21) → [`docs/decisions/2026-06-08-incomes-schema.md`](docs/decisions/2026-06-08-incomes-schema.md)
 - `expense_recurrences` — recurring expense rules; occurrences materialized into `expenses` by pg_cron (HU-19) → [`docs/decisions/2026-06-08-recurring-expenses-schema.md`](docs/decisions/2026-06-08-recurring-expenses-schema.md)
+- Insights aggregation RPCs — `get_expense_by_category`, `get_expense_by_period`, `get_income_by_period`; SECURITY INVOKER; share-aware CASE identical to `get_personal_totals` (HU-23/24) → [`docs/decisions/2026-06-20-insights-aggregation-rpcs.md`](docs/decisions/2026-06-20-insights-aggregation-rpcs.md)
 
 Full schema, RLS policies, RPC signatures and column detail → see the linked `docs/decisions/*-schema.md`.
 
@@ -344,7 +345,7 @@ Gotchas in SDK 54:
 pnpm format:check   # Prettier
 pnpm lint           # ESLint flat config
 pnpm typecheck      # tsc --noEmit strict
-pnpm test           # jest-expo + RNTL (1432 tests, 89 suites baseline)
+pnpm test           # jest-expo + RNTL (1668 tests, 102 suites baseline)
 ```
 
 CI enforces these on every push/PR via `.github/workflows/ci.yml`.
@@ -386,6 +387,7 @@ Update **AGENTS.md** as part of the feature's final PR:
 - Shared expenses (HU-17): `groups`/`group_members`/`expense_splits`/`group_settlements` + 10 RPCs, consent flow, `SplitEditor`, per-currency balances (tests 603 → 996) → [`docs/features/shared-expenses.md`](docs/features/shared-expenses.md), [`docs/decisions/2026-06-07-shared-expenses-schema.md`](docs/decisions/2026-06-07-shared-expenses-schema.md), [`docs/user-flows/HU-17-gastos-compartidos.md`](docs/user-flows/HU-17-gastos-compartidos.md)
 - Incomes (HU-20/21): `income_recurrences` + `incomes` tables, pg_cron materializer, Ingresos tab, net balance hero (tests 996 → 1276) → [`docs/features/incomes.md`](docs/features/incomes.md), [`docs/decisions/2026-06-08-incomes-schema.md`](docs/decisions/2026-06-08-incomes-schema.md), [`docs/user-flows/HU-20-ingresos-recurrentes.md`](docs/user-flows/HU-20-ingresos-recurrentes.md), [`docs/user-flows/HU-21-ingresos-ocasionales.md`](docs/user-flows/HU-21-ingresos-ocasionales.md)
 - Recurring expenses (HU-19): `expense_recurrences` table, pg_cron materializer into `expenses`, "Gastos recurrentes" section + "Recurrente" badge (tests 1276 → 1432) → [`docs/features/recurring-expenses.md`](docs/features/recurring-expenses.md), [`docs/decisions/2026-06-08-recurring-expenses-schema.md`](docs/decisions/2026-06-08-recurring-expenses-schema.md), [`docs/user-flows/HU-19-gastos-recurrentes.md`](docs/user-flows/HU-19-gastos-recurrentes.md)
+- Insights (HU-23/24): 3 SECURITY INVOKER RPCs, `generate-insights` Groq edge fn + local-heuristics fallback, 4 charts (`react-native-gifted-charts`), temporal filter + month selector + ARS/USD toggle, AI card, empty state (tests 1432 → 1668) → [`docs/features/insights.md`](docs/features/insights.md), [`docs/decisions/2026-06-20-insights-aggregation-rpcs.md`](docs/decisions/2026-06-20-insights-aggregation-rpcs.md), [`docs/user-flows/HU-23-filtros-temporales-insights.md`](docs/user-flows/HU-23-filtros-temporales-insights.md), [`docs/user-flows/HU-24-grafico-barras-gastos.md`](docs/user-flows/HU-24-grafico-barras-gastos.md)
 
 ### Still pending
 
@@ -398,16 +400,15 @@ Update **AGENTS.md** as part of the feature's final PR:
 5. Decide ARS/USD FX source (BCRA vs Bluelytics)
 6. Decide WhatsApp Business API integration scope
 7. Build the remaining screens from `prototipo-app-brief.md`
-   (groups detail, settlement flow, AI insights detail)
-8. Wire AI/insights pipeline (model choice + edge function)
-9. Fix pre-existing security advisor lints: trigger functions
+   (groups detail, settlement flow) — the Insights screen (Screen 7) is now shipped
+8. Fix pre-existing security advisor lints: trigger functions
    (`handle_new_user`, `handle_user_metadata_update`, `set_updated_at`,
    `rls_auto_enable`) are SECURITY DEFINER and executable by anon/
    authenticated via PostgREST — revoke EXECUTE. Also enable leaked
    password protection in Auth settings.
-10. Revisit `expense_items` update strategy (delete-all + reinsert rotates
-    item ids) if a future HU needs stable per-item identity (e.g. AI
-    insights keyed by item)
+9. Revisit `expense_items` update strategy (delete-all + reinsert rotates
+   item ids) if a future HU needs stable per-item identity (e.g. AI
+   insights keyed by item)
 
 The expenses CRUD is the first feature with real persistence end-to-end.
 Everything else still depends on the items above.
