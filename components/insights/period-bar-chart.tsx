@@ -13,7 +13,7 @@ import { View } from 'react-native';
 import { BarChart } from 'react-native-gifted-charts';
 
 import { Text } from '@/components/ui/text';
-import { useChartWidth } from '@/components/insights/chart-width';
+import { CHART_Y_AXIS_WIDTH, usePlotWidth } from '@/components/insights/chart-width';
 import { formatMoney, formatMoneyCompact } from '@/lib/format/money';
 import { colors, spacing, typography } from '@/lib/theme';
 import type { ChartPoint, Currency } from '@/lib/insights/types';
@@ -34,7 +34,6 @@ export interface PeriodBarChartProps {
 
 const CHART_HEIGHT = 200;
 const BAR_BORDER_RADIUS = 6;
-const Y_AXIS_LABEL_WIDTH = 56;
 
 /**
  * Round a value up to a "nice" ceiling (1, 2, 2.5, 5 × 10^k) so gridlines
@@ -107,7 +106,7 @@ export function PeriodBarChart({
   currency,
   testID,
 }: PeriodBarChartProps): React.JSX.Element | null {
-  const chartWidth = useChartWidth();
+  const plotWidth = usePlotWidth();
 
   if (data.length === 0) {
     return null;
@@ -128,7 +127,7 @@ export function PeriodBarChart({
       <BarChart
         data={barData}
         height={CHART_HEIGHT}
-        width={chartWidth}
+        width={plotWidth}
         barBorderRadius={BAR_BORDER_RADIUS}
         frontColor={colors.money.out}
         xAxisColor={colors.line[2]}
@@ -143,7 +142,7 @@ export function PeriodBarChart({
           fontSize: typography.size.micro,
           fontFamily: typography.family.regular,
         }}
-        yAxisLabelWidth={Y_AXIS_LABEL_WIDTH}
+        yAxisLabelWidth={CHART_Y_AXIS_WIDTH}
         formatYLabel={(v) => formatMoneyCompact(Number(v), currency)}
         maxValue={maxValue}
         noOfSections={4}
@@ -151,6 +150,8 @@ export function PeriodBarChart({
         hideRules={false}
         rulesColor={colors.line[1]}
         rulesType="solid"
+        initialSpacing={8}
+        endSpacing={0}
         adjustToWidth
         isAnimated
       />

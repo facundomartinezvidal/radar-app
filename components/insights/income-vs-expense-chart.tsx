@@ -12,7 +12,7 @@ import { View } from 'react-native';
 import { BarChart } from 'react-native-gifted-charts';
 
 import { Text } from '@/components/ui/text';
-import { useChartWidth } from '@/components/insights/chart-width';
+import { CHART_Y_AXIS_WIDTH, usePlotWidth } from '@/components/insights/chart-width';
 import { formatMoney, formatMoneyCompact } from '@/lib/format/money';
 import { niceCeil } from '@/components/insights/period-bar-chart';
 import { colors, spacing, typography } from '@/lib/theme';
@@ -43,7 +43,6 @@ const BAR_WIDTH = 16;
 const BAR_BORDER_RADIUS = 4;
 const BAR_SPACING = 2;
 const GROUP_SPACING = 16;
-const Y_AXIS_LABEL_WIDTH = 56;
 
 /**
  * Format a bucket string to a short month label.
@@ -79,7 +78,7 @@ export function IncomeVsExpenseChart({
   currency,
   testID,
 }: IncomeVsExpenseChartProps): React.JSX.Element | null {
-  const chartWidth = useChartWidth();
+  const plotWidth = usePlotWidth();
 
   if (data.length === 0) {
     return null;
@@ -110,7 +109,7 @@ export function IncomeVsExpenseChart({
       <BarChart
         data={barData}
         height={CHART_HEIGHT}
-        width={chartWidth}
+        width={plotWidth}
         barWidth={BAR_WIDTH}
         barBorderRadius={BAR_BORDER_RADIUS}
         maxValue={maxValue}
@@ -126,12 +125,14 @@ export function IncomeVsExpenseChart({
           fontSize: typography.size.micro,
           fontFamily: typography.family.regular,
         }}
-        yAxisLabelWidth={Y_AXIS_LABEL_WIDTH}
+        yAxisLabelWidth={CHART_Y_AXIS_WIDTH}
         formatYLabel={(v) => formatMoneyCompact(Number(v), currency)}
         noOfSections={4}
         backgroundColor={colors.bg[1]}
         rulesColor={colors.line[1]}
         rulesType="solid"
+        initialSpacing={8}
+        endSpacing={0}
         adjustToWidth
         isAnimated
       />
