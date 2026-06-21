@@ -1,12 +1,13 @@
 /**
  * Camera screen — RADAR (scan → review flow)
  *
- * Captures or picks a receipt image and navigates to the OCR review screen.
- * No upload happens here; the review screen owns that step.
+ * Captures or picks a receipt image (or PDF document) and navigates to the
+ * OCR review screen. No upload happens here; the review screen owns that step.
  */
 import { router } from 'expo-router';
 import { CameraView, useCameraPermissions, type CameraType } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { Image } from 'expo-image';
 import React, { useRef, useState } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -19,7 +20,46 @@ import { colors, radii, spacing, typography } from '@/lib/theme';
 // Types
 // ---------------------------------------------------------------------------
 
-type TabMode = 'camera' | 'gallery';
+type TabMode = 'camera' | 'gallery' | 'document';
+
+type DocumentKind = 'image' | 'pdf';
+
+interface PickedDocument {
+  uri: string;
+  kind: DocumentKind;
+  mimeType: string;
+  name: string;
+}
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function resolveDocumentKind(mimeType: string | undefined, name: string): DocumentKind | null {
+  if (!mimeType && !name) return null;
+
+  if (mimeType === 'application/pdf' || name.toLowerCase().endsWith('.pdf')) {
+    return 'pdf';
+  }
+
+  if (mimeType && mimeType.startsWith('image/')) {
+    return 'image';
+  }
+
+  // Fallback: detect by extension when mimeType is absent or generic
+  const ext = name.toLowerCase().split('.').pop() ?? '';
+  if (['jpg', 'jpeg', 'png', 'heic', 'heif', 'webp'].includes(ext)) {
+    return 'image';
+  }
+
+  return null;
+}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -39,6 +79,9 @@ export default function CameraScreen() {
   // --- preview / post-capture state ---
   const [previewUri, setPreviewUri] = useState<string | null>(null);
 
+  // --- document picker state ---
+  const [pickedDocument, setPickedDocument] = useState<PickedDocument | null>(null);
+
   // --- capture / picker error ---
   const [captureError, setCaptureError] = useState<string | null>(null);
 
@@ -49,6 +92,8 @@ export default function CameraScreen() {
   function handleModeChange(newMode: TabMode): void {
     setMode(newMode);
     setPreviewUri(null);
+    setPickedDocument(null);
+    setCaptureError(null);
   }
 
   async function handleCapture(): Promise<void> {
@@ -83,12 +128,62 @@ export default function CameraScreen() {
     }
   }
 
+  async function handlePickDocument(): Promise<void> {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+
+      if (result.canceled) return; // cancel → no error, no navigation
+
+      const asset = result.assets[0];
+      if (!asset) return;
+
+      // Validate size
+      if (asset.size != null && asset.size > MAX_FILE_SIZE) {
+        setCaptureError('El archivo es muy grande. Elegí uno de hasta 10 MB.');
+        return;
+      }
+
+      // Resolve kind
+      const kind = resolveDocumentKind(asset.mimeType ?? undefined, asset.name);
+      if (kind === null) {
+        setCaptureError('Formato no soportado. Subí un PDF o una imagen.');
+        return;
+      }
+
+      setCaptureError(null);
+      setPickedDocument({
+        uri: asset.uri,
+        kind,
+        mimeType: asset.mimeType ?? (kind === 'pdf' ? 'application/pdf' : 'image/jpeg'),
+        name: asset.name,
+      });
+    } catch {
+      setCaptureError('No se pudo abrir el selector de archivos. Intentá nuevamente.');
+    }
+  }
+
   function handleContinue(): void {
+    if (mode === 'document') {
+      if (!pickedDocument) return;
+      const { uri, kind, mimeType, name } = pickedDocument;
+      // Include imageUri for backward-compat when kind=image (review screen still reads it)
+      const imageUriParam = kind === 'image' ? `&imageUri=${encodeURIComponent(uri)}` : '';
+      router.push(
+        `/(protected)/expense/review?uri=${encodeURIComponent(uri)}&kind=${encodeURIComponent(kind)}&mimeType=${encodeURIComponent(mimeType)}&name=${encodeURIComponent(name)}${imageUriParam}` as Parameters<
+          typeof router.push
+        >[0],
+      );
+      setPickedDocument(null);
+      return;
+    }
+
     if (!previewUri) return;
-    // review screen does not exist yet — cast via unknown to satisfy typed-routes until
-    // the file is created; same pattern used for dynamic segments in expenses.tsx.
     router.push(
-      `/(protected)/expense/review?imageUri=${encodeURIComponent(previewUri)}` as Parameters<
+      `/(protected)/expense/review?uri=${encodeURIComponent(previewUri)}&kind=image&mimeType=image%2Fjpeg&name=captura.jpg&imageUri=${encodeURIComponent(previewUri)}` as Parameters<
         typeof router.push
       >[0],
     );
@@ -125,6 +220,16 @@ export default function CameraScreen() {
         >
           <Body style={[styles.tabButtonText, mode === 'gallery' && styles.tabButtonTextActive]}>
             Galería
+          </Body>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabButton, mode === 'document' && styles.tabButtonActive]}
+          onPress={() => handleModeChange('document')}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: mode === 'document' }}
+        >
+          <Body style={[styles.tabButtonText, mode === 'document' && styles.tabButtonTextActive]}>
+            Documento
           </Body>
         </TouchableOpacity>
       </View>
@@ -236,6 +341,92 @@ export default function CameraScreen() {
     );
   }
 
+  function renderDocumentContent() {
+    if (pickedDocument) {
+      if (pickedDocument.kind === 'image') {
+        // Reuse image preview for image-kind documents
+        return (
+          <View style={styles.previewContainer}>
+            <Image
+              source={{ uri: pickedDocument.uri }}
+              style={styles.previewImage}
+              contentFit="cover"
+            />
+            <View style={styles.previewActions}>
+              <View style={styles.previewActionButton}>
+                <Button
+                  variant="secondary"
+                  size="md"
+                  onPress={() => setPickedDocument(null)}
+                  accessibilityLabel="Volver a elegir archivo"
+                >
+                  Volver a elegir
+                </Button>
+              </View>
+              <View style={styles.previewActionButton}>
+                <Button
+                  variant="primary"
+                  size="md"
+                  onPress={handleContinue}
+                  accessibilityLabel="Continuar con este archivo"
+                >
+                  Continuar
+                </Button>
+              </View>
+            </View>
+          </View>
+        );
+      }
+
+      // PDF confirmation card
+      return (
+        <View style={styles.centeredContent}>
+          <View style={styles.pdfCard}>
+            <Icon name="FileText" size={40} color={colors.brand[500]} strokeWidth={1.5} />
+            <Body style={styles.pdfCardName} numberOfLines={2}>
+              {pickedDocument.name}
+            </Body>
+            <View style={styles.pdfCardActions}>
+              <View style={styles.previewActionButton}>
+                <Button
+                  variant="secondary"
+                  size="md"
+                  onPress={() => setPickedDocument(null)}
+                  accessibilityLabel="Volver a elegir archivo"
+                >
+                  Volver a elegir
+                </Button>
+              </View>
+              <View style={styles.previewActionButton}>
+                <Button
+                  variant="primary"
+                  size="md"
+                  onPress={handleContinue}
+                  accessibilityLabel="Continuar con este archivo"
+                >
+                  Continuar
+                </Button>
+              </View>
+            </View>
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.centeredContent}>
+        <Button
+          variant="primary"
+          size="md"
+          onPress={() => void handlePickDocument()}
+          accessibilityLabel="Seleccionar documento PDF o imagen"
+        >
+          Seleccionar documento
+        </Button>
+      </View>
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // Root render
   // ---------------------------------------------------------------------------
@@ -250,7 +441,11 @@ export default function CameraScreen() {
           </View>
         ) : null}
         <View style={styles.content}>
-          {mode === 'camera' ? renderCameraContent() : renderGalleryContent()}
+          {mode === 'camera'
+            ? renderCameraContent()
+            : mode === 'gallery'
+              ? renderGalleryContent()
+              : renderDocumentContent()}
         </View>
       </View>
     </SafeAreaView>
@@ -385,5 +580,23 @@ const styles = StyleSheet.create({
   },
   previewActionButton: {
     flex: 1,
+  },
+  // --- PDF confirmation card ---
+  pdfCard: {
+    backgroundColor: colors.bg[1],
+    borderRadius: radii.md,
+    padding: spacing[6],
+    alignItems: 'center',
+    gap: spacing[4],
+    width: '100%',
+  },
+  pdfCardName: {
+    color: colors.fg[1],
+    textAlign: 'center',
+  },
+  pdfCardActions: {
+    flexDirection: 'row',
+    gap: spacing[4],
+    width: '100%',
   },
 });
