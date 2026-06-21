@@ -4,7 +4,7 @@
  * All tests inject `now = new Date(2026, 3, 15)` (April 15, 2026) for
  * determinism — no real clock is used.
  */
-import { monthPeriod, presetPeriod, shiftMonth } from '../periods';
+import { monthPeriod, presetPeriod, shiftMonth, trailingMonthsPeriod } from '../periods';
 
 // Fixed reference: April 15, 2026
 const NOW = new Date(2026, 3, 15);
@@ -42,8 +42,8 @@ describe('presetPeriod("this-month")', () => {
     expect(period.to).toBe(expectMonthEnd(2026, 3));
   });
 
-  it('bucket is "day"', () => {
-    expect(period.bucket).toBe<'day'>('day');
+  it('bucket is "week" (weekly bars are more useful than 30 daily bars)', () => {
+    expect(period.bucket).toBe<'week'>('week');
   });
 });
 
@@ -66,8 +66,8 @@ describe('presetPeriod("last-month")', () => {
     expect(period.to).toBe(expectMonthEnd(2026, 2));
   });
 
-  it('bucket is "day"', () => {
-    expect(period.bucket).toBe<'day'>('day');
+  it('bucket is "week" (weekly bars are more useful than 28–31 daily bars)', () => {
+    expect(period.bucket).toBe<'week'>('week');
   });
 });
 
@@ -138,8 +138,8 @@ describe('monthPeriod', () => {
     expect(monthPeriod(2026, 3).to).toBe(expectMonthEnd(2026, 3));
   });
 
-  it('bucket is "day"', () => {
-    expect(monthPeriod(2026, 3).bucket).toBe<'day'>('day');
+  it('bucket is "week" (weekly granularity for single-month navigation)', () => {
+    expect(monthPeriod(2026, 3).bucket).toBe<'week'>('week');
   });
 
   it('label for January 2026 is "Enero 2026"', () => {
@@ -232,5 +232,62 @@ describe('shiftMonth — year boundary with now in next year', () => {
     const nowFeb2026 = new Date(2026, 1, 5);
     const result = shiftMonth(jan2026, -1, nowFeb2026);
     expect(result.label).toBe('Diciembre 2025');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// trailingMonthsPeriod
+// ---------------------------------------------------------------------------
+
+// Fixed reference for trailing-months tests: June 21, 2026
+const NOW_JUNE = new Date(2026, 5, 21);
+
+describe('trailingMonthsPeriod', () => {
+  it('label is "Últimos 6 meses" for default months=6', () => {
+    const period = trailingMonthsPeriod(6, NOW_JUNE);
+    expect(period.label).toBe('Últimos 6 meses');
+  });
+
+  it('bucket is "month"', () => {
+    const period = trailingMonthsPeriod(6, NOW_JUNE);
+    expect(period.bucket).toBe<'month'>('month');
+  });
+
+  it('from is January 1 2026 00:00:00 (5 months before June)', () => {
+    // now = June 2026 (month index 5), trailing 6 → start at month 5-(6-1)=0 → January 2026
+    const period = trailingMonthsPeriod(6, NOW_JUNE);
+    expect(period.from).toBe(expectMonthStart(2026, 0));
+  });
+
+  it('to equals the injected now ISO string', () => {
+    const period = trailingMonthsPeriod(6, NOW_JUNE);
+    expect(period.to).toBe(NOW_JUNE.toISOString());
+  });
+
+  it('window spans 6 months: from Jan 2026 to Jun 2026', () => {
+    const period = trailingMonthsPeriod(6, NOW_JUNE);
+    const fromDate = new Date(period.from);
+    expect(fromDate.getFullYear()).toBe(2026);
+    expect(fromDate.getMonth()).toBe(0); // January
+  });
+
+  it('works for months=3 — from April 2026 (3 months back)', () => {
+    const period = trailingMonthsPeriod(3, NOW_JUNE);
+    expect(period.label).toBe('Últimos 3 meses');
+    expect(period.from).toBe(expectMonthStart(2026, 3)); // April
+  });
+
+  it('crosses year boundary — months=6 with now=February 2026', () => {
+    const nowFeb = new Date(2026, 1, 10); // February 2026 (month index 1)
+    // start = month 1-(6-1) = -4 → ((-4 % 12) + 12) % 12 = 8 → September 2025
+    const period = trailingMonthsPeriod(6, nowFeb);
+    expect(period.from).toBe(expectMonthStart(2025, 8)); // September 2025
+  });
+
+  it('defaults months=6 when called without arguments (smoke test)', () => {
+    // Just verify it doesn't throw and returns a period with bucket 'month'
+    const period = trailingMonthsPeriod();
+    expect(period.bucket).toBe('month');
+    expect(period.label).toBe('Últimos 6 meses');
   });
 });

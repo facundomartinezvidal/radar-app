@@ -76,7 +76,7 @@ export function presetPeriod(id: PeriodPresetId, now: Date = new Date()): Period
         label: 'Este mes',
         from: monthStart(y, m),
         to: monthEnd(y, m),
-        bucket: 'day',
+        bucket: 'week',
       };
     }
 
@@ -88,7 +88,7 @@ export function presetPeriod(id: PeriodPresetId, now: Date = new Date()): Period
         label: 'Mes pasado',
         from: monthStart(prevYear, prevMonth),
         to: monthEnd(prevYear, prevMonth),
-        bucket: 'day',
+        bucket: 'week',
       };
     }
 
@@ -133,7 +133,7 @@ export function monthPeriod(year: number, monthIndex0: number): Period {
     label,
     from: monthStart(year, monthIndex0),
     to: monthEnd(year, monthIndex0),
-    bucket: 'day',
+    bucket: 'week',
   };
 }
 
@@ -171,4 +171,33 @@ export function shiftMonth(period: Period, delta: number, now: Date = new Date()
   }
 
   return monthPeriod(targetYear, targetMonth);
+}
+
+/**
+ * Build a `Period` covering the trailing `months` calendar months up to `now`.
+ *
+ * @param months - Number of months to include (default 6). The window spans from
+ *                 the first instant of the month `(months - 1)` months before the
+ *                 current month through `now`.
+ * @param now    - Reference point for "current month". Defaults to `new Date()`.
+ *
+ * @example
+ *   // now = 2026-06-21
+ *   trailingMonthsPeriod(6) // from = 2026-01-01 00:00:00, to = now, bucket = 'month'
+ */
+export function trailingMonthsPeriod(months = 6, now: Date = new Date()): Period {
+  const nowYear = now.getFullYear();
+  const nowMonth = now.getMonth(); // 0-based
+
+  // First month of the window: (months - 1) months before the current month.
+  const startMonthRaw = nowMonth - (months - 1);
+  const startMonth = ((startMonthRaw % 12) + 12) % 12;
+  const startYear = nowYear + Math.floor(startMonthRaw / 12);
+
+  return {
+    label: `Últimos ${months} meses`,
+    from: monthStart(startYear, startMonth),
+    to: now.toISOString(),
+    bucket: 'month',
+  };
 }

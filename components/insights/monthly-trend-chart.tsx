@@ -12,7 +12,9 @@ import { View } from 'react-native';
 import { LineChart } from 'react-native-gifted-charts';
 
 import { Text } from '@/components/ui/text';
-import { formatMoney } from '@/lib/format/money';
+import { useChartWidth } from '@/components/insights/chart-width';
+import { formatMoney, formatMoneyCompact } from '@/lib/format/money';
+import { niceCeil } from '@/components/insights/period-bar-chart';
 import { colors, spacing, typography } from '@/lib/theme';
 import type { ChartPoint, Currency } from '@/lib/insights/types';
 
@@ -31,6 +33,8 @@ export interface MonthlyTrendChartProps {
 // ---------------------------------------------------------------------------
 
 const CHART_HEIGHT = 220;
+const Y_AXIS_LABEL_WIDTH = 56;
+const INITIAL_SPACING = 20;
 
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
@@ -53,6 +57,8 @@ export function MonthlyTrendChart({
   currency,
   testID,
 }: MonthlyTrendChartProps): React.JSX.Element | null {
+  const chartWidth = useChartWidth();
+
   if (data.length === 0) {
     return null;
   }
@@ -63,14 +69,26 @@ export function MonthlyTrendChart({
     dataPointText: '',
   }));
 
-  const maxValue = Math.max(...data.map((d) => d.total), 1);
+  const rawMax = Math.max(...data.map((d) => d.total), 0);
+  const maxValue = niceCeil(rawMax);
+
+  // Compute spacing so all points fit within the chart width.
+  // spacing = available width / max segments; fallback to 40 for single point.
+  const pointCount = lineData.length;
+  const computedSpacing =
+    pointCount > 1
+      ? Math.floor((chartWidth - INITIAL_SPACING - Y_AXIS_LABEL_WIDTH) / (pointCount - 1))
+      : 40;
 
   return (
     <View testID={testID}>
       <LineChart
         data={lineData}
         height={CHART_HEIGHT}
-        maxValue={maxValue * 1.2}
+        width={chartWidth}
+        maxValue={maxValue}
+        spacing={computedSpacing}
+        initialSpacing={INITIAL_SPACING}
         color={colors.brand[500]}
         thickness={2}
         dataPointsColor={colors.brand[300]}
@@ -93,6 +111,8 @@ export function MonthlyTrendChart({
           fontSize: typography.size.micro,
           fontFamily: typography.family.regular,
         }}
+        yAxisLabelWidth={Y_AXIS_LABEL_WIDTH}
+        formatYLabel={(v) => formatMoneyCompact(Number(v), currency)}
         noOfSections={4}
         backgroundColor={colors.bg[1]}
         rulesColor={colors.line[1]}

@@ -30,7 +30,7 @@ import { PeriodFilterBar } from '@/components/insights/period-filter-bar';
 import { Card, H2, H3, Label, Loader, Pill, Text } from '@/components/ui';
 import { CurrencyToggle } from '@/components/expenses/currency-toggle';
 import { formatMoney } from '@/lib/format/money';
-import { presetPeriod } from '@/lib/insights/periods';
+import { presetPeriod, trailingMonthsPeriod } from '@/lib/insights/periods';
 import type { Currency, GenerateInsightsInput, Period } from '@/lib/insights/types';
 import {
   useAiInsights,
@@ -50,13 +50,18 @@ export default function InsightsScreen(): React.JSX.Element {
   const [period, setPeriod] = useState<Period>(() => presetPeriod('this-month'));
   const [currency, setCurrency] = useState<Currency>('ARS');
 
+  // ── Fixed 6-month window for trend/comparison charts ─────────────────────
+  // These charts are NOT bound to the active period filter — they always show
+  // the trailing 6 months so they're useful for comparison and trend reading.
+  const trendWindow = useMemo(() => trailingMonthsPeriod(6), []);
+
   // ── Data hooks ───────────────────────────────────────────────────────────
   const byCategoryQuery = useExpenseByCategory(currency, period);
   const expenseBarsQuery = useExpenseByPeriod(currency, period);
   const incomeBarsQuery = useIncomeByPeriod(currency, period);
-  const trendQuery = useTrend(currency, period);
+  const trendQuery = useTrend(currency, trendWindow);
 
-  // ── Loading state — any core query still loading ─────────────────────────
+  // ── Loading state — only period-bound queries gate the empty-state ────────
   const coreLoading =
     byCategoryQuery.isLoading ||
     expenseBarsQuery.isLoading ||
@@ -203,6 +208,9 @@ export default function InsightsScreen(): React.JSX.Element {
             {(trendQuery.data ?? []).length > 0 && (
               <View style={styles.section}>
                 <H3 style={styles.sectionTitle}>Ingresos vs gastos</H3>
+                <Text variant="caption" style={styles.sectionCaption} testID="ive-caption">
+                  Últimos 6 meses
+                </Text>
                 <Card variant="base" padding={5} testID="income-vs-expense-card">
                   <IncomeVsExpenseChart
                     data={trendQuery.data ?? []}
@@ -217,6 +225,9 @@ export default function InsightsScreen(): React.JSX.Element {
             {trendAsChartPoints.length > 0 && (
               <View style={styles.section}>
                 <H3 style={styles.sectionTitle}>Tendencia</H3>
+                <Text variant="caption" style={styles.sectionCaption} testID="trend-caption">
+                  Últimos 6 meses
+                </Text>
                 <Card variant="base" padding={5} testID="trend-card">
                   <MonthlyTrendChart
                     data={trendAsChartPoints}
@@ -296,7 +307,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[5],
   },
   sectionTitle: {
-    marginBottom: spacing[3],
+    marginBottom: spacing[1],
     fontFamily: typography.family.semibold,
+  },
+  sectionCaption: {
+    color: colors.fg[3],
+    marginBottom: spacing[3],
   },
 });

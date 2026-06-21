@@ -12,7 +12,9 @@ import { View } from 'react-native';
 import { BarChart } from 'react-native-gifted-charts';
 
 import { Text } from '@/components/ui/text';
-import { formatMoney } from '@/lib/format/money';
+import { useChartWidth } from '@/components/insights/chart-width';
+import { formatMoney, formatMoneyCompact } from '@/lib/format/money';
+import { niceCeil } from '@/components/insights/period-bar-chart';
 import { colors, spacing, typography } from '@/lib/theme';
 import type { Currency } from '@/lib/insights/types';
 
@@ -41,6 +43,7 @@ const BAR_WIDTH = 16;
 const BAR_BORDER_RADIUS = 4;
 const BAR_SPACING = 2;
 const GROUP_SPACING = 16;
+const Y_AXIS_LABEL_WIDTH = 56;
 
 /**
  * Format a bucket string to a short month label.
@@ -76,6 +79,8 @@ export function IncomeVsExpenseChart({
   currency,
   testID,
 }: IncomeVsExpenseChartProps): React.JSX.Element | null {
+  const chartWidth = useChartWidth();
+
   if (data.length === 0) {
     return null;
   }
@@ -97,16 +102,18 @@ export function IncomeVsExpenseChart({
     },
   ]);
 
-  const maxValue = Math.max(...data.flatMap((d) => [d.incomes, d.expenses]), 1);
+  const rawMax = Math.max(...data.flatMap((d) => [d.incomes, d.expenses]), 0);
+  const maxValue = niceCeil(rawMax);
 
   return (
     <View testID={testID}>
       <BarChart
         data={barData}
         height={CHART_HEIGHT}
+        width={chartWidth}
         barWidth={BAR_WIDTH}
         barBorderRadius={BAR_BORDER_RADIUS}
-        maxValue={maxValue * 1.15}
+        maxValue={maxValue}
         xAxisColor={colors.line[2]}
         yAxisColor={colors.line[2]}
         xAxisLabelTextStyle={{
@@ -119,10 +126,13 @@ export function IncomeVsExpenseChart({
           fontSize: typography.size.micro,
           fontFamily: typography.family.regular,
         }}
+        yAxisLabelWidth={Y_AXIS_LABEL_WIDTH}
+        formatYLabel={(v) => formatMoneyCompact(Number(v), currency)}
         noOfSections={4}
         backgroundColor={colors.bg[1]}
         rulesColor={colors.line[1]}
         rulesType="solid"
+        adjustToWidth
         isAnimated
       />
 

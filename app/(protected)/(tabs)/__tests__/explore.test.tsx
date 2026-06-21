@@ -341,6 +341,25 @@ describe('InsightsScreen', () => {
       expect(mockUseTrend).toHaveBeenCalledWith('ARS', expect.any(Object));
     });
 
+    it('useTrend is called with a trailing-6-month window (bucket="month", label contains "meses")', () => {
+      renderScreen();
+      const trendCall = mockUseTrend.mock.calls[0];
+      // Second arg is the trendWindow Period
+      const trendPeriod = trendCall?.[1] as { bucket: string; label: string };
+      expect(trendPeriod?.bucket).toBe('month');
+      expect(trendPeriod?.label).toContain('meses');
+    });
+
+    it('shows "Últimos 6 meses" caption under "Ingresos vs gastos"', () => {
+      renderScreen();
+      expect(screen.getByTestId('ive-caption')).toBeTruthy();
+    });
+
+    it('shows "Últimos 6 meses" caption under "Tendencia"', () => {
+      renderScreen();
+      expect(screen.getByTestId('trend-caption')).toBeTruthy();
+    });
+
     it('switches to USD and re-calls hooks with USD after pressing USD toggle', () => {
       renderScreen();
 

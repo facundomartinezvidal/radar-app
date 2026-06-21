@@ -13,7 +13,8 @@ import { View } from 'react-native';
 import { BarChart } from 'react-native-gifted-charts';
 
 import { Text } from '@/components/ui/text';
-import { formatMoney } from '@/lib/format/money';
+import { useChartWidth } from '@/components/insights/chart-width';
+import { formatMoney, formatMoneyCompact } from '@/lib/format/money';
 import { colors, spacing, typography } from '@/lib/theme';
 import type { ChartPoint, Currency } from '@/lib/insights/types';
 
@@ -32,8 +33,36 @@ export interface PeriodBarChartProps {
 // ---------------------------------------------------------------------------
 
 const CHART_HEIGHT = 200;
-const BAR_WIDTH = 28;
 const BAR_BORDER_RADIUS = 6;
+const Y_AXIS_LABEL_WIDTH = 56;
+
+/**
+ * Round a value up to a "nice" ceiling (1, 2, 2.5, 5 × 10^k) so gridlines
+ * land on round numbers.
+ *
+ * Examples: 0 → 1, 80_402 → 100_000, 1_751_448 → 2_000_000, 620 → 1_000.
+ */
+export function niceCeil(value: number): number {
+  if (value <= 0) return 1;
+  const exp = Math.floor(Math.log10(value));
+  const magnitude = Math.pow(10, exp);
+  const normalised = value / magnitude;
+
+  let niceFactor: number;
+  if (normalised <= 1) {
+    niceFactor = 1;
+  } else if (normalised <= 2) {
+    niceFactor = 2;
+  } else if (normalised <= 2.5) {
+    niceFactor = 2.5;
+  } else if (normalised <= 5) {
+    niceFactor = 5;
+  } else {
+    niceFactor = 10;
+  }
+
+  return niceFactor * magnitude;
+}
 
 /**
  * Format a bucket string compactly for use as an X-axis label.
@@ -78,9 +107,14 @@ export function PeriodBarChart({
   currency,
   testID,
 }: PeriodBarChartProps): React.JSX.Element | null {
+  const chartWidth = useChartWidth();
+
   if (data.length === 0) {
     return null;
   }
+
+  const rawMax = Math.max(...data.map((d) => d.total), 0);
+  const maxValue = niceCeil(rawMax);
 
   const barData = data.map((point) => ({
     value: point.total,
@@ -94,7 +128,7 @@ export function PeriodBarChart({
       <BarChart
         data={barData}
         height={CHART_HEIGHT}
-        barWidth={BAR_WIDTH}
+        width={chartWidth}
         barBorderRadius={BAR_BORDER_RADIUS}
         frontColor={colors.money.out}
         xAxisColor={colors.line[2]}
@@ -109,11 +143,15 @@ export function PeriodBarChart({
           fontSize: typography.size.micro,
           fontFamily: typography.family.regular,
         }}
+        yAxisLabelWidth={Y_AXIS_LABEL_WIDTH}
+        formatYLabel={(v) => formatMoneyCompact(Number(v), currency)}
+        maxValue={maxValue}
         noOfSections={4}
         backgroundColor={colors.bg[1]}
         hideRules={false}
         rulesColor={colors.line[1]}
         rulesType="solid"
+        adjustToWidth
         isAnimated
       />
 
