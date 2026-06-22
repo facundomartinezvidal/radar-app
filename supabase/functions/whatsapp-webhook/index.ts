@@ -170,18 +170,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
     }
 
-    // Ack Meta immediately — D3 in design.md.
-    // All actual processing (DB writes, Groq calls, Graph API replies) happens
-    // asynchronously inside EdgeRuntime.waitUntil so Meta's ack window is met
-    // regardless of Groq latency.
+    // Process inline and AWAIT before acking Meta.
+    //
+    // We previously used EdgeRuntime.waitUntil to ack immediately and process
+    // in the background, but Supabase tears down the isolate after the Response
+    // resolves, so background work (resolveUser → Graph reply → markProcessed)
+    // was killed mid-flight (rows stuck at status='processing', no reply sent).
+    //
+    // Awaiting is safe: Meta tolerates multi-second webhook latency, and the
+    // recordInbound idempotency guard (provider_message_id UNIQUE) makes any
+    // Meta retry a no-op (isNew=false → skip), so a slow message can never be
+    // processed or replied to twice.
     if (messages.length > 0) {
-      const processingPromise = Promise.all(
-        messages.map(({ message, contact }) => handleMessage(message, contact)),
-      );
-
-      // EdgeRuntime.waitUntil keeps the isolate alive until the promise settles
-      // without blocking the 200 response to Meta.
-      (EdgeRuntime as { waitUntil: (p: Promise<unknown>) => void }).waitUntil(processingPromise);
+      await Promise.all(messages.map(({ message, contact }) => handleMessage(message, contact)));
     }
 
     return new Response('OK', { status: 200 });

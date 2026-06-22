@@ -40,9 +40,14 @@ export async function sendText(to: string, body: string): Promise<void> {
     text: { body },
   };
 
+  // Hard timeout so a hung Graph fetch can never stall the whole handler.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15_000);
+
   try {
     const res = await fetch(url, {
       method: 'POST',
+      signal: controller.signal,
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
@@ -56,6 +61,8 @@ export async function sendText(to: string, body: string): Promise<void> {
     }
   } catch (err) {
     console.error('[graph] sendText fetch error:', err);
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

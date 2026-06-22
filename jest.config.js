@@ -12,7 +12,7 @@ module.exports = {
   },
   // Supabase edge functions are Deno (run via `deno test`), not jest. Exclude them
   // so jest does not try to import Deno URL/`Deno.*` modules and fail.
-  testPathIgnorePatterns: ['/node_modules/', '/supabase/'],
+  testPathIgnorePatterns: ['/node_modules/', '/supabase/', '/.claude/'],
   collectCoverageFrom: [
     'app/**/*.{ts,tsx}',
     'components/**/*.{ts,tsx}',

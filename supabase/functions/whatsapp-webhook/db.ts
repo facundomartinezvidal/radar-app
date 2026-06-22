@@ -83,35 +83,28 @@ export interface PendingAction {
 export async function recordInbound(msg: InboundMessage): Promise<boolean> {
   const db = serviceClient();
 
-  const { error, status } = await db.from('whatsapp_messages').upsert(
-    {
-      provider_message_id: msg.providerMessageId,
-      wa_number: msg.waNumber,
-      direction: 'inbound' satisfies MessageDirection,
-      body: msg.body,
-      num_media: msg.numMedia,
-      status: 'processing' satisfies MessageStatus,
-    },
-    { onConflict: 'provider_message_id', ignoreDuplicates: true },
-  );
+  // Plain insert; rely on the UNIQUE(provider_message_id) constraint for
+  // idempotency. A unique-violation (23505) means Meta re-delivered this
+  // message — return false so the caller skips re-processing.
+  //
+  // NOTE: do NOT use upsert({ignoreDuplicates:true}) + an HTTP-status check —
+  // supabase-js returns 200 (not 201) for a successful ignore-duplicates insert,
+  // which made every fresh message look like a duplicate and silently skip.
+  const { error } = await db.from('whatsapp_messages').insert({
+    provider_message_id: msg.providerMessageId,
+    wa_number: msg.waNumber,
+    direction: 'inbound' satisfies MessageDirection,
+    body: msg.body,
+    num_media: msg.numMedia,
+    status: 'processing' satisfies MessageStatus,
+  });
 
   if (error) {
-    // If the error is a unique-violation (23505), it's a duplicate
     if (error.code === '23505') {
       console.info('[db] recordInbound: duplicate message skipped', msg.providerMessageId);
       return false;
     }
-    // Unexpected error — log and surface to caller
     throw new Error(`[db] recordInbound insert failed: ${error.message}`);
-  }
-
-  // HTTP 201 Created means a new row was inserted; 200 from ignoreDuplicates
-  // means it was a no-op. Supabase returns 201 on insert and 200 on upsert
-  // no-op (ignoreDuplicates).
-  if (status === 200) {
-    // No row was inserted (duplicate)
-    console.info('[db] recordInbound: duplicate message (status 200 no-op)', msg.providerMessageId);
-    return false;
   }
 
   return true;
@@ -328,7 +321,7 @@ export async function countRecentInbound(waNumber: string, windowSeconds: number
     .select('id', { count: 'exact', head: true })
     .eq('wa_number', waNumber)
     .eq('direction', 'inbound' satisfies MessageDirection)
-    .gte('created_at', since);
+    .gte('received_at', since);
 
   if (error) {
     // Non-fatal: on query failure, err on the side of caution by returning 0
