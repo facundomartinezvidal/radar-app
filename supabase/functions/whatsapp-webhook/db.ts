@@ -175,6 +175,43 @@ export async function markProcessed(
 }
 
 // ---------------------------------------------------------------------------
+// redeemLinkCode — link-code redemption (HU-26)
+// ---------------------------------------------------------------------------
+
+export type RedeemStatus = 'linked' | 'expired' | 'reused' | 'invalid' | 'already_linked';
+
+export interface RedeemResult {
+  status: RedeemStatus;
+  user_id: string | null;
+}
+
+/**
+ * Calls the `redeem_link_code` SECURITY DEFINER RPC (Pattern 1) with the
+ * supplied 6-char code (already uppercased) and the E.164 sender number.
+ *
+ * Returns the discrete outcome from the RPC:
+ *   'linked'        — number bound to the code's user; success
+ *   'expired'       — code TTL elapsed; no binding created
+ *   'reused'        — code already consumed; no binding created
+ *   'invalid'       — no matching code row found
+ *   'already_linked'— number already bound to a different user
+ *
+ * Throws on unexpected DB errors so the caller's catch-all can handle them.
+ */
+export async function redeemLinkCode(code: string, waNumber: string): Promise<RedeemResult> {
+  const db = serviceClient();
+
+  const { data, error } = await db.rpc('redeem_link_code', { p_code: code, p_wa: waNumber });
+
+  if (error) {
+    throw new Error(`[db] redeemLinkCode RPC failed: ${error.message}`);
+  }
+
+  const result = data as { status: RedeemStatus; user_id: string | null };
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // Conversation state helpers (D4 in design.md)
 // ---------------------------------------------------------------------------
 

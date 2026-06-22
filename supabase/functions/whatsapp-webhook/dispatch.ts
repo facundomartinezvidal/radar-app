@@ -12,7 +12,14 @@
  */
 
 import { sendText } from './graph.ts';
-import { clearPending, getConversation, markProcessed, recordInbound, resolveUser } from './db.ts';
+import {
+  clearPending,
+  getConversation,
+  markProcessed,
+  recordInbound,
+  redeemLinkCode,
+  resolveUser,
+} from './db.ts';
 
 // ---------------------------------------------------------------------------
 // Types — Meta Cloud API message shape (subset we care about)
@@ -51,6 +58,29 @@ function toE164(waId: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Link-code detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns true when `s` (after uppercasing) looks like a 6-char link code.
+ *
+ * The code alphabet is base32 minus ambiguous glyphs 0/O/1/I/L:
+ *   A-H J-K M-N P-Z 2-9  (27 chars × 6 positions)
+ *
+ * Character class breakdown (all uppercase after toUpperCase()):
+ *   A-H  — skips I
+ *   J-K  — skips L
+ *   M-N  — skips nothing (O excluded separately)
+ *   P-Z  — skips nothing (O is before P)
+ *   2-9  — skips 0 and 1
+ *
+ * Exported so it can be unit-tested independently of the DB layer.
+ */
+export function looksLikeLinkCode(s: string): boolean {
+  return /^[A-HJ-KM-NP-Z2-9]{6}$/.test(s.toUpperCase());
+}
+
+// ---------------------------------------------------------------------------
 // Reply helpers — messages sent to unlinked / linked users
 // ---------------------------------------------------------------------------
 
@@ -59,6 +89,18 @@ const UNLINKED_PROMPT =
 
 const LINKED_PLACEHOLDER =
   'Pronto vas a poder registrar gastos, consultar movimientos y pedir recomendaciones.';
+
+/** Outcome-specific replies for link-code redemption (HU-26). */
+const LINK_CODE_REPLIES: Record<string, string> = {
+  linked:
+    '✅ Listo, vinculé este número a tu cuenta RADAR. Ya podés registrar gastos y consultar tus movimientos.',
+  expired: 'Ese código venció. Generá uno nuevo en la app (Perfil → WhatsApp).',
+  reused: 'Ese código ya no es válido. Generá uno nuevo en la app (Perfil → WhatsApp).',
+  invalid:
+    'No reconozco ese código. Copialo exactamente como aparece en la app (Perfil → WhatsApp).',
+  already_linked:
+    'Este número ya está vinculado a otra cuenta. Desvinculalo primero para usarlo en otra.',
+};
 
 // ---------------------------------------------------------------------------
 // handleMessage — main async handler
@@ -109,17 +151,15 @@ export async function handleMessage(message: WaMessage, contact: WaContact): Pro
 
       const body = message.text?.body?.trim() ?? '';
 
-      // TODO(link-flow): HU-26 — if `body` matches a link-code pattern
-      // (e.g. /^[A-Z2-7]{6}$/i), call `redeem_link_code(body, waNumber)` here
-      // and reply with the outcome-specific message.  The branch below is
-      // intentionally left as a stub so Task 6.1 can fill it in cleanly:
-      //
-      //   if (isLinkCode(body)) {
-      //     const outcome = await redeemLinkCode(body, waNumber);
-      //     await sendText(waNumber, LINK_CODE_REPLIES[outcome]);
-      //     await markProcessed(providerMessageId, 'processed', 'link_code');
-      //     return;
-      //   }
+      if (looksLikeLinkCode(body)) {
+        // Attempt to redeem the code: uppercase before passing to the RPC so
+        // the DB comparison is case-insensitive at the call site.
+        const result = await redeemLinkCode(body.toUpperCase(), waNumber);
+        const reply = LINK_CODE_REPLIES[result.status];
+        await sendText(waNumber, reply);
+        await markProcessed(providerMessageId, 'processed', 'link');
+        return;
+      }
 
       await sendText(waNumber, UNLINKED_PROMPT);
       await markProcessed(providerMessageId, 'processed');
