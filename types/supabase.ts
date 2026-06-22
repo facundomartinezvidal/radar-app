@@ -934,6 +934,17 @@ export type Database = {
           total: number;
         }[];
       };
+      get_recent_movements_for: {
+        Args: { p_direction?: string; p_limit?: number; p_user_id: string };
+        Returns: {
+          amount: number;
+          category_name: string;
+          currency: string;
+          description: string;
+          direction: string;
+          occurred_at: string;
+        }[];
+      };
       import_transactions: {
         Args: { p_rows: Json };
         Returns: number;

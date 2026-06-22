@@ -16,8 +16,9 @@
  *   UTC weekday: 3 (Wednesday), so Monday of this ISO week is 2026-06-15.
  */
 
-import { assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
-import { formatAmount, resolvePeriod } from './queries.ts';
+import { assertEquals, assertStringIncludes } from 'https://deno.land/std@0.224.0/assert/mod.ts';
+import { formatAmount, formatMovementLine, resolvePeriod } from './queries.ts';
+import type { MovementRow } from './queries.ts';
 
 // ---------------------------------------------------------------------------
 // Fixed "now" — Wednesday 17 June 2026, 14:30 UTC
@@ -188,4 +189,89 @@ Deno.test('formatAmount USD large amount', () => {
 Deno.test('resolvePeriod custom label format: del MM/DD al MM/DD', () => {
   const result = resolvePeriod({ from: '2026-01-15', to: '2026-02-28' }, NOW);
   assertEquals(result.label, 'Del 01/15 al 02/28:');
+});
+
+// ---------------------------------------------------------------------------
+// formatMovementLine
+// ---------------------------------------------------------------------------
+
+Deno.test('formatMovementLine: expense with description and category', () => {
+  const row: MovementRow = {
+    direction: 'expense',
+    amount: 4500,
+    currency: 'ARS',
+    description: 'Almuerzo',
+    category_name: 'Restaurante',
+    occurred_at: '2026-06-17T14:00:00.000Z',
+  };
+  const line = formatMovementLine(row);
+  assertEquals(line, '• 17/06 — gasto $ 4.500,00 — Almuerzo · Restaurante');
+});
+
+Deno.test('formatMovementLine: income without description or category', () => {
+  const row: MovementRow = {
+    direction: 'income',
+    amount: 200000,
+    currency: 'ARS',
+    description: null,
+    category_name: null,
+    occurred_at: '2026-06-01T00:00:00.000Z',
+  };
+  const line = formatMovementLine(row);
+  assertEquals(line, '• 01/06 — ingreso $ 200.000,00');
+});
+
+Deno.test('formatMovementLine: expense with description, no category', () => {
+  const row: MovementRow = {
+    direction: 'expense',
+    amount: 50,
+    currency: 'USD',
+    description: 'Netflix',
+    category_name: null,
+    occurred_at: '2026-05-31T12:00:00.000Z',
+  };
+  const line = formatMovementLine(row);
+  assertEquals(line, '• 31/05 — gasto USD 50,00 — Netflix');
+});
+
+Deno.test('formatMovementLine: expense with category, no description', () => {
+  const row: MovementRow = {
+    direction: 'expense',
+    amount: 1000,
+    currency: 'ARS',
+    description: null,
+    category_name: 'Supermercado',
+    occurred_at: '2026-06-10T10:30:00.000Z',
+  };
+  const line = formatMovementLine(row);
+  assertEquals(line, '• 10/06 — gasto $ 1.000,00 · Supermercado');
+});
+
+Deno.test('formatMovementLine: date-only occurred_at (no T part)', () => {
+  const row: MovementRow = {
+    direction: 'income',
+    amount: 300000,
+    currency: 'ARS',
+    description: 'Sueldo',
+    category_name: null,
+    occurred_at: '2026-06-05',
+  };
+  const line = formatMovementLine(row);
+  assertStringIncludes(line, '05/06');
+  assertStringIncludes(line, 'ingreso');
+  assertStringIncludes(line, '300.000,00');
+  assertStringIncludes(line, 'Sueldo');
+});
+
+Deno.test('formatMovementLine: USD income', () => {
+  const row: MovementRow = {
+    direction: 'income',
+    amount: 1500,
+    currency: 'USD',
+    description: 'Factura freelance',
+    category_name: 'Trabajo',
+    occurred_at: '2026-06-20T09:00:00.000Z',
+  };
+  const line = formatMovementLine(row);
+  assertEquals(line, '• 20/06 — ingreso USD 1.500,00 — Factura freelance · Trabajo');
 });

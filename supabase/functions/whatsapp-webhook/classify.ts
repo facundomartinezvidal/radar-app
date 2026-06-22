@@ -39,6 +39,7 @@ export type IntentKind =
   | 'capture_income'
   | 'query'
   | 'recommendation'
+  | 'chat'
   | 'confirm'
   | 'cancel'
   | 'unlink'
@@ -75,6 +76,20 @@ export interface ClassificationEntities {
   queryPeriod?: QueryPeriod;
   /** Category filter for 'query' intents. */
   queryCategory?: string;
+  /**
+   * When true, the user is asking for individual movement rows (a list),
+   * not aggregated totals.  Signals: "últimos", "último", "última",
+   * "detalle", "movimientos", "listá/listame", "mostrame los",
+   * "cuáles fueron", "cuál fue mi último".
+   */
+  listMode?: boolean;
+  /**
+   * How many rows to return when listMode is true.
+   * Extracted from "último/última/el último" → 1; "últimos N" → N.
+   * Defaults to 5 in the handler when listMode is true but limit is absent.
+   * Clamped to [1, 20] by normaliseClassification.
+   */
+  limit?: number;
 }
 
 export interface Classification {
@@ -132,7 +147,20 @@ interface GroqResponsePayload {
  *   capture_expense  — registrar un gasto ("gasté", "pagué", "compré", "salió")
  *   capture_income   — registrar un ingreso ("cobré", "me pagaron", "entró", "sueldo", "ingresó")
  *   query            — consultar movimientos ("¿cuánto?", "¿qué gasté?", "mostrá mis gastos")
+ *                      For the `query` intent: when the user asks for INDIVIDUAL movement rows /
+ *                      a list / the latest one (signals: "últimos", "último", "última", "detalle",
+ *                      "movimientos", "listá/listame", "mostrame los", "cuáles fueron",
+ *                      "cuál fue mi último"), set listMode: true.
+ *                      Extract limit: "último/última/el último" → 1; "últimos tres/3" → 3;
+ *                      default 5 if listMode is true but no count given.
+ *                      Keep listMode false/omitted for "¿cuánto gasté?" totals queries.
+ *                      Use direction entity to scope: "gastos" → "expense", "ingresos" → "income".
  *   recommendation   — pedir consejo/recomendación ("dame un consejo", "¿cómo vengo?", "recomendación")
+ *   chat             — preguntas abiertas/conversación sobre las finanzas del usuario que NO son
+ *                      un total simple, una lista de movimientos ni un pedido de consejo explícito.
+ *                      Señales: "¿en qué se me va la plata?", "¿gasto mucho en comida?",
+ *                      "explicame mis gastos del mes", "¿me conviene…?", preguntas financieras
+ *                      generales sobre sus datos.
  *   confirm          — confirmar una acción pendiente (sí/dale/ok/claro/confirmo/va/bueno)
  *   cancel           — cancelar una acción pendiente (no/cancelá/cancelar/olvidate/no gracias)
  *   unlink           — desvincular el número ("desvinculá", "unlink", "quiero desvincularme")
@@ -156,7 +184,9 @@ interface GroqResponsePayload {
  *     "categoryHint": <string|omit>,
  *     "direction": <"expense"|"income"|omit>,
  *     "queryPeriod": <"today"|"week"|"month"|"prev_month"|"year"|{"from":"yyyy-mm-dd","to":"yyyy-mm-dd"}|omit>,
- *     "queryCategory": <string|omit>
+ *     "queryCategory": <string|omit>,
+ *     "listMode": <true|omit — only set to true, never false>,
+ *     "limit": <positive integer 1..20|omit — only when listMode is true>
  *   },
  *   "confidence": <0.0..1.0>,
  *   "language": <ISO 639-1 code e.g. "es">
@@ -178,7 +208,11 @@ Tu tarea es analizar el mensaje del usuario y devolver ÚNICAMENTE un objeto JSO
 - "capture_expense": el usuario quiere registrar un gasto. Señales: "gasté", "pagué", "compré", "salió", "cargué", "me cobró", "fui al", "almorcé", "cené".
 - "capture_income": el usuario quiere registrar un ingreso. Señales: "cobré", "me pagaron", "entró", "sueldo", "ingresó", "facturé", "me depositaron", "transferí", "recibí".
 - "query": el usuario quiere consultar sus movimientos. Señales: "¿cuánto gasté?", "mostrá", "¿qué gasté?", "mis gastos", "¿cómo estoy?", "balance", "resumen", "ver movimientos".
+  - IMPORTANTE: cuando el usuario pide movimientos INDIVIDUALES o una lista ("últimos", "último", "última", "detalle", "movimientos", "listá/listame", "mostrame los", "cuáles fueron", "cuál fue mi último"), usá intent "query" Y setea listMode: true.
+  - "listMode": true cuando pide lista/detalle; omitilo (o false) para totales/resumen agregado.
+  - "limit": "último/última/el último" → 1; "últimos 3"/"últimos tres" → 3; si listMode true pero no hay número → 5. Omití si listMode no es true.
 - "recommendation": el usuario pide un consejo o análisis. Señales: "dame un consejo", "¿cómo vengo?", "recomendación", "análisis", "¿estoy gastando mucho?", "sugerencia".
+- "chat": el usuario hace preguntas abiertas sobre sus finanzas que NO son un total simple, una lista ni un consejo explícito. Señales: "¿en qué se me va la plata?", "¿gasto mucho en comida?", "explicame mis gastos del mes", "¿me conviene…?", preguntas generales sobre sus datos financieros. Usá "chat" cuando el usuario quiere conversar/explorar sus finanzas libremente.
 - "confirm": el usuario confirma una acción pendiente. Señales: "sí", "si", "dale", "ok", "confirmo", "va", "bueno", "claro", "perfecto", "listo", "de acuerdo".
 - "cancel": el usuario cancela una acción pendiente. Señales: "no", "cancelá", "cancelar", "olvidate", "no gracias", "dejalo", "para".
 - "unlink": el usuario quiere desvincular su número. Señales: "desvinculá", "desvinculame", "unlink", "quiero desvincularte", "sacame".
@@ -192,9 +226,11 @@ Tu tarea es analizar el mensaje del usuario y devolver ÚNICAMENTE un objeto JSO
 - merchant: nombre del comercio o persona si está identificable. Omití si no aplica.
 - occurredAt: fecha en formato "yyyy-mm-dd". "hoy" = ${today}. Nunca pongas una fecha futura. Omití si no hay fecha.
 - categoryHint: categoría sugerida en español (e.g. "Supermercado", "Transporte", "Restaurante"). Omití si no podés inferir.
-- direction: "expense" o "income". Sólo cuando es inequívoco. Omití si el intent ya lo define.
+- direction: "expense" o "income". Sólo cuando es inequívoco. Omití si el intent ya lo define. Para "query" con listMode: "gastos" → "expense", "ingresos" → "income"; omití para ambos.
 - queryPeriod: para intents "query". Valores: "today", "week", "month", "prev_month", "year", o {"from":"yyyy-mm-dd","to":"yyyy-mm-dd"} para rangos específicos.
 - queryCategory: categoría específica para filtrar en queries. Omití si no se menciona.
+- listMode: true SOLO cuando el usuario pide movimientos individuales/lista (ver "query" arriba). Nunca pongas false; simplemente omití si no aplica.
+- limit: número entero positivo (1–20) SOLO cuando listMode es true. Omití en cualquier otro caso.
 
 ## Reglas estrictas:
 - Devolvé ÚNICAMENTE JSON válido. Sin texto extra.
@@ -222,6 +258,7 @@ function normaliseClassification(raw: unknown): Classification | null {
     'capture_income',
     'query',
     'recommendation',
+    'chat',
     'confirm',
     'cancel',
     'unlink',
@@ -305,6 +342,22 @@ function normaliseClassification(raw: unknown): Classification | null {
     // queryCategory
     if (typeof e['queryCategory'] === 'string' && e['queryCategory'].trim().length > 0) {
       entities.queryCategory = e['queryCategory'].trim();
+    }
+
+    // listMode — accept only boolean true; drop anything else
+    if (e['listMode'] === true) {
+      entities.listMode = true;
+    }
+
+    // limit — positive integer, clamped to [1, 20]; only kept when listMode is set
+    if (entities.listMode === true) {
+      const rawLimit = e['limit'];
+      if (typeof rawLimit === 'number' && isFinite(rawLimit)) {
+        const clamped = Math.max(1, Math.min(20, Math.floor(rawLimit)));
+        if (clamped >= 1) {
+          entities.limit = clamped;
+        }
+      }
     }
   }
 

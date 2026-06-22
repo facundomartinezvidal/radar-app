@@ -27,6 +27,7 @@ import { handleCapture, handleConfirm, handleMediaCapture } from './capture.ts';
 import { transcribeAudio } from './transcribe.ts';
 import { handleQuery } from './queries.ts';
 import { handleRecommendation } from './recommendations.ts';
+import { handleChat } from './chat.ts';
 
 // ---------------------------------------------------------------------------
 // Rate-limit configuration
@@ -140,7 +141,9 @@ const HELP_MESSAGE =
   '¡Hola! Soy el bot de RADAR 🤖\n\nPodés pedirme:\n' +
   '• *Registrar gastos e ingresos* — "gasté 5000 en el súper" o enviá una foto/PDF\n' +
   '• *Consultar tus movimientos* — "¿cuánto gasté este mes?" o "¿en qué gasté esta semana?"\n' +
+  '• *Ver tus últimos movimientos* — "mostrá mis últimos 5 gastos" o "cuál fue mi último ingreso"\n' +
   '• *Recomendaciones* — "dame un consejo de gastos" o "¿cómo vengo este mes?"\n' +
+  '• *Hablar de tus finanzas* — "¿en qué se me va la plata?" o "¿gasto mucho en comida?"\n' +
   '• *Desvincular* — "desvinculame"\n\n' +
   'También podés hablar por audio 🎙️';
 
@@ -385,6 +388,18 @@ export async function handleMessage(message: WaMessage, contact: WaContact): Pro
           await handleRecommendation(userId, waNumber, classification);
           replied = true;
           await markProcessed(providerMessageId, 'processed', 'recommendation');
+        }
+        break;
+
+      case 'chat':
+        if (isLowConfidence) {
+          await sendText(waNumber, HELP_MESSAGE);
+          replied = true;
+          await markProcessed(providerMessageId, 'processed', 'help');
+        } else {
+          await handleChat(userId, waNumber, text, classification);
+          replied = true;
+          await markProcessed(providerMessageId, 'processed', 'chat');
         }
         break;
 

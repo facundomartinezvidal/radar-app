@@ -173,6 +173,102 @@ interface CategoryRow {
   count: number;
 }
 
+export interface MovementRow {
+  direction: 'expense' | 'income';
+  amount: number;
+  currency: string;
+  description: string | null;
+  category_name: string | null;
+  occurred_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// Movement-line formatter (exported for testing)
+// ---------------------------------------------------------------------------
+
+/**
+ * Formats a single movement row into a WhatsApp list line.
+ *
+ * Format: `• {dd/mm} — {gasto|ingreso} {amount}{ — description}{ · category}`
+ *
+ * Exported as a pure function so it can be unit-tested without network access.
+ */
+export function formatMovementLine(row: MovementRow): string {
+  // Extract dd/mm from the ISO timestamp (occurred_at is "yyyy-mm-ddT…" or "yyyy-mm-dd")
+  const datePart = row.occurred_at.slice(0, 10); // "yyyy-mm-dd"
+  const [, mm, dd] = datePart.split('-');
+  const dateLabel = `${dd}/${mm}`;
+
+  const kindLabel = row.direction === 'expense' ? 'gasto' : 'ingreso';
+  const amountLabel = formatAmount(Number(row.amount), row.currency);
+
+  let line = `• ${dateLabel} — ${kindLabel} ${amountLabel}`;
+
+  if (row.description) {
+    line += ` — ${row.description}`;
+  }
+  if (row.category_name) {
+    line += ` · ${row.category_name}`;
+  }
+
+  return line;
+}
+
+// ---------------------------------------------------------------------------
+// handleRecentList — individual movement list
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetches recent individual movements and formats them as a WhatsApp list.
+ *
+ * Called when the user asks for movement ROWS rather than aggregated totals
+ * (e.g. "mis últimos 3 gastos", "cuál fue mi último movimiento").
+ * Does NOT resolve a time-period — "recientes" is handled by the RPC ORDER.
+ *
+ * @param userId         RADAR user UUID.
+ * @param waNumber       Sender E.164 number (for replies).
+ * @param classification Pre-classified; uses entities.limit, entities.direction.
+ */
+async function handleRecentList(
+  userId: string,
+  waNumber: string,
+  classification: Classification,
+): Promise<void> {
+  const limit = classification.entities.limit ?? 5;
+  const direction = classification.entities.direction ?? null;
+
+  const db = serviceClient();
+
+  const { data, error } = await db.rpc('get_recent_movements_for', {
+    p_user_id: userId,
+    p_limit: limit,
+    p_direction: direction,
+  });
+
+  if (error) {
+    console.error('[queries] handleRecentList RPC error:', error);
+    await sendText(waNumber, 'No pude consultar tus movimientos ahora, probá de nuevo.');
+    return;
+  }
+
+  const rows = (data ?? []) as MovementRow[];
+
+  if (rows.length === 0) {
+    await sendText(waNumber, 'No encontré movimientos recientes.');
+    return;
+  }
+
+  const header =
+    rows.length === 1 ? `*Tu último movimiento:*` : `*Tus últimos ${rows.length} movimientos:*`;
+
+  const lines: string[] = [header];
+  for (const row of rows) {
+    lines.push(formatMovementLine(row));
+  }
+
+  await sendText(waNumber, lines.join('\n'));
+}
+
 // ---------------------------------------------------------------------------
 // handleQuery
 // ---------------------------------------------------------------------------
@@ -181,9 +277,10 @@ interface CategoryRow {
  * Answers a natural-language query about the user's movements.
  *
  * Decision logic:
- *   - If `queryCategory` is present in entities → call get_expense_by_category_for
- *     (the user asked "¿en qué gasté…?" or filtered by category).
- *   - Otherwise → call get_personal_totals_for for a concise total-per-currency reply.
+ *   1. If `listMode` is true in entities → call handleRecentList (individual rows;
+ *      period is NOT resolved — "recent" is always last-N regardless of date).
+ *   2. If `queryCategory` is present → call get_expense_by_category_for.
+ *   3. Otherwise → call get_personal_totals_for for a concise total-per-currency reply.
  *
  * Both paths are read-only; no confirmation is required.
  *
@@ -196,7 +293,18 @@ export async function handleQuery(
   waNumber: string,
   classification: Classification,
 ): Promise<void> {
-  const { queryPeriod, queryCategory, currency } = classification.entities;
+  const { queryPeriod, queryCategory, currency, listMode } = classification.entities;
+
+  // List-mode: user wants individual movement rows, not totals
+  if (listMode === true) {
+    try {
+      await handleRecentList(userId, waNumber, classification);
+    } catch (err) {
+      console.error('[queries] handleRecentList error:', err);
+      await sendText(waNumber, 'No pude consultar tus movimientos ahora, probá de nuevo.');
+    }
+    return;
+  }
 
   const { from, to, label } = resolvePeriod(queryPeriod, new Date());
 
