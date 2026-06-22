@@ -11,7 +11,7 @@
  * without restructuring this file.
  */
 
-import { sendText } from './graph.ts';
+import { fetchMediaBytes, sendText } from './graph.ts';
 import {
   clearPending,
   getConversation,
@@ -22,7 +22,8 @@ import {
   unlinkUser,
 } from './db.ts';
 import { classifyIntent, LOW_CONFIDENCE_THRESHOLD } from './classify.ts';
-import { handleCapture, handleConfirm } from './capture.ts';
+import { handleCapture, handleConfirm, handleMediaCapture } from './capture.ts';
+import { transcribeAudio } from './transcribe.ts';
 import { handleQuery } from './queries.ts';
 import { handleRecommendation } from './recommendations.ts';
 
@@ -187,11 +188,47 @@ export async function handleMessage(message: WaMessage, contact: WaContact): Pro
     // require an extra round-trip after the Groq call.
     const conversation = await getConversation(userId);
 
-    // Classify intent from the text body.
-    // Media messages without a text body get an empty string; they will
-    // produce 'unknown' intent which routes to the help message until group 8
-    // implements audio/image/pdf capture.
-    const text = message.text?.body?.trim() ?? '';
+    // ── Media-type branching ─────────────────────────────────────────────────
+    // Image and document messages go directly to handleMediaCapture (no intent
+    // classification needed — the media itself determines the flow).
+    // Audio messages are transcribed first, then the transcript feeds the text
+    // classification pipeline below.
+    // Text messages fall through to the existing classifyIntent path.
+
+    if (message.type === 'image' || message.type === 'document') {
+      await handleMediaCapture(userId, waNumber, message);
+      await markProcessed(providerMessageId, 'processed', 'media_capture');
+      return;
+    }
+
+    // Audio path: transcribe → use transcript as text for classifyIntent
+    let effectiveText = message.text?.body?.trim() ?? '';
+
+    if (message.type === 'audio' && message.audio?.id) {
+      try {
+        const { bytes, mimeType } = await fetchMediaBytes(message.audio.id);
+        const transcript = await transcribeAudio(bytes, mimeType);
+        const trimmed = transcript.trim();
+        if (!trimmed) {
+          // Empty transcript — cannot proceed
+          await sendText(
+            waNumber,
+            'No pude entender el audio, escribime el gasto o mandá una foto.',
+          );
+          await markProcessed(providerMessageId, 'failed');
+          return;
+        }
+        effectiveText = trimmed;
+      } catch (audioErr) {
+        console.error('[dispatch] audio transcription failed:', audioErr);
+        await sendText(waNumber, 'No pude entender el audio, escribime el gasto o mandá una foto.');
+        await markProcessed(providerMessageId, 'failed');
+        return;
+      }
+    }
+
+    // Classify intent from the effective text (original text or audio transcript).
+    const text = effectiveText;
     const classification = await classifyIntent(text);
 
     // ── Pending-action state machine ────────────────────────────────────────
