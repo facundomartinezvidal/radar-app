@@ -22,7 +22,7 @@ export const RemotionRoot: React.FC = () => (
     <Composition id="Tickets" component={TicketFlow} {...base} durationInFrames={940} />
     {/* Insights: intro → section tour (cards fly forward) → outro. (27s) */}
     <Composition id="Insights" component={Insights} {...base} durationInFrames={810} />
-    {/* WhatsApp bot: hook → vincular flow → chat capture → logo. (25s) */}
-    <Composition id="WhatsAppBot" component={WhatsAppBot} {...base} durationInFrames={750} />
+    {/* WhatsApp bot: hook → vincular flow → chat capture + 2 zoom cards → logo. (30s) */}
+    <Composition id="WhatsAppBot" component={WhatsAppBot} {...base} durationInFrames={900} />
   </>
 );
