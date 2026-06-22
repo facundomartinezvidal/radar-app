@@ -200,6 +200,7 @@ See `docs/decisions/2026-05-16-auth-strategy.md`.
 - `expense_recurrences` — recurring expense rules; occurrences materialized into `expenses` by pg_cron (HU-19) → [`docs/decisions/2026-06-08-recurring-expenses-schema.md`](docs/decisions/2026-06-08-recurring-expenses-schema.md)
 - Insights aggregation RPCs — `get_expense_by_category`, `get_expense_by_period`, `get_income_by_period`; SECURITY INVOKER; share-aware CASE identical to `get_personal_totals` (HU-23/24) → [`docs/decisions/2026-06-20-insights-aggregation-rpcs.md`](docs/decisions/2026-06-20-insights-aggregation-rpcs.md)
 - `import_transactions(p_rows jsonb)` RPC — SECURITY INVOKER; atomic bulk insert of selected document transactions into `expenses`/`incomes` by `direction` under caller RLS; `extract-document` edge fn classifies uploads (PDF→PNG via mupdf `npm:` + Groq vision) (HU-25) → [`docs/decisions/2026-06-21-document-classification-ocr.md`](docs/decisions/2026-06-21-document-classification-ocr.md)
+- `whatsapp_links`, `whatsapp_link_codes`, `whatsapp_messages`, `whatsapp_conversations` — identity bridge + idempotency + confirmation state for the WhatsApp bot; 9 RPCs (1 INVOKER + 8 Pattern-1 DEFINER `_for` variants, revoked from `authenticated`) (HU-26..29) → [`docs/decisions/2026-06-21-whatsapp-bot-schema.md`](docs/decisions/2026-06-21-whatsapp-bot-schema.md)
 
 Full schema, RLS policies, RPC signatures and column detail → see the linked `docs/decisions/*-schema.md`.
 
@@ -346,7 +347,7 @@ Gotchas in SDK 54:
 pnpm format:check   # Prettier
 pnpm lint           # ESLint flat config
 pnpm typecheck      # tsc --noEmit strict
-pnpm test           # jest-expo + RNTL (1839 tests, 106 suites baseline)
+pnpm test           # jest-expo + RNTL (1871 tests, 109 suites baseline)
 ```
 
 CI enforces these on every push/PR via `.github/workflows/ci.yml`.
@@ -390,6 +391,7 @@ Update **AGENTS.md** as part of the feature's final PR:
 - Recurring expenses (HU-19): `expense_recurrences` table, pg_cron materializer into `expenses`, "Gastos recurrentes" section + "Recurrente" badge (tests 1276 → 1432) → [`docs/features/recurring-expenses.md`](docs/features/recurring-expenses.md), [`docs/decisions/2026-06-08-recurring-expenses-schema.md`](docs/decisions/2026-06-08-recurring-expenses-schema.md), [`docs/user-flows/HU-19-gastos-recurrentes.md`](docs/user-flows/HU-19-gastos-recurrentes.md)
 - Insights (HU-23/24): 3 SECURITY INVOKER RPCs, `generate-insights` Groq edge fn + local-heuristics fallback, 4 charts (`react-native-gifted-charts`), temporal filter + month selector + ARS/USD toggle, AI card, empty state (tests 1432 → 1668) → [`docs/features/insights.md`](docs/features/insights.md), [`docs/decisions/2026-06-20-insights-aggregation-rpcs.md`](docs/decisions/2026-06-20-insights-aggregation-rpcs.md), [`docs/user-flows/HU-23-filtros-temporales-insights.md`](docs/user-flows/HU-23-filtros-temporales-insights.md), [`docs/user-flows/HU-24-grafico-barras-gastos.md`](docs/user-flows/HU-24-grafico-barras-gastos.md)
 - Document capture & classification (HU-25): "Documento" picker mode (PDF + images via `expo-document-picker`), `extract-document` edge fn (mupdf `npm:` PDF→PNG ≤3 págs + Groq vision) classifies receipt/transfer/card_statement/screenshot/unknown and infers direction; review routes single tx → expense/income forms (badge + toggle), multi-tx → `TransactionImportList` + `import_transactions` RPC (tests 1668 → 1839) → [`docs/features/document-capture-classify.md`](docs/features/document-capture-classify.md), [`docs/decisions/2026-06-21-document-classification-ocr.md`](docs/decisions/2026-06-21-document-classification-ocr.md), [`docs/user-flows/HU-25-adjuntar-comprobantes.md`](docs/user-flows/HU-25-adjuntar-comprobantes.md)
+- WhatsApp bot (HU-26..29): account linking (one-time code), text/audio/image/PDF capture with confirm gate, movement queries, recommendations; `whatsapp-webhook` edge fn (JWT-less, HMAC-SHA256 auth, async via `EdgeRuntime.waitUntil`); 4 tables + 9 RPCs (tests 1839 → 1871) → [`docs/features/whatsapp-bot.md`](docs/features/whatsapp-bot.md), [`docs/decisions/2026-06-21-whatsapp-bot-schema.md`](docs/decisions/2026-06-21-whatsapp-bot-schema.md), [`docs/user-flows/HU-26-bot-whatsapp.md`](docs/user-flows/HU-26-bot-whatsapp.md)
 
 ### Still pending
 
@@ -400,7 +402,7 @@ Update **AGENTS.md** as part of the feature's final PR:
    is capped at 2 emails/hour and breaks even basic testing
 4. Run `pnpm exec eas init` → set `EAS_PROJECT_ID` in `.env.local`
 5. Decide ARS/USD FX source (BCRA vs Bluelytics)
-6. Decide WhatsApp Business API integration scope
+6. Complete Meta WhatsApp business verification to reach more than 5 recipients; replace temporary dashboard token with a long-lived system-user token
 7. Build the remaining screens from `prototipo-app-brief.md`
    (groups detail, settlement flow) — the Insights screen (Screen 7) is now shipped
 8. Fix pre-existing security advisor lints: trigger functions

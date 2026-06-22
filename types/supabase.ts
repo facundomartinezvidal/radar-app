@@ -716,12 +716,6 @@ export type Database = {
           status: string;
           user_id: string | null;
         };
-        SetofOptions: {
-          from: '*';
-          to: 'group_members';
-          isOneToOne: true;
-          isSetofReturn: false;
-        };
       };
       advance_occurrence: {
         Args: {
@@ -757,12 +751,6 @@ export type Database = {
           updated_at: string;
           user_id: string;
         };
-        SetofOptions: {
-          from: '*';
-          to: 'expenses';
-          isOneToOne: true;
-          isSetofReturn: false;
-        };
       };
       create_group: {
         Args: {
@@ -780,12 +768,10 @@ export type Database = {
           name: string;
           updated_at: string;
         };
-        SetofOptions: {
-          from: '*';
-          to: 'groups';
-          isOneToOne: true;
-          isSetofReturn: false;
-        };
+      };
+      create_link_code: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
       };
       create_settlement: {
         Args: {
@@ -804,12 +790,6 @@ export type Database = {
           id: string;
           settled_at: string;
           to_member_id: string;
-        };
-        SetofOptions: {
-          from: '*';
-          to: 'group_settlements';
-          isOneToOne: true;
-          isSetofReturn: false;
         };
       };
       create_shared_expense: {
@@ -840,15 +820,25 @@ export type Database = {
           updated_at: string;
           user_id: string;
         };
-        SetofOptions: {
-          from: '*';
-          to: 'expenses';
-          isOneToOne: true;
-          isSetofReturn: false;
-        };
       };
       get_expense_by_category: {
         Args: { p_currency: string; p_from?: string; p_to?: string };
+        Returns: {
+          category_id: string;
+          category_name: string;
+          color: string;
+          count: number;
+          icon: string;
+          total: number;
+        }[];
+      };
+      get_expense_by_category_for: {
+        Args: {
+          p_currency: string;
+          p_from?: string;
+          p_to?: string;
+          p_user_id: string;
+        };
         Returns: {
           category_id: string;
           category_name: string;
@@ -864,6 +854,20 @@ export type Database = {
           p_currency: string;
           p_from?: string;
           p_to?: string;
+        };
+        Returns: {
+          bucket: string;
+          count: number;
+          total: number;
+        }[];
+      };
+      get_expense_by_period_for: {
+        Args: {
+          p_bucket?: string;
+          p_currency: string;
+          p_from?: string;
+          p_to?: string;
+          p_user_id: string;
         };
         Returns: {
           bucket: string;
@@ -892,6 +896,20 @@ export type Database = {
           total: number;
         }[];
       };
+      get_income_by_period_for: {
+        Args: {
+          p_bucket?: string;
+          p_currency: string;
+          p_from?: string;
+          p_to?: string;
+          p_user_id: string;
+        };
+        Returns: {
+          bucket: string;
+          count: number;
+          total: number;
+        }[];
+      };
       get_income_totals: {
         Args: { p_from?: string; p_to?: string };
         Returns: {
@@ -908,7 +926,22 @@ export type Database = {
           total: number;
         }[];
       };
-      import_transactions: { Args: { p_rows: Json }; Returns: number };
+      get_personal_totals_for: {
+        Args: { p_from?: string; p_to?: string; p_user_id: string };
+        Returns: {
+          count: number;
+          currency: string;
+          total: number;
+        }[];
+      };
+      import_transactions: {
+        Args: { p_rows: Json };
+        Returns: number;
+      };
+      import_transactions_for: {
+        Args: { p_rows: Json; p_user_id: string };
+        Returns: number;
+      };
       invite_group_member: {
         Args: { p_email: string; p_group_id: string };
         Returns: Json;
@@ -917,8 +950,22 @@ export type Database = {
         Args: { p_group_id: string; p_user_id: string };
         Returns: boolean;
       };
-      materialize_due_expenses: { Args: never; Returns: number };
-      materialize_due_incomes: { Args: never; Returns: number };
+      materialize_due_expenses: {
+        Args: Record<PropertyKey, never>;
+        Returns: number;
+      };
+      materialize_due_incomes: {
+        Args: Record<PropertyKey, never>;
+        Returns: number;
+      };
+      redeem_link_code: {
+        Args: { p_code: string; p_wa: string };
+        Returns: Json;
+      };
+      resolve_wa_user: {
+        Args: { p_wa: string };
+        Returns: string;
+      };
       respond_group_invite: {
         Args: { p_accept: boolean; p_member_id: string };
         Returns: {
@@ -932,14 +979,12 @@ export type Database = {
           status: string;
           user_id: string | null;
         };
-        SetofOptions: {
-          from: '*';
-          to: 'group_members';
-          isOneToOne: true;
-          isSetofReturn: false;
-        };
       };
       seed_default_categories: {
+        Args: { p_user_id: string };
+        Returns: undefined;
+      };
+      unlink_wa: {
         Args: { p_user_id: string };
         Returns: undefined;
       };
@@ -960,12 +1005,6 @@ export type Database = {
           source: string;
           updated_at: string;
           user_id: string;
-        };
-        SetofOptions: {
-          from: '*';
-          to: 'expenses';
-          isOneToOne: true;
-          isSetofReturn: false;
         };
       };
       update_shared_expense: {
@@ -992,14 +1031,11 @@ export type Database = {
           updated_at: string;
           user_id: string;
         };
-        SetofOptions: {
-          from: '*';
-          to: 'expenses';
-          isOneToOne: true;
-          isSetofReturn: false;
-        };
       };
-      user_exists_by_email: { Args: { p_email: string }; Returns: boolean };
+      user_exists_by_email: {
+        Args: { p_email: string };
+        Returns: boolean;
+      };
     };
     Enums: {
       [_ in never]: never;

@@ -36,11 +36,7 @@ export interface WhatsappLinkRow {
  * Generating a new code invalidates any prior unconsumed codes for the user.
  */
 export async function createLinkCode(): Promise<LinkCode> {
-  // `create_link_code` is a new RPC not yet reflected in the generated types;
-  // cast through unknown to satisfy the strict type checker until types are regenerated.
-  const { data, error } = await (
-    supabase.rpc as unknown as (fn: string) => Promise<{ data: unknown; error: unknown }>
-  )('create_link_code');
+  const { data, error } = await supabase.rpc('create_link_code');
   if (error) throw error;
   const row = data as { code: string; expires_at: string } | null;
   if (!row) throw new Error('No se pudo generar el código de vinculación.');
