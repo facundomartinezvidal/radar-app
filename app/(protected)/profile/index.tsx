@@ -80,6 +80,18 @@ export default function ProfileScreen(): React.JSX.Element {
               <Icon name="ChevronRight" size={20} color={colors.fg[3]} strokeWidth={1.5} />
             </Pressable>
             <View style={styles.rowDivider} />
+            <View style={styles.rowDivider} />
+            <Pressable
+              onPress={() => router.push('/(protected)/profile/whatsapp')}
+              accessibilityRole="button"
+              accessibilityLabel="Vincular WhatsApp"
+              style={styles.listRow}
+              testID="whatsapp-row"
+            >
+              <Body style={styles.listRowLabel}>Vincular WhatsApp</Body>
+              <Icon name="ChevronRight" size={20} color={colors.fg[3]} strokeWidth={1.5} />
+            </Pressable>
+            <View style={styles.rowDivider} />
             <Pressable
               onPress={() => router.push('/(protected)/profile/categories')}
               accessibilityRole="button"
