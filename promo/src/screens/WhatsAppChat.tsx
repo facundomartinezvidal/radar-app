@@ -27,6 +27,7 @@ import { ChevronLeft, Phone, Video, MoreVertical } from 'lucide-react';
 import { font, weights } from '../ds/tokens';
 import { enter } from '../theme/anim';
 import { SCREEN_W } from '../ds/Device';
+import { LogoSweep } from '../components/LogoSweep';
 
 // WhatsApp chrome colours (light theme)
 const WA = {
@@ -100,13 +101,13 @@ const TypingBubble: React.FC<{ frame: number; startFrame: number }> = ({ frame, 
       ...enter(frame, { delay: startFrame, duration: 8, distance: 10 }),
     }}
   >
-    {/* Avatar stub for bot */}
+    {/* RADAR logo avatar */}
     <div
       style={{
         width: 28,
         height: 28,
         borderRadius: '50%',
-        background: WA.avatarBg,
+        background: '#FFFFFF',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -115,18 +116,10 @@ const TypingBubble: React.FC<{ frame: number; startFrame: number }> = ({ frame, 
         alignSelf: 'flex-end',
         marginBottom: 2,
         boxShadow: '0 1px 2px rgba(0,0,0,0.18)',
+        overflow: 'hidden',
       }}
     >
-      <span
-        style={{
-          fontFamily: 'system-ui, -apple-system, sans-serif',
-          fontWeight: 700,
-          fontSize: 11,
-          color: '#FFFFFF',
-        }}
-      >
-        R
-      </span>
+      <LogoSweep variant="mark" size={24} />
     </div>
     <div
       style={{
@@ -244,13 +237,13 @@ const IncomingBubble: React.FC<BubbleProps> = ({ frame, delay, text, time = TIME
       ...enter(frame, { delay, duration: 12, distance: 14 }),
     }}
   >
-    {/* Bot avatar */}
+    {/* RADAR logo avatar */}
     <div
       style={{
         width: 28,
         height: 28,
         borderRadius: '50%',
-        background: WA.avatarBg,
+        background: '#FFFFFF',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -258,18 +251,10 @@ const IncomingBubble: React.FC<BubbleProps> = ({ frame, delay, text, time = TIME
         marginRight: 6,
         marginBottom: 2,
         boxShadow: '0 1px 2px rgba(0,0,0,0.18)',
+        overflow: 'hidden',
       }}
     >
-      <span
-        style={{
-          fontFamily: 'system-ui, -apple-system, sans-serif',
-          fontWeight: 700,
-          fontSize: 11,
-          color: '#FFFFFF',
-        }}
-      >
-        R
-      </span>
+      <LogoSweep variant="mark" size={24} />
     </div>
     <div
       style={{
@@ -416,24 +401,16 @@ export const WhatsAppChat: React.FC = () => {
               width: 40,
               height: 40,
               borderRadius: '50%',
-              background: WA.avatarBg,
+              background: '#FFFFFF',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               border: '2px solid ' + WA.avatarRing,
               boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+              overflow: 'hidden',
             }}
           >
-            <span
-              style={{
-                fontFamily: 'system-ui, -apple-system, sans-serif',
-                fontWeight: 700,
-                fontSize: 15,
-                color: WA.headerText,
-              }}
-            >
-              R
-            </span>
+            <LogoSweep variant="mark" size={34} />
           </div>
           {/* Online dot */}
           <div
@@ -492,7 +469,7 @@ export const WhatsAppChat: React.FC = () => {
         style={{
           flex: 1,
           paddingTop: 10,
-          paddingBottom: 6,
+          paddingBottom: 12,
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'flex-end',
@@ -681,6 +658,29 @@ export const WhatsAppChat: React.FC = () => {
         >
           <span style={{ fontSize: 18 }}>🎤</span>
         </div>
+      </div>
+
+      {/* ── Home indicator safe-area (keeps input bar above rounded-corner clip) */}
+      <div
+        style={{
+          background: '#F0F2F5',
+          height: 30,
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2,
+        }}
+      >
+        {/* iOS-style home indicator pill */}
+        <div
+          style={{
+            width: 120,
+            height: 5,
+            borderRadius: 3,
+            background: 'rgba(0,0,0,0.18)',
+          }}
+        />
       </div>
     </div>
   );
