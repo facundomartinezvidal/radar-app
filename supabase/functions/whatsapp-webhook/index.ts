@@ -60,6 +60,41 @@ function jsonError(status: number, message: string): Response {
 /** Empty TwiML ack — Twilio requires a 2xx with valid XML (or empty body). */
 const TWIML_ACK = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
 
+/** Canonical public webhook URL (this project's function endpoint). */
+const CANONICAL_URL = 'https://miiorhmqxdqsowqxnpii.supabase.co/functions/v1/whatsapp-webhook';
+
+/**
+ * Builds the candidate URLs to validate the Twilio signature against.
+ *
+ * Twilio signs the EXACT public URL it was configured with. Behind the Supabase
+ * edge proxy `req.url` can differ (internal host, or `http:` scheme because TLS
+ * is terminated upstream), which breaks the HMAC. We try the most reliable
+ * candidates and accept if ANY matches — still fully HMAC-gated, so an attacker
+ * cannot forge a signature for any of them without the auth token.
+ */
+function signatureUrlCandidates(req: Request): string[] {
+  const out: string[] = [];
+  const push = (u: string | null | undefined): void => {
+    if (typeof u === 'string' && u.length > 0 && !out.includes(u)) out.push(u);
+  };
+
+  push(Deno.env.get('TWILIO_WEBHOOK_URL'));
+  push(CANONICAL_URL);
+  push(req.url);
+  push(req.url.replace(/^http:/, 'https:'));
+
+  try {
+    const parsed = new URL(req.url);
+    const host = req.headers.get('host');
+    const proto = req.headers.get('x-forwarded-proto') ?? 'https';
+    if (host) push(`${proto}://${host}${parsed.pathname}${parsed.search}`);
+  } catch {
+    // ignore malformed req.url — other candidates still apply
+  }
+
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // Main router
 // ---------------------------------------------------------------------------
@@ -88,16 +123,28 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const authToken = Deno.env.get('TWILIO_AUTH_TOKEN') ?? '';
     const header = req.headers.get('x-twilio-signature');
 
-    let valid: boolean;
+    const candidates = signatureUrlCandidates(req);
+    let valid = false;
     try {
-      valid = await validateTwilioSignature(req.url, params, header, authToken);
+      for (const url of candidates) {
+        if (await validateTwilioSignature(url, params, header, authToken)) {
+          valid = true;
+          break;
+        }
+      }
     } catch (err) {
       console.error('[webhook] Signature verification threw:', err);
       return jsonError(500, 'Signature verification error');
     }
 
     if (!valid) {
-      console.warn('[webhook] POST rejected — invalid or missing X-Twilio-Signature');
+      console.warn(
+        '[webhook] POST rejected — invalid X-Twilio-Signature.',
+        'header=',
+        header,
+        'candidates=',
+        JSON.stringify(candidates),
+      );
       return new Response('Forbidden', { status: 403 });
     }
 

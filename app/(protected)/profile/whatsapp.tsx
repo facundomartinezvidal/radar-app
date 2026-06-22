@@ -226,8 +226,12 @@ export default function WhatsappScreen(): React.JSX.Element {
                     style={{
                       color: colors.fg[1],
                       fontSize: typography.size.display,
+                      // Explicit lineHeight ≥ fontSize: Body's default lineHeight is
+                      // sized for body text and clips the tops of display-size glyphs.
+                      lineHeight: Math.round(typography.size.display * 1.25),
                       fontFamily: typography.family.bold,
                       fontVariant: ['tabular-nums'],
+                      textAlign: 'center',
                       letterSpacing: typography.letterSpacingFor(
                         typography.size.display,
                         'display',
