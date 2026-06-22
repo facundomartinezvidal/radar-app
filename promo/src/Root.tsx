@@ -4,6 +4,7 @@ import { VIDEO } from './theme/tokens';
 import { HomeOverview } from './compositions/HomeOverview';
 import { TicketFlow } from './compositions/TicketFlow';
 import { Insights } from './compositions/Insights';
+import { WhatsAppBot } from './compositions/WhatsAppBot';
 
 const base = {
   width: VIDEO.width,
@@ -21,5 +22,7 @@ export const RemotionRoot: React.FC = () => (
     <Composition id="Tickets" component={TicketFlow} {...base} durationInFrames={940} />
     {/* Insights: intro → section tour (cards fly forward) → outro. (27s) */}
     <Composition id="Insights" component={Insights} {...base} durationInFrames={810} />
+    {/* WhatsApp bot: hook → vincular flow → chat capture + 2 zoom cards → logo. (28s) */}
+    <Composition id="WhatsAppBot" component={WhatsAppBot} {...base} durationInFrames={840} />
   </>
 );

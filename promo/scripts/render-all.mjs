@@ -1,7 +1,7 @@
 // Renders all five compositions to promo/out/*.mp4
 import { execSync } from 'node:child_process';
 
-const comps = ['Home', 'Insights'];
+const comps = ['Home', 'Tickets', 'Insights', 'WhatsAppBot'];
 const music = process.env.PROMO_MUSIC; // optional filename in public/
 
 for (const id of comps) {
