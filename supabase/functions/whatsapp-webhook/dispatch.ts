@@ -373,7 +373,7 @@ export async function handleMessage(message: WaMessage, contact: WaContact): Pro
           replied = true;
           await markProcessed(providerMessageId, 'processed', 'help');
         } else {
-          await handleQuery(userId, waNumber, classification);
+          await handleQuery(userId, waNumber, text, classification);
           replied = true;
           await markProcessed(providerMessageId, 'processed', 'query');
         }

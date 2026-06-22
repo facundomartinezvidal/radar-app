@@ -4,40 +4,35 @@
  *
  * When a user asks an open-ended financial question ("¿en qué se me va la
  * plata?", "¿gasto mucho en comida?") that is not a simple total, list, or
- * explicit advice request, this handler assembles a compact data context from
- * the user's own movements and asks Groq's llama-4-scout model to answer.
+ * explicit advice request, this handler assembles a FinancialContext via
+ * finance_context.ts and routes it through render.ts for LLM rendering with
+ * a deterministic fallback.
  *
  * Exports:
- *   handleChat          — main intent handler; called from dispatch.ts
- *   buildChatContextBlock — pure helper; exported for unit testing
+ *   handleChat            — main intent handler; called from dispatch.ts
+ *   buildChatContextBlock — pure helper; exported for unit testing (legacy)
  *
  * Design notes:
- *   - Mirrors the Groq call pattern from classify.ts / recommendations.ts.
- *   - All data is fetched in parallel (same pattern as handleRecommendation).
- *   - NEVER throws — on any error it replies with a friendly fallback.
+ *   - Period-aware: resolves period from classification.entities.queryPeriod.
+ *   - assembleFinancialContext fetches all data in parallel.
+ *   - renderFinancialAnswer handles all LLM failures transparently.
+ *   - NEVER throws — on RPC error it replies with a friendly fallback.
  *   - Read-only; no pending action / confirmation gate required.
  *
  * Env vars consumed:
- *   GROQ_API_KEY                — shared with classify.ts and extract-document
- *   SUPABASE_URL                — (via serviceClient() in db.ts)
- *   SUPABASE_SERVICE_ROLE_KEY   — (via serviceClient() in db.ts)
+ *   GROQ_API_KEY                — via render.ts
+ *   SUPABASE_URL                — (via serviceClient() in db.ts / finance_context.ts)
+ *   SUPABASE_SERVICE_ROLE_KEY   — (via serviceClient() in db.ts / finance_context.ts)
  */
 
 import { sendText } from './twilio.ts';
-import { serviceClient } from './db.ts';
-import { resolvePeriod } from './queries.ts';
+import { resolvePeriod, buildTotalsReply } from './queries.ts';
+import { assembleFinancialContext, buildFinancialContextBlock } from './finance_context.ts';
+import { renderFinancialAnswer } from './render.ts';
 import type { Classification } from './classify.ts';
 
 // ---------------------------------------------------------------------------
-// Groq constants (mirror classify.ts)
-// ---------------------------------------------------------------------------
-
-const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
-const GROQ_TIMEOUT_MS = 12_000;
-
-// ---------------------------------------------------------------------------
-// Internal RPC row types
+// Internal RPC row types (kept for buildChatContextBlock — exported for tests)
 // ---------------------------------------------------------------------------
 
 interface TotalsRow {
@@ -124,30 +119,6 @@ export function buildChatContextBlock(data: ChatContextData): string {
 }
 
 // ---------------------------------------------------------------------------
-// Groq internal types (mirror classify.ts)
-// ---------------------------------------------------------------------------
-
-interface GroqMessage {
-  role: string;
-  content: string;
-}
-
-interface GroqRequestPayload {
-  model: string;
-  messages: GroqMessage[];
-  temperature: number;
-  max_tokens: number;
-}
-
-interface GroqResponsePayload {
-  choices: Array<{
-    message: {
-      content: string;
-    };
-  }>;
-}
-
-// ---------------------------------------------------------------------------
 // handleChat
 // ---------------------------------------------------------------------------
 
@@ -155,74 +126,43 @@ interface GroqResponsePayload {
  * Handles an open-ended conversational question about the user's finances.
  *
  * Steps:
- *   1. Fetch current-month totals, top-5 ARS categories, and last-10 movements.
- *   2. Build a compact context block.
- *   3. POST to Groq with a rioplatense financial-assistant system prompt.
- *   4. Reply with the model's answer.
- *   5. On any error (no data, RPC failure, Groq error) → friendly fallback.
+ *   1. Resolve period from classification entities (period-aware).
+ *   2. Assemble FinancialContext (totals + categories + last-10 movements).
+ *   3. Build an exact-figures context block via buildFinancialContextBlock.
+ *   4. Render a natural WhatsApp reply via renderFinancialAnswer (LLM with
+ *      deterministic fallback via buildTotalsReply).
+ *   5. On RPC error → friendly fallback; render.ts handles all LLM failures.
  *
  * @param userId         RADAR user UUID (caller already verified linked).
  * @param waNumber       Sender E.164 number (for replies).
  * @param text           The user's raw message text (used as the question).
- * @param _classification Pre-classified intent (unused entities; kept for dispatch symmetry).
+ * @param classification Pre-classified intent + entities (queryPeriod, currency).
  */
 export async function handleChat(
   userId: string,
   waNumber: string,
   text: string,
-  _classification: Classification,
+  classification: Classification,
 ): Promise<void> {
-  const groqApiKey = Deno.env.get('GROQ_API_KEY');
-  if (!groqApiKey) {
-    console.error('[chat] GROQ_API_KEY not set — returning fallback');
-    await sendText(waNumber, 'No pude analizar tus movimientos ahora, probá de nuevo.');
-    return;
-  }
+  const period = resolvePeriod(classification.entities.queryPeriod, new Date());
 
-  // Resolve current-month period
-  const period = resolvePeriod(undefined, new Date());
-  const db = serviceClient();
-
-  // Fetch data in parallel
-  let totals: TotalsRow[];
-  let topCategories: CategoryRow[];
-  let recentMovements: MovementRow[];
-
+  let ctx;
   try {
-    const [totalsRes, catRes, movRes] = await Promise.all([
-      db.rpc('get_personal_totals_for', {
-        p_user_id: userId,
-        p_from: period.from,
-        p_to: period.to,
-      }),
-      db.rpc('get_expense_by_category_for', {
-        p_user_id: userId,
-        p_currency: 'ARS',
-        p_from: period.from,
-        p_to: period.to,
-      }),
-      db.rpc('get_recent_movements_for', {
-        p_user_id: userId,
-        p_limit: 10,
-        p_direction: null,
-      }),
-    ]);
-
-    if (totalsRes.error) throw new Error(`get_personal_totals_for: ${totalsRes.error.message}`);
-    if (catRes.error) throw new Error(`get_expense_by_category_for: ${catRes.error.message}`);
-    if (movRes.error) throw new Error(`get_recent_movements_for: ${movRes.error.message}`);
-
-    totals = (totalsRes.data ?? []) as TotalsRow[];
-    topCategories = (catRes.data ?? []) as CategoryRow[];
-    recentMovements = (movRes.data ?? []) as MovementRow[];
+    ctx = await assembleFinancialContext(userId, period, {
+      currency: classification.entities.currency,
+      includeMovements: true,
+      movementLimit: 10,
+      includeIncomeCategories: false,
+    });
   } catch (rpcErr) {
     console.error('[chat] RPC error:', rpcErr);
     await sendText(waNumber, 'No pude analizar tus movimientos ahora, probá de nuevo.');
     return;
   }
 
-  // No data guard
-  if (totals.length === 0 && recentMovements.length === 0) {
+  // No-data guard: both totals empty AND no movements
+  const noData = ctx.byCurrency.length === 0 && ctx.recentMovements.length === 0;
+  if (noData) {
     await sendText(
       waNumber,
       'Todavía no tengo movimientos tuyos para analizar. Registrá algunos gastos y volvé a preguntarme.',
@@ -230,80 +170,12 @@ export async function handleChat(
     return;
   }
 
-  const contextBlock = buildChatContextBlock({
-    totals,
-    topCategories,
-    recentMovements,
-    periodLabel: period.label,
+  const contextBlock = buildFinancialContextBlock(ctx);
+  const fallback = buildTotalsReply(ctx);
+  const reply = await renderFinancialAnswer({
+    contextBlock,
+    userQuestion: text,
+    deterministicFallback: fallback,
   });
-
-  const systemPrompt =
-    'Sos el asistente financiero de RADAR. Respondé en español rioplatense (voseo), ' +
-    'breve y claro para WhatsApp (máx ~4 líneas, sin markdown pesado). ' +
-    'Usá SOLO los datos provistos del usuario; si faltan datos, decilo. No inventes montos.';
-
-  const userContent = `Datos del usuario:\n${contextBlock}\n\nPregunta: ${text}`;
-
-  const payload: GroqRequestPayload = {
-    model: GROQ_MODEL,
-    temperature: 0.4,
-    max_tokens: 300,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userContent },
-    ],
-  };
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), GROQ_TIMEOUT_MS);
-
-  let groqResponse: Response;
-  try {
-    groqResponse = await fetch(GROQ_ENDPOINT, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        Authorization: `Bearer ${groqApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-  } catch (fetchErr: unknown) {
-    clearTimeout(timeoutId);
-    const isAbort = fetchErr instanceof Error && fetchErr.name === 'AbortError';
-    if (isAbort) {
-      console.error('[chat] Groq request timed out');
-    } else {
-      console.error('[chat] Groq fetch error:', fetchErr);
-    }
-    await sendText(waNumber, 'No pude analizar tus movimientos ahora, probá de nuevo.');
-    return;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-
-  if (!groqResponse.ok) {
-    const errBody = await groqResponse.text().catch(() => '(unreadable)');
-    console.error(`[chat] Groq non-2xx: ${groqResponse.status} — ${errBody}`);
-    await sendText(waNumber, 'No pude analizar tus movimientos ahora, probá de nuevo.');
-    return;
-  }
-
-  let groqData: GroqResponsePayload;
-  try {
-    groqData = (await groqResponse.json()) as GroqResponsePayload;
-  } catch (parseErr) {
-    console.error('[chat] Failed to parse Groq JSON:', parseErr);
-    await sendText(waNumber, 'No pude analizar tus movimientos ahora, probá de nuevo.');
-    return;
-  }
-
-  const answer = groqData?.choices?.[0]?.message?.content?.trim();
-  if (!answer) {
-    console.error('[chat] Unexpected Groq response shape:', groqData);
-    await sendText(waNumber, 'No pude analizar tus movimientos ahora, probá de nuevo.');
-    return;
-  }
-
-  await sendText(waNumber, answer);
+  await sendText(waNumber, reply);
 }

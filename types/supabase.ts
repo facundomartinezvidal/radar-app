@@ -883,6 +883,22 @@ export type Database = {
           net: number;
         }[];
       };
+      get_income_by_category_for: {
+        Args: {
+          p_currency: string;
+          p_from?: string;
+          p_to?: string;
+          p_user_id: string;
+        };
+        Returns: {
+          category_id: string;
+          category_name: string;
+          color: string;
+          count: number;
+          icon: string;
+          total: number;
+        }[];
+      };
       get_income_by_period: {
         Args: {
           p_bucket?: string;
@@ -912,6 +928,14 @@ export type Database = {
       };
       get_income_totals: {
         Args: { p_from?: string; p_to?: string };
+        Returns: {
+          count: number;
+          currency: string;
+          total: number;
+        }[];
+      };
+      get_income_totals_for: {
+        Args: { p_from?: string; p_to?: string; p_user_id: string };
         Returns: {
           count: number;
           currency: string;
