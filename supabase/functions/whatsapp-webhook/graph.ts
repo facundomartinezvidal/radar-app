@@ -32,10 +32,18 @@ export async function sendText(to: string, body: string): Promise<void> {
     return;
   }
 
+  // Argentina quirk: Meta delivers the inbound wa_id WITH the mobile "9"
+  // (54 9 <area> <8-digit subscriber>), but the WhatsApp Cloud API recipient
+  // form is the local "15" notation (54 <area> 15 <subscriber>). Sending to the
+  // 9-form is rejected with #131030 in test mode; the 15-form is accepted and
+  // Meta maps it back to the real wa_id. AR mobile subscriber numbers are always
+  // 8 digits, so the area code is everything between "549" and the last 8 digits.
+  const sendTo = to.replace(/^\+?549(\d+)(\d{8})$/, '+54$115$2');
+
   const url = `${GRAPH_API_BASE}/${phoneNumberId}/messages`;
   const payload = {
     messaging_product: 'whatsapp',
-    to,
+    to: sendTo,
     type: 'text',
     text: { body },
   };
@@ -57,7 +65,7 @@ export async function sendText(to: string, body: string): Promise<void> {
 
     if (!res.ok) {
       const errText = await res.text().catch(() => '(unreadable)');
-      console.error(`[graph] sendText failed: HTTP ${res.status} to=${to} — ${errText}`);
+      console.error(`[graph] sendText failed: HTTP ${res.status} to=${sendTo} — ${errText}`);
     }
   } catch (err) {
     console.error('[graph] sendText fetch error:', err);
