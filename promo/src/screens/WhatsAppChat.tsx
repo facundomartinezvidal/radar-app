@@ -28,6 +28,7 @@ import { font, weights } from '../ds/tokens';
 import { enter } from '../theme/anim';
 import { SCREEN_W } from '../ds/Device';
 import { LogoSweep } from '../components/LogoSweep';
+import { colors as themeColors } from '../theme/tokens';
 
 // WhatsApp chrome colours (light theme)
 const WA = {
@@ -101,13 +102,13 @@ const TypingBubble: React.FC<{ frame: number; startFrame: number }> = ({ frame, 
       ...enter(frame, { delay: startFrame, duration: 8, distance: 10 }),
     }}
   >
-    {/* RADAR logo avatar */}
+    {/* RADAR logo avatar — dark-mode static mark */}
     <div
       style={{
         width: 28,
         height: 28,
         borderRadius: '50%',
-        background: '#FFFFFF',
+        background: themeColors.bg0,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -119,7 +120,7 @@ const TypingBubble: React.FC<{ frame: number; startFrame: number }> = ({ frame, 
         overflow: 'hidden',
       }}
     >
-      <LogoSweep variant="mark" size={24} />
+      <LogoSweep variant="mark" size={24} animated={false} />
     </div>
     <div
       style={{
@@ -237,13 +238,13 @@ const IncomingBubble: React.FC<BubbleProps> = ({ frame, delay, text, time = TIME
       ...enter(frame, { delay, duration: 12, distance: 14 }),
     }}
   >
-    {/* RADAR logo avatar */}
+    {/* RADAR logo avatar — dark-mode static mark */}
     <div
       style={{
         width: 28,
         height: 28,
         borderRadius: '50%',
-        background: '#FFFFFF',
+        background: themeColors.bg0,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -254,7 +255,7 @@ const IncomingBubble: React.FC<BubbleProps> = ({ frame, delay, text, time = TIME
         overflow: 'hidden',
       }}
     >
-      <LogoSweep variant="mark" size={24} />
+      <LogoSweep variant="mark" size={24} animated={false} />
     </div>
     <div
       style={{
@@ -401,7 +402,7 @@ export const WhatsAppChat: React.FC = () => {
               width: 40,
               height: 40,
               borderRadius: '50%',
-              background: '#FFFFFF',
+              background: themeColors.bg0,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -410,7 +411,7 @@ export const WhatsAppChat: React.FC = () => {
               overflow: 'hidden',
             }}
           >
-            <LogoSweep variant="mark" size={34} />
+            <LogoSweep variant="mark" size={34} animated={false} />
           </div>
           {/* Online dot */}
           <div

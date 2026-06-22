@@ -1,14 +1,14 @@
 /**
  * WhatsAppLink — animated mock of RADAR's "Vincular WhatsApp" screen (HU-26).
  *
- * Local-frame timeline (30 fps, 0–270 frames):
+ * Local-frame timeline (30 fps, 0–210 frames):
  *   0–12   screen header + subtitle enter
  *   14–24  "Generar código" primary button enter
  *  ~40     simulated "press": code card + instructions reveal
  *   40–52  code card enters (fade + slide)
  *   52–72  instruction rows stagger in (4 × delay=6)
  *   80–92  "Abrir WhatsApp" button enters
- *  250–260 "Abrir WhatsApp" button does a subtle press scale
+ *  190–200 "Abrir WhatsApp" button does a subtle press scale (~2s earlier than before)
  */
 import React from 'react';
 import { useCurrentFrame, interpolate } from 'remotion';
@@ -36,8 +36,8 @@ export const WhatsAppLink: React.FC = () => {
   // Code card + instructions appear from frame 40
   const codeVisible = frame >= 40;
 
-  // "Abrir WhatsApp" button subtle press near end (frame 250–260)
-  const buttonScale = interpolate(frame, [250, 255, 260], [1, 0.94, 1], {
+  // "Abrir WhatsApp" button subtle press — moved ~60f earlier to tighten the phase
+  const buttonScale = interpolate(frame, [190, 195, 200], [1, 0.94, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });

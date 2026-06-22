@@ -1,25 +1,25 @@
 /**
  * WhatsAppBot — promo composition for HU-26..29 (WhatsApp bot feature).
  *
- * Global-frame timeline (900 frames @ 30 fps = 30 s):
+ * Global-frame timeline (840 frames @ 30 fps = 28 s):
  *
  *   0–90    Intro: KineticText hook ("Cargá un gasto, / sin abrir la app.")
- *  90–360   Connect flow: Device (RADAR dark) wrapping WhatsAppLink
- *            WhatsAppLink local frames = global − 90  (its 0–270 window)
- * 360–810   Chat: Device (WhatsApp green chrome) wrapping WhatsAppChat
- *            WhatsAppChat local frames = global − 360 (its 0–450 window)
- * 810–900   Outro: KineticText payoff + LogoSweep wordmark + Tagline
+ *  90–300   Connect flow: Device (RADAR dark) wrapping WhatsAppLink
+ *            WhatsAppLink local frames = global − 90  (its 0–210 window)
+ * 300–750   Chat: Device (WhatsApp green chrome) wrapping WhatsAppChat
+ *            WhatsAppChat local frames = global − 300 (its 0–450 window)
+ * 750–840   Outro: KineticText payoff + LogoSweep wordmark + Tagline
  *
  * WhatsAppChat local frame exports:
- *   BUBBLE2_LAND = 84   → global 444   (spend summary lands)
- *   BUBBLE4_LAND = 196  → global 556   (confirmation lands)
+ *   BUBBLE2_LAND = 84   → global 384   (spend summary lands)
+ *   BUBBLE4_LAND = 196  → global 496   (confirmation lands)
  *
- * Forward zoom windows (global):
- *   Card 1 (summary):      444 – 524   (enter 444, hold, exit starts 510)
- *   Card 2 (confirmation): 556 – 636   (enter 556, hold, exit starts 622)
+ * Forward zoom windows (global) — each zoom starts ~30f after its bubble lands:
+ *   Card 1 (summary):      414 – 480   (enter 414 = 384+30, hold, exit starts 480)
+ *   Card 2 (confirmation): 526 – 592   (enter 526 = 496+30, hold, exit starts 592)
  *
- * Phone reveal: scale-in 90–115. Phone 1 fades/scales out 340–360.
- * Phone 2 fades in 355–380, fades out 720–740.
+ * Phone reveal: scale-in 90–115. Phone 1 fades/scales out 280–300.
+ * Phone 2 fades in 295–320, fades out 660–680.
  */
 import React from 'react';
 import { AbsoluteFill, interpolate, Sequence, useCurrentFrame } from 'remotion';
@@ -41,31 +41,36 @@ const INTRO_OUT = 90;
 
 const PHONE1_REVEAL_START = 90;
 const PHONE1_REVEAL_END = 115;
-const PHONE1_EXIT_START = 340;
-const PHONE1_EXIT_END = 360;
+// Connect flow trimmed by ~60f: exits at 280–300 instead of 340–360
+const PHONE1_EXIT_START = 280;
+const PHONE1_EXIT_END = 300;
 
-const PHONE2_ENTER_START = 355;
-const PHONE2_ENTER_END = 380;
-const PHONE2_EXIT_START = 720;
-const PHONE2_EXIT_END = 740;
+// Chat phase starts at 300 (was 360)
+const PHONE2_ENTER_START = 295;
+const PHONE2_ENTER_END = 320;
+const PHONE2_EXIT_START = 660;
+const PHONE2_EXIT_END = 680;
 
-// Chat starts at global 360; WhatsAppChat local frames are global − CHAT_OFFSET
-const CHAT_OFFSET = 360;
+// Chat starts at global 300; WhatsAppChat local frames are global − CHAT_OFFSET
+const CHAT_OFFSET = 300;
 
-// Forward zoom windows: computed from BUBBLE landing frames + offset
-const ZOOM1_ENTER = CHAT_OFFSET + BUBBLE2_LAND;          // 444
-const ZOOM1_EXIT = ZOOM1_ENTER + 66;                     // 510  (retract start)
-const ZOOM1_WINDOW: [number, number] = [ZOOM1_ENTER, ZOOM1_EXIT]; // [444, 510]
+// Forward zoom windows: bubble global landing + 30f hold before zoom-in
+// BUBBLE2_LAND (local 84) → global 384; zoom starts at 384 + 30 = 414
+const ZOOM1_ENTER = CHAT_OFFSET + BUBBLE2_LAND + 30;     // 414
+const ZOOM1_EXIT = ZOOM1_ENTER + 66;                     // 480  (retract start)
+const ZOOM1_WINDOW: [number, number] = [ZOOM1_ENTER, ZOOM1_EXIT]; // [414, 480]
 
-const ZOOM2_ENTER = CHAT_OFFSET + BUBBLE4_LAND;          // 556
-const ZOOM2_EXIT = ZOOM2_ENTER + 66;                     // 622
-const ZOOM2_WINDOW: [number, number] = [ZOOM2_ENTER, ZOOM2_EXIT]; // [556, 622]
+// BUBBLE4_LAND (local 196) → global 496; zoom starts at 496 + 30 = 526
+const ZOOM2_ENTER = CHAT_OFFSET + BUBBLE4_LAND + 30;     // 526
+const ZOOM2_EXIT = ZOOM2_ENTER + 66;                     // 592
+const ZOOM2_WINDOW: [number, number] = [ZOOM2_ENTER, ZOOM2_EXIT]; // [526, 592]
 
-const OUTRO_START = 810;
-const OUTRO_TEXT_IN = 812;
-const OUTRO_TEXT_OUT = 856;
-const LOGO_IN = 850;
-const LOGO_SCALE_END = 876;
+// Outro shifted by -60 (was 810–900, now 750–840)
+const OUTRO_START = 750;
+const OUTRO_TEXT_IN = 752;
+const OUTRO_TEXT_OUT = 796;
+const LOGO_IN = 790;
+const LOGO_SCALE_END = 816;
 
 // ---------------------------------------------------------------------------
 // Forward zoom overlay (copied + extended from HomeOverview)
