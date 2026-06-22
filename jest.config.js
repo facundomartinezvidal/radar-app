@@ -11,8 +11,11 @@ module.exports = {
     '^@/(.*)$': '<rootDir>/$1',
   },
   // Supabase edge functions are Deno (run via `deno test`), not jest. Exclude them
-  // so jest does not try to import Deno URL/`Deno.*` modules and fail.
-  testPathIgnorePatterns: ['/node_modules/', '/supabase/', '/.claude/'],
+  // so jest does not try to import Deno URL/`Deno.*` modules and fail. promo/ is an
+  // isolated Remotion workspace — keep it out of the app test run (and out of Haste
+  // so its duplicate react/react-dom don't collide).
+  testPathIgnorePatterns: ['/node_modules/', '/supabase/', '/.claude/', '/promo/'],
+  modulePathIgnorePatterns: ['/promo/'],
   collectCoverageFrom: [
     'app/**/*.{ts,tsx}',
     'components/**/*.{ts,tsx}',

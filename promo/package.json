@@ -1,0 +1,24 @@
+{
+  "name": "radar-promo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Promotional videos for RADAR differentiating features (Remotion, isolated from the Expo app).",
+  "scripts": {
+    "dev": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts",
+    "render:all": "node scripts/render-all.mjs",
+    "upgrade": "remotion upgrade"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.290",
+    "@remotion/google-fonts": "4.0.290",
+    "lucide-react": "0.460.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "remotion": "4.0.290"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.0",
+    "typescript": "5.9.2"
+  }
+}

@@ -7,7 +7,8 @@ const prettierPlugin = require('eslint-plugin-prettier');
 module.exports = defineConfig([
   expoConfig,
   {
-    ignores: ['dist/*'],
+    // promo/ is an isolated Remotion workspace with its own toolchain.
+    ignores: ['dist/*', 'promo/**'],
   },
   {
     plugins: {
