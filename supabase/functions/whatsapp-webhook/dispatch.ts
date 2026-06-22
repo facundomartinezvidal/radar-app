@@ -14,6 +14,7 @@
 import { fetchMediaBytes, sendText } from './graph.ts';
 import {
   clearPending,
+  countRecentInbound,
   getConversation,
   markProcessed,
   recordInbound,
@@ -26,6 +27,44 @@ import { handleCapture, handleConfirm, handleMediaCapture } from './capture.ts';
 import { transcribeAudio } from './transcribe.ts';
 import { handleQuery } from './queries.ts';
 import { handleRecommendation } from './recommendations.ts';
+
+// ---------------------------------------------------------------------------
+// Rate-limit configuration
+// ---------------------------------------------------------------------------
+
+/**
+ * Maximum number of inbound messages accepted from a single number within
+ * RATE_LIMIT_WINDOW_SECONDS before the bot throttles the sender.
+ *
+ * Chosen conservatively to allow quick back-and-forth (question + clarification
+ * + confirm ≈ 3–4 messages) without burning Groq/Graph API quota on floods.
+ */
+const RATE_LIMIT_MAX_PER_WINDOW = 8;
+
+/** Window length in seconds for the per-number rate-limit check. */
+const RATE_LIMIT_WINDOW_SECONDS = 60;
+
+// ---------------------------------------------------------------------------
+// Supported message types
+// ---------------------------------------------------------------------------
+
+/**
+ * Message types that the bot can meaningfully handle.
+ *
+ * Meta Cloud API may deliver other types (sticker, location, contacts,
+ * reaction, button, order, unsupported, …).  Any type not in this set is
+ * politely rejected to avoid crashing on unexpected shapes.
+ */
+const SUPPORTED_TYPES = new Set(['text', 'audio', 'image', 'document']);
+
+/**
+ * Returns true when the message type is one the bot can process.
+ *
+ * Exported for Deno unit tests — pure, no side effects.
+ */
+export function isSupportedType(type: string): boolean {
+  return SUPPORTED_TYPES.has(type);
+}
 
 // ---------------------------------------------------------------------------
 // Types — Meta Cloud API message shape (subset we care about)
@@ -125,24 +164,44 @@ const LINK_CODE_REPLIES: Record<string, string> = {
  * Processes a single inbound WhatsApp message end-to-end.
  *
  * Steps:
+ *   0. Guard: ignore messages without a usable individual sender wa_id.
  *   1. Normalise the sender to E.164.
  *   2. `recordInbound` — idempotency guard; exit on duplicate.
- *   3. `resolveUser` — identify RADAR user from the E.164 number.
- *   4. Branch on linked / unlinked:
+ *   3. Per-number rate limit — throttle bursts above RATE_LIMIT_MAX_PER_WINDOW.
+ *   4. Unsupported type guard — reject stickers, locations, reactions, etc.
+ *   5. `resolveUser` — identify RADAR user from the E.164 number.
+ *   6. Branch on linked / unlinked:
  *      a. Unlinked: check for a link code then send linking instructions.
  *      b. Linked: classify intent → route to capture/query/recommendation/unlink/help.
- *   5. `markProcessed` — update the message row status.
+ *   7. `markProcessed` — update the message row status.
  *
  * All errors are caught and logged here so a single broken message never
  * kills the processing of subsequent messages in the same batch.
+ * The outer try/catch guarantees no unhandled rejection escapes into
+ * EdgeRuntime.waitUntil — any unexpected error marks the message 'failed'
+ * and optionally sends a generic error reply if no reply has been sent yet.
  *
  * @param message  The raw Cloud API message object.
  * @param contact  The Cloud API contact object for the sender.
  */
 export async function handleMessage(message: WaMessage, contact: WaContact): Promise<void> {
+  // Step 0: defensive group/non-individual guard.
+  // Meta Cloud API only delivers individual-chat messages to the messages webhook,
+  // but guard against any malformed or unexpected payload where wa_id is missing
+  // or clearly non-user (empty string). Groups are not delivered via this webhook
+  // (Meta non-goal confirmed), but a missing wa_id would produce an invalid E.164.
+  if (!contact.wa_id || !/^\d+$/.test(contact.wa_id)) {
+    console.warn('[dispatch] ignored: missing or non-numeric wa_id', contact.wa_id);
+    return;
+  }
+
   // Step 1: normalise sender to E.164
   const waNumber = toE164(contact.wa_id);
   const providerMessageId = message.id;
+
+  // Track whether we have already replied in this invocation so the error
+  // catch-all can decide whether to send the generic error message.
+  let replied = false;
 
   try {
     // Step 2: idempotency — skip if we've already processed this message id
@@ -158,7 +217,36 @@ export async function handleMessage(message: WaMessage, contact: WaContact): Pro
       return;
     }
 
-    // Step 3: resolve RADAR user from E.164 number
+    // Step 3: per-number rate limit.
+    // Count inbound rows for this number in the last window; if the sender is
+    // flooding, reply once with a throttle message and stop processing.
+    // The current message is already recorded (step 2) so the count includes it.
+    const recentCount = await countRecentInbound(waNumber, RATE_LIMIT_WINDOW_SECONDS);
+    if (recentCount > RATE_LIMIT_MAX_PER_WINDOW) {
+      console.warn(
+        '[dispatch] rate limit exceeded for',
+        waNumber,
+        `(${recentCount} messages in ${RATE_LIMIT_WINDOW_SECONDS}s)`,
+      );
+      await sendText(waNumber, 'Esperá un momento 🙏, estás enviando mensajes muy rápido.');
+      replied = true;
+      await markProcessed(providerMessageId, 'failed', 'throttled');
+      return;
+    }
+
+    // Step 4: unsupported message type guard.
+    // Stickers, locations, contacts, reactions, buttons, etc. would fall through
+    // to the text path with an empty effectiveText, or crash on unexpected shapes.
+    // Reply politely and mark processed so the message is not retried.
+    if (!isSupportedType(message.type)) {
+      console.info('[dispatch] unsupported message type:', message.type, 'from', waNumber);
+      await sendText(waNumber, 'Por ahora puedo con texto, audios, fotos y PDFs.');
+      replied = true;
+      await markProcessed(providerMessageId, 'processed', 'unsupported_type');
+      return;
+    }
+
+    // Step 5: resolve RADAR user from E.164 number
     const userId = await resolveUser(waNumber);
 
     if (userId === null) {
@@ -172,11 +260,13 @@ export async function handleMessage(message: WaMessage, contact: WaContact): Pro
         const result = await redeemLinkCode(body.toUpperCase(), waNumber);
         const reply = LINK_CODE_REPLIES[result.status];
         await sendText(waNumber, reply);
+        replied = true;
         await markProcessed(providerMessageId, 'processed', 'link');
         return;
       }
 
       await sendText(waNumber, UNLINKED_PROMPT);
+      replied = true;
       await markProcessed(providerMessageId, 'processed');
       return;
     }
@@ -197,6 +287,7 @@ export async function handleMessage(message: WaMessage, contact: WaContact): Pro
 
     if (message.type === 'image' || message.type === 'document') {
       await handleMediaCapture(userId, waNumber, message);
+      replied = true;
       await markProcessed(providerMessageId, 'processed', 'media_capture');
       return;
     }
@@ -215,6 +306,7 @@ export async function handleMessage(message: WaMessage, contact: WaContact): Pro
             waNumber,
             'No pude entender el audio, escribime el gasto o mandá una foto.',
           );
+          replied = true;
           await markProcessed(providerMessageId, 'failed');
           return;
         }
@@ -222,6 +314,7 @@ export async function handleMessage(message: WaMessage, contact: WaContact): Pro
       } catch (audioErr) {
         console.error('[dispatch] audio transcription failed:', audioErr);
         await sendText(waNumber, 'No pude entender el audio, escribime el gasto o mandá una foto.');
+        replied = true;
         await markProcessed(providerMessageId, 'failed');
         return;
       }
@@ -238,6 +331,7 @@ export async function handleMessage(message: WaMessage, contact: WaContact): Pro
 
     if (hasPending && classification.intent === 'confirm') {
       await handleConfirm(userId, waNumber, conversation!);
+      replied = true;
       await markProcessed(providerMessageId, 'processed', 'confirm');
       return;
     }
@@ -245,6 +339,7 @@ export async function handleMessage(message: WaMessage, contact: WaContact): Pro
     if (hasPending && classification.intent === 'cancel') {
       await clearPending(userId);
       await sendText(waNumber, 'Listo, lo cancelé.');
+      replied = true;
       await markProcessed(providerMessageId, 'processed', 'cancel');
       return;
     }
@@ -260,9 +355,11 @@ export async function handleMessage(message: WaMessage, contact: WaContact): Pro
       case 'capture_income':
         if (isLowConfidence) {
           await sendText(waNumber, HELP_MESSAGE);
+          replied = true;
           await markProcessed(providerMessageId, 'processed', 'help');
         } else {
           await handleCapture(userId, waNumber, text, classification);
+          replied = true;
           await markProcessed(providerMessageId, 'processed', classification.intent);
         }
         break;
@@ -270,9 +367,11 @@ export async function handleMessage(message: WaMessage, contact: WaContact): Pro
       case 'query':
         if (isLowConfidence) {
           await sendText(waNumber, HELP_MESSAGE);
+          replied = true;
           await markProcessed(providerMessageId, 'processed', 'help');
         } else {
           await handleQuery(userId, waNumber, classification);
+          replied = true;
           await markProcessed(providerMessageId, 'processed', 'query');
         }
         break;
@@ -280,9 +379,11 @@ export async function handleMessage(message: WaMessage, contact: WaContact): Pro
       case 'recommendation':
         if (isLowConfidence) {
           await sendText(waNumber, HELP_MESSAGE);
+          replied = true;
           await markProcessed(providerMessageId, 'processed', 'help');
         } else {
           await handleRecommendation(userId, waNumber, classification);
+          replied = true;
           await markProcessed(providerMessageId, 'processed', 'recommendation');
         }
         break;
@@ -293,6 +394,7 @@ export async function handleMessage(message: WaMessage, contact: WaContact): Pro
           waNumber,
           'Desvinculé este número. Podés volver a vincularlo desde la app cuando quieras.',
         );
+        replied = true;
         await markProcessed(providerMessageId, 'processed', 'unlink');
         break;
 
@@ -300,16 +402,29 @@ export async function handleMessage(message: WaMessage, contact: WaContact): Pro
       case 'unknown':
       default:
         await sendText(waNumber, HELP_MESSAGE);
+        replied = true;
         await markProcessed(providerMessageId, 'processed', 'help');
         break;
     }
   } catch (err) {
     console.error('[dispatch] handleMessage error for', providerMessageId, err);
-    // Best-effort: mark the message as failed so monitoring can detect it
+    // Best-effort: mark the message as failed so monitoring can detect it.
+    // This catch-all ensures no unhandled rejection escapes into
+    // EdgeRuntime.waitUntil, which would silently swallow errors.
     try {
       await markProcessed(providerMessageId, 'failed');
     } catch (markErr) {
       console.error('[dispatch] markProcessed(failed) also failed:', markErr);
+    }
+    // Send a generic error reply only if we haven't already replied in this
+    // invocation — avoids double-messaging when a downstream handler replied
+    // and then failed to markProcessed.
+    if (!replied) {
+      try {
+        await sendText(waNumber, 'Tuve un problema procesando tu mensaje, probá de nuevo.');
+      } catch (replyErr) {
+        console.error('[dispatch] error reply also failed:', replyErr);
+      }
     }
   }
 }

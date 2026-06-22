@@ -308,6 +308,39 @@ export async function clearPending(userId: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// countRecentInbound — rate-limit helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Counts how many inbound `whatsapp_messages` rows exist for `waNumber`
+ * within the last `windowSeconds` seconds.
+ *
+ * Used by the per-number rate limiter in dispatch.ts to reject bursts before
+ * any expensive downstream work (Groq / Graph API) is performed.
+ */
+export async function countRecentInbound(waNumber: string, windowSeconds: number): Promise<number> {
+  const db = serviceClient();
+
+  const since = new Date(Date.now() - windowSeconds * 1000).toISOString();
+
+  const { count, error } = await db
+    .from('whatsapp_messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('wa_number', waNumber)
+    .eq('direction', 'inbound' satisfies MessageDirection)
+    .gte('created_at', since);
+
+  if (error) {
+    // Non-fatal: on query failure, err on the side of caution by returning 0
+    // so a transient DB hiccup doesn't block legitimate messages.
+    console.error('[db] countRecentInbound query failed:', error.message);
+    return 0;
+  }
+
+  return count ?? 0;
+}
+
+// ---------------------------------------------------------------------------
 // unlinkUser — remove WhatsApp binding for a user (HU-27)
 // ---------------------------------------------------------------------------
 

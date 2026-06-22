@@ -6,14 +6,15 @@
  *   deno test supabase/functions/whatsapp-webhook/dispatch.test.ts
  *
  * These tests have NO side effects — no network, no Supabase, no env vars.
- * They exercise only `looksLikeLinkCode`, which is a pure synchronous function.
+ * They exercise `looksLikeLinkCode` and `isSupportedType`, both pure synchronous
+ * functions exported for testability.
  *
  * Alphabet: base32 minus ambiguous glyphs 0/O/1/I/L → A-H J-K M-N P-Z 2-9 (27 chars)
  * Regex used internally: /^[A-HJ-KM-NP-Z2-9]{6}$/  (tested via toUpperCase())
  */
 
 import { assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
-import { looksLikeLinkCode } from './dispatch.ts';
+import { isSupportedType, looksLikeLinkCode } from './dispatch.ts';
 
 // ---------------------------------------------------------------------------
 // Valid codes — should return true
@@ -119,4 +120,60 @@ Deno.test('looksLikeLinkCode: rejects a typical non-code message ("hola")', () =
 
 Deno.test('looksLikeLinkCode: rejects a typical non-code message with numbers', () => {
   assertEquals(looksLikeLinkCode('100 pesos'), false);
+});
+
+// ---------------------------------------------------------------------------
+// isSupportedType — supported message type predicate
+// ---------------------------------------------------------------------------
+
+Deno.test('isSupportedType: accepts text', () => {
+  assertEquals(isSupportedType('text'), true);
+});
+
+Deno.test('isSupportedType: accepts audio', () => {
+  assertEquals(isSupportedType('audio'), true);
+});
+
+Deno.test('isSupportedType: accepts image', () => {
+  assertEquals(isSupportedType('image'), true);
+});
+
+Deno.test('isSupportedType: accepts document', () => {
+  assertEquals(isSupportedType('document'), true);
+});
+
+Deno.test('isSupportedType: rejects sticker', () => {
+  assertEquals(isSupportedType('sticker'), false);
+});
+
+Deno.test('isSupportedType: rejects location', () => {
+  assertEquals(isSupportedType('location'), false);
+});
+
+Deno.test('isSupportedType: rejects contacts', () => {
+  assertEquals(isSupportedType('contacts'), false);
+});
+
+Deno.test('isSupportedType: rejects reaction', () => {
+  assertEquals(isSupportedType('reaction'), false);
+});
+
+Deno.test('isSupportedType: rejects button', () => {
+  assertEquals(isSupportedType('button'), false);
+});
+
+Deno.test('isSupportedType: rejects order', () => {
+  assertEquals(isSupportedType('order'), false);
+});
+
+Deno.test('isSupportedType: rejects unsupported (Meta catch-all type)', () => {
+  assertEquals(isSupportedType('unsupported'), false);
+});
+
+Deno.test('isSupportedType: rejects empty string', () => {
+  assertEquals(isSupportedType(''), false);
+});
+
+Deno.test('isSupportedType: rejects an unknown future type', () => {
+  assertEquals(isSupportedType('video'), false);
 });
