@@ -19,7 +19,12 @@ import {
   recordInbound,
   redeemLinkCode,
   resolveUser,
+  unlinkUser,
 } from './db.ts';
+import { classifyIntent, LOW_CONFIDENCE_THRESHOLD } from './classify.ts';
+import { handleCapture, handleConfirm } from './capture.ts';
+import { handleQuery } from './queries.ts';
+import { handleRecommendation } from './recommendations.ts';
 
 // ---------------------------------------------------------------------------
 // Types — Meta Cloud API message shape (subset we care about)
@@ -87,8 +92,17 @@ export function looksLikeLinkCode(s: string): boolean {
 const UNLINKED_PROMPT =
   'Hola 👋 Para usar el bot de RADAR, vinculá tu número desde la app: Perfil → WhatsApp.';
 
-const LINKED_PLACEHOLDER =
-  'Pronto vas a poder registrar gastos, consultar movimientos y pedir recomendaciones.';
+/**
+ * Help message sent for 'help', 'unknown', and low-confidence intents.
+ * Listed capabilities mirror the three solution pillars from the product spec.
+ */
+const HELP_MESSAGE =
+  '¡Hola! Soy el bot de RADAR 🤖\n\nPodés pedirme:\n' +
+  '• *Registrar gastos e ingresos* — "gasté 5000 en el súper" o enviá una foto/PDF\n' +
+  '• *Consultar tus movimientos* — "¿cuánto gasté este mes?" o "¿en qué gasté esta semana?"\n' +
+  '• *Recomendaciones* — "dame un consejo de gastos" o "¿cómo vengo este mes?"\n' +
+  '• *Desvincular* — "desvinculame"\n\n' +
+  'También podés hablar por audio 🎙️';
 
 /** Outcome-specific replies for link-code redemption (HU-26). */
 const LINK_CODE_REPLIES: Record<string, string> = {
@@ -115,7 +129,7 @@ const LINK_CODE_REPLIES: Record<string, string> = {
  *   3. `resolveUser` — identify RADAR user from the E.164 number.
  *   4. Branch on linked / unlinked:
  *      a. Unlinked: check for a link code then send linking instructions.
- *      b. Linked: placeholder help reply (intent routing added later).
+ *      b. Linked: classify intent → route to capture/query/recommendation/unlink/help.
  *   5. `markProcessed` — update the message row status.
  *
  * All errors are caught and logged here so a single broken message never
@@ -168,35 +182,90 @@ export async function handleMessage(message: WaMessage, contact: WaContact): Pro
 
     // ── LINKED number (user found) ─────────────────────────────────────────
 
-    // Retrieve the conversation state for this user (used by later tasks)
-    // We load it now so future intent-routing tasks can access it without
-    // an extra round-trip.
+    // Retrieve the conversation state for this user.
+    // We load it before classification so the pending_action check doesn't
+    // require an extra round-trip after the Groq call.
     const conversation = await getConversation(userId);
 
-    // TODO(intent-routing): HU-27/28/29 — replace the placeholder reply below
-    // with a call to the intent classifier module.  Rough shape:
-    //
-    //   const classification = await classifyIntent(message, conversation);
-    //
-    //   switch (classification.intent) {
-    //     case 'capture':   await handleCapture(userId, waNumber, message, classification, providerMessageId); return;
-    //     case 'query':     await handleQuery(userId, waNumber, classification); break;
-    //     case 'recommend': await handleRecommend(userId, waNumber); break;
-    //     case 'confirm':   await handleConfirm(userId, waNumber, conversation); break;
-    //     case 'cancel':    await handleCancel(userId, waNumber, conversation); break;
-    //     case 'unlink':    await handleUnlink(userId, waNumber); break;
-    //     case 'help':
-    //     default:          await sendText(waNumber, HELP_MESSAGE); break;
-    //   }
-    //
-    // The `conversation` variable and `clearPending` / `setPendingAction` in
-    // db.ts are already in place for the state machine.
+    // Classify intent from the text body.
+    // Media messages without a text body get an empty string; they will
+    // produce 'unknown' intent which routes to the help message until group 8
+    // implements audio/image/pdf capture.
+    const text = message.text?.body?.trim() ?? '';
+    const classification = await classifyIntent(text);
 
-    // Suppress unused-variable warning until intent routing is wired
-    void conversation;
+    // ── Pending-action state machine ────────────────────────────────────────
+    // When a pending_action exists, 'confirm' and 'cancel' short-circuit the
+    // normal intent switch so the user can complete or discard the flow.
+    const hasPending = conversation !== null && conversation.pendingAction !== null;
 
-    await sendText(waNumber, LINKED_PLACEHOLDER);
-    await markProcessed(providerMessageId, 'processed', 'placeholder');
+    if (hasPending && classification.intent === 'confirm') {
+      await handleConfirm(userId, waNumber, conversation!);
+      await markProcessed(providerMessageId, 'processed', 'confirm');
+      return;
+    }
+
+    if (hasPending && classification.intent === 'cancel') {
+      await clearPending(userId);
+      await sendText(waNumber, 'Listo, lo cancelé.');
+      await markProcessed(providerMessageId, 'processed', 'cancel');
+      return;
+    }
+
+    // ── Low-confidence guard ─────────────────────────────────────────────────
+    // If the model is not confident enough about a write intent, fall back to
+    // help so we don't create a pending transaction the user didn't ask for.
+    const isLowConfidence = classification.confidence < LOW_CONFIDENCE_THRESHOLD;
+
+    // ── Intent router ────────────────────────────────────────────────────────
+    switch (classification.intent) {
+      case 'capture_expense':
+      case 'capture_income':
+        if (isLowConfidence) {
+          await sendText(waNumber, HELP_MESSAGE);
+          await markProcessed(providerMessageId, 'processed', 'help');
+        } else {
+          await handleCapture(userId, waNumber, text, classification);
+          await markProcessed(providerMessageId, 'processed', classification.intent);
+        }
+        break;
+
+      case 'query':
+        if (isLowConfidence) {
+          await sendText(waNumber, HELP_MESSAGE);
+          await markProcessed(providerMessageId, 'processed', 'help');
+        } else {
+          await handleQuery(userId, waNumber, classification);
+          await markProcessed(providerMessageId, 'processed', 'query');
+        }
+        break;
+
+      case 'recommendation':
+        if (isLowConfidence) {
+          await sendText(waNumber, HELP_MESSAGE);
+          await markProcessed(providerMessageId, 'processed', 'help');
+        } else {
+          await handleRecommendation(userId, waNumber, classification);
+          await markProcessed(providerMessageId, 'processed', 'recommendation');
+        }
+        break;
+
+      case 'unlink':
+        await unlinkUser(userId);
+        await sendText(
+          waNumber,
+          'Desvinculé este número. Podés volver a vincularlo desde la app cuando quieras.',
+        );
+        await markProcessed(providerMessageId, 'processed', 'unlink');
+        break;
+
+      case 'help':
+      case 'unknown':
+      default:
+        await sendText(waNumber, HELP_MESSAGE);
+        await markProcessed(providerMessageId, 'processed', 'help');
+        break;
+    }
   } catch (err) {
     console.error('[dispatch] handleMessage error for', providerMessageId, err);
     // Best-effort: mark the message as failed so monitoring can detect it

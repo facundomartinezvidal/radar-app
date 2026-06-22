@@ -306,3 +306,26 @@ export async function clearPending(userId: string): Promise<void> {
     console.error('[db] clearPending update failed:', error.message, userId);
   }
 }
+
+// ---------------------------------------------------------------------------
+// unlinkUser — remove WhatsApp binding for a user (HU-27)
+// ---------------------------------------------------------------------------
+
+/**
+ * Unlinks the WhatsApp number from a RADAR user account by calling the
+ * `unlink_wa` SECURITY DEFINER RPC (Pattern 1).
+ *
+ * The RPC removes the wa_number binding from `whatsapp_linked_numbers` and
+ * clears the conversation row so the number goes back to the unlinked state.
+ *
+ * @param userId  RADAR user UUID whose WhatsApp binding should be removed.
+ */
+export async function unlinkUser(userId: string): Promise<void> {
+  const db = serviceClient();
+
+  const { error } = await db.rpc('unlink_wa', { p_user_id: userId });
+
+  if (error) {
+    throw new Error(`[db] unlinkUser RPC failed: ${error.message}`);
+  }
+}
