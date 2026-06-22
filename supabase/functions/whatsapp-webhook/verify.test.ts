@@ -1,6 +1,6 @@
 /**
  * verify.test.ts
- * Unit tests for the pure helpers in verify.ts.
+ * Unit tests for the pure helpers in verify.ts (Twilio transport).
  *
  * Run with:
  *   deno test supabase/functions/whatsapp-webhook/verify.test.ts
@@ -8,158 +8,157 @@
  * These tests have NO side effects — no network, no Supabase, no env vars.
  * They can run in CI independently of jest-expo.
  *
- * Test vector (HMAC-SHA256):
- *   key  : "test_secret"
- *   body : "hello world"
- *   hex  : c8aa85c632a6677847fd213e8181d39d62905dff3b8a925c9b7bb38eb3829029
- *   header: "sha256=c8aa85c632a6677847fd213e8181d39d62905dff3b8a925c9b7bb38eb3829029"
+ * Test vectors:
  *
- * Vector independently verified by:
- *   node -e "require('crypto').createHmac('sha256','test_secret').update('hello world').digest('hex')"
- *   → c8aa85c632a6677847fd213e8181d39d62905dff3b8a925c9b7bb38eb3829029
+ * Vector A — RADAR-shaped (used for accept/reject tests):
+ *   authToken : "test_auth_token"
+ *   url       : "https://miiorhmqxdqsowqxnpii.supabase.co/functions/v1/whatsapp-webhook"
+ *   params    : { Body:"hola", From:"whatsapp:+5491166660428",
+ *                 MessageSid:"SM123", NumMedia:"0", To:"whatsapp:+14155238886" }
+ *   signature : "rkUIEXuKWlT7YQIL/iGsrHYbRUU="
+ *
+ * Vector B — canonical Twilio example (base-string shape assertion):
+ *   authToken : "12345"
+ *   url       : "https://mycompany.com/myapp.php?foo=1&bar=2"
+ *   params    : { Digits:"1234", To:"+18005551212", From:"+14158675310",
+ *                 Caller:"+14158675309", ApiVersion:"2010-04-01" }
+ *   base      : "https://mycompany.com/myapp.php?foo=1&bar=2ApiVersion2010-04-01Caller+14158675309Digits1234From+14158675310To+18005551212"
+ *   signature : "/6X2bhpB7zoU3kTYbLulsxk19Lk="
+ *
+ * All vectors independently verified by:
+ *   node -e "const c=require('crypto'); \
+ *     const base='<base>'; \
+ *     console.log(c.createHmac('sha1','<token>').update(base).digest('base64'))"
  */
 
 import { assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
-import { checkHandshake, verifySignature } from './verify.ts';
+import { buildTwilioSignatureBase, validateTwilioSignature } from './verify.ts';
 
 // ---------------------------------------------------------------------------
-// Known test vector
+// Vector A — RADAR-shaped
 // ---------------------------------------------------------------------------
 
-// key: "test_secret", message: "hello world"
-// computed via: echo -n "hello world" | openssl dgst -sha256 -hmac "test_secret"
-const TEST_SECRET = 'test_secret';
-const TEST_BODY = 'hello world';
-// Verified: node -e "require('crypto').createHmac('sha256','test_secret').update('hello world').digest('hex')"
-// deno-fmt-ignore
-const EXPECTED_HEX = 'c8aa85c632a6677847fd213e8181d39d62905dff3b8a925c9b7bb38eb3829029';
-const VALID_HEADER = `sha256=${EXPECTED_HEX}`;
+const VECTOR_A_TOKEN = 'test_auth_token';
+const VECTOR_A_URL = 'https://miiorhmqxdqsowqxnpii.supabase.co/functions/v1/whatsapp-webhook';
+const VECTOR_A_PARAMS: Record<string, string> = {
+  Body: 'hola',
+  From: 'whatsapp:+5491166660428',
+  MessageSid: 'SM123',
+  NumMedia: '0',
+  To: 'whatsapp:+14155238886',
+};
+const VECTOR_A_SIG = 'rkUIEXuKWlT7YQIL/iGsrHYbRUU=';
 
 // ---------------------------------------------------------------------------
-// verifySignature
+// Vector B — canonical Twilio example
 // ---------------------------------------------------------------------------
 
-Deno.test('verifySignature: accepts a valid signature', async () => {
-  const result = await verifySignature(TEST_BODY, VALID_HEADER, TEST_SECRET);
+const VECTOR_B_TOKEN = '12345';
+const VECTOR_B_URL = 'https://mycompany.com/myapp.php?foo=1&bar=2';
+const VECTOR_B_PARAMS: Record<string, string> = {
+  Digits: '1234',
+  To: '+18005551212',
+  From: '+14158675310',
+  Caller: '+14158675309',
+  ApiVersion: '2010-04-01',
+};
+const VECTOR_B_BASE =
+  'https://mycompany.com/myapp.php?foo=1&bar=2ApiVersion2010-04-01Caller+14158675309Digits1234From+14158675310To+18005551212';
+const VECTOR_B_SIG = '/6X2bhpB7zoU3kTYbLulsxk19Lk=';
+
+// ---------------------------------------------------------------------------
+// buildTwilioSignatureBase
+// ---------------------------------------------------------------------------
+
+Deno.test('buildTwilioSignatureBase: produces correct base string (Vector B)', () => {
+  const result = buildTwilioSignatureBase(VECTOR_B_URL, VECTOR_B_PARAMS);
+  assertEquals(result, VECTOR_B_BASE);
+});
+
+Deno.test('buildTwilioSignatureBase: sorts params ascending by key', () => {
+  const result = buildTwilioSignatureBase('https://example.com/', { z: 'last', a: 'first' });
+  assertEquals(result, 'https://example.com/afirstzlast');
+});
+
+Deno.test('buildTwilioSignatureBase: empty params returns url only', () => {
+  const result = buildTwilioSignatureBase('https://example.com/', {});
+  assertEquals(result, 'https://example.com/');
+});
+
+// ---------------------------------------------------------------------------
+// validateTwilioSignature — Vector A accept/reject cases
+// ---------------------------------------------------------------------------
+
+Deno.test('validateTwilioSignature: accepts a valid signature (Vector A)', async () => {
+  const result = await validateTwilioSignature(
+    VECTOR_A_URL,
+    VECTOR_A_PARAMS,
+    VECTOR_A_SIG,
+    VECTOR_A_TOKEN,
+  );
   assertEquals(result, true);
 });
 
-Deno.test('verifySignature: rejects a tampered body', async () => {
-  const result = await verifySignature('hello world!', VALID_HEADER, TEST_SECRET);
-  assertEquals(result, false);
-});
-
-Deno.test('verifySignature: rejects a wrong secret', async () => {
-  const result = await verifySignature(TEST_BODY, VALID_HEADER, 'wrong_secret');
-  assertEquals(result, false);
-});
-
-Deno.test('verifySignature: rejects a tampered hex digest', async () => {
-  const tamperedHeader = 'sha256=0000000000000000000000000000000000000000000000000000000000000000';
-  const result = await verifySignature(TEST_BODY, tamperedHeader, TEST_SECRET);
-  assertEquals(result, false);
-});
-
-Deno.test('verifySignature: rejects a null header', async () => {
-  const result = await verifySignature(TEST_BODY, null, TEST_SECRET);
-  assertEquals(result, false);
-});
-
-Deno.test('verifySignature: rejects a header missing the sha256= prefix', async () => {
-  const result = await verifySignature(TEST_BODY, EXPECTED_HEX, TEST_SECRET);
-  assertEquals(result, false);
-});
-
-Deno.test('verifySignature: rejects an empty body with original header', async () => {
-  const result = await verifySignature('', VALID_HEADER, TEST_SECRET);
-  assertEquals(result, false);
-});
-
-Deno.test('verifySignature: handles an empty body with its own correct header', async () => {
-  // Compute the expected HMAC for an empty body independently
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(TEST_SECRET),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
+Deno.test('validateTwilioSignature: rejects a tampered param value', async () => {
+  const tampered = { ...VECTOR_A_PARAMS, Body: 'chau' };
+  const result = await validateTwilioSignature(
+    VECTOR_A_URL,
+    tampered,
+    VECTOR_A_SIG,
+    VECTOR_A_TOKEN,
   );
-  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(''));
-  const hex = Array.from(new Uint8Array(sig))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-  const header = `sha256=${hex}`;
+  assertEquals(result, false);
+});
 
-  const result = await verifySignature('', header, TEST_SECRET);
+Deno.test('validateTwilioSignature: rejects a wrong authToken', async () => {
+  const result = await validateTwilioSignature(
+    VECTOR_A_URL,
+    VECTOR_A_PARAMS,
+    VECTOR_A_SIG,
+    'wrong_token',
+  );
+  assertEquals(result, false);
+});
+
+Deno.test('validateTwilioSignature: rejects a null header', async () => {
+  const result = await validateTwilioSignature(VECTOR_A_URL, VECTOR_A_PARAMS, null, VECTOR_A_TOKEN);
+  assertEquals(result, false);
+});
+
+Deno.test('validateTwilioSignature: rejects a tampered signature', async () => {
+  const result = await validateTwilioSignature(
+    VECTOR_A_URL,
+    VECTOR_A_PARAMS,
+    'AAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+    VECTOR_A_TOKEN,
+  );
+  assertEquals(result, false);
+});
+
+// ---------------------------------------------------------------------------
+// validateTwilioSignature — Vector B (canonical Twilio example)
+// ---------------------------------------------------------------------------
+
+Deno.test('validateTwilioSignature: accepts valid signature (Vector B)', async () => {
+  const result = await validateTwilioSignature(
+    VECTOR_B_URL,
+    VECTOR_B_PARAMS,
+    VECTOR_B_SIG,
+    VECTOR_B_TOKEN,
+  );
   assertEquals(result, true);
 });
 
-Deno.test('verifySignature: handles non-hex characters in header gracefully', async () => {
-  const result = await verifySignature(TEST_BODY, 'sha256=gg!invalid', TEST_SECRET);
-  assertEquals(result, false);
-});
-
-Deno.test('verifySignature: handles odd-length hex string gracefully', async () => {
-  const result = await verifySignature(TEST_BODY, 'sha256=abc', TEST_SECRET);
-  assertEquals(result, false);
-});
-
 // ---------------------------------------------------------------------------
-// checkHandshake
+// validateTwilioSignature — edge cases
 // ---------------------------------------------------------------------------
 
-const TOKEN = 'my_verify_token';
-
-Deno.test('checkHandshake: returns challenge on valid subscribe + correct token', () => {
-  const result = checkHandshake(
-    { mode: 'subscribe', verifyToken: TOKEN, challenge: 'abc123' },
-    TOKEN,
+Deno.test('validateTwilioSignature: rejects undefined header', async () => {
+  const result = await validateTwilioSignature(
+    VECTOR_A_URL,
+    VECTOR_A_PARAMS,
+    undefined,
+    VECTOR_A_TOKEN,
   );
-  assertEquals(result, 'abc123');
-});
-
-Deno.test('checkHandshake: returns null when mode is not subscribe', () => {
-  const result = checkHandshake(
-    { mode: 'unsubscribe', verifyToken: TOKEN, challenge: 'abc123' },
-    TOKEN,
-  );
-  assertEquals(result, null);
-});
-
-Deno.test('checkHandshake: returns null when verify_token is wrong', () => {
-  const result = checkHandshake(
-    { mode: 'subscribe', verifyToken: 'wrong', challenge: 'abc123' },
-    TOKEN,
-  );
-  assertEquals(result, null);
-});
-
-Deno.test('checkHandshake: returns null when verify_token is null', () => {
-  const result = checkHandshake(
-    { mode: 'subscribe', verifyToken: null, challenge: 'abc123' },
-    TOKEN,
-  );
-  assertEquals(result, null);
-});
-
-Deno.test('checkHandshake: returns null when challenge is null', () => {
-  const result = checkHandshake({ mode: 'subscribe', verifyToken: TOKEN, challenge: null }, TOKEN);
-  assertEquals(result, null);
-});
-
-Deno.test('checkHandshake: returns null when challenge is empty string', () => {
-  const result = checkHandshake({ mode: 'subscribe', verifyToken: TOKEN, challenge: '' }, TOKEN);
-  assertEquals(result, null);
-});
-
-Deno.test('checkHandshake: returns null when all params are null', () => {
-  const result = checkHandshake({ mode: null, verifyToken: null, challenge: null }, TOKEN);
-  assertEquals(result, null);
-});
-
-Deno.test('checkHandshake: echoes challenge verbatim (no mutation)', () => {
-  const challenge = '  spaces and special!@#  ';
-  const result = checkHandshake({ mode: 'subscribe', verifyToken: TOKEN, challenge }, TOKEN);
-  assertEquals(result, challenge);
+  assertEquals(result, false);
 });

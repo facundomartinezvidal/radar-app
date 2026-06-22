@@ -9,7 +9,12 @@
 import { supabase } from '@/lib/supabase';
 
 // TODO: move to env/config for production
-export const WHATSAPP_BOT_NUMBER = '+15556605570';
+export const WHATSAPP_BOT_NUMBER = '+14155238886';
+
+// Twilio Sandbox opt-in phrase — replace <código> with your sandbox keyword
+// from the Twilio console (Messaging → Try it out → WhatsApp sandbox).
+// TODO: move to env/config for production.
+export const WHATSAPP_SANDBOX_JOIN = 'join <código>';
 
 // ---------------------------------------------------------------------------
 // Types

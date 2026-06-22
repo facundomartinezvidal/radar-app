@@ -2,16 +2,16 @@
  * dispatch.ts
  * Core message handler for the whatsapp-webhook edge function.
  *
- * `handleMessage` is the single entry point for every inbound Cloud API message.
- * It is called via `EdgeRuntime.waitUntil(...)` so the webhook can ack Meta
- * immediately (D3 in design.md) while this function completes asynchronously.
+ * `handleMessage` is the single entry point for every inbound Twilio message.
+ * Messages are awaited inline before the TwiML ack is returned so the Supabase
+ * isolate does not tear down mid-flight (D3 in design.md).
  *
  * Extension points are clearly marked with TODO comments so later tasks
  * can slot in link-code redemption (HU-26) and intent routing (HU-27/28/29)
  * without restructuring this file.
  */
 
-import { fetchMediaBytes, sendText } from './graph.ts';
+import { fetchMediaBytes, sendText } from './twilio.ts';
 import {
   clearPending,
   countRecentInbound,
@@ -71,7 +71,7 @@ export function isSupportedType(type: string): boolean {
 // ---------------------------------------------------------------------------
 
 export interface WaContact {
-  /** E.164 number WITHOUT leading '+' as provided by Meta ("wa_id") */
+  /** E.164 number WITHOUT leading '+' (wa_id, digits only — matches Twilio's From after stripping whatsapp: and +) */
   wa_id: string;
   profile?: { name?: string };
 }
@@ -92,9 +92,9 @@ export interface WaMessage {
 // ---------------------------------------------------------------------------
 
 /**
- * Normalises a Meta `wa_id` (digits only, no '+') to E.164 ('+' + digits).
+ * Normalises a `wa_id` (digits only, no '+') to E.164 ('+' + digits).
  *
- * Meta always provides digits without a leading '+'.  Argentina numbers
+ * Both Meta and Twilio provide digits without a leading '+'.  Argentina numbers
  * (549...) and international numbers both follow this pattern.
  */
 function toE164(waId: string): string {

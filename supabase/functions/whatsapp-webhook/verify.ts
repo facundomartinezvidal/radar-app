@@ -1,62 +1,19 @@
 /**
  * verify.ts
- * Pure, side-effect-free helpers for Meta webhook verification.
+ * Pure, side-effect-free helpers for Twilio webhook signature verification.
  *
  * Exported functions are intentionally dependency-free so they can be
- * unit-tested with `deno test` without any Supabase or Graph API access.
- */
-
-// ---------------------------------------------------------------------------
-// Handshake (GET verification)
-// ---------------------------------------------------------------------------
-
-export interface HandshakeParams {
-  mode: string | null;
-  verifyToken: string | null;
-  challenge: string | null;
-}
-
-/**
- * Returns the hub.challenge string if the GET handshake is valid, otherwise
- * returns null.
+ * unit-tested with `deno test` without any Supabase or Twilio API access.
  *
- * Valid means:
- *   - hub.mode === 'subscribe'
- *   - hub.verify_token === expectedToken (constant-time not required here —
- *     this is a server-to-server check where the attacker cannot observe
- *     timing, but we keep it simple and deterministic)
+ * Algorithm: HMAC-SHA1
+ *   signature = base64(HMAC-SHA1(authToken, url + sortedParamPairs))
+ *
+ * Reference: https://www.twilio.com/docs/usage/webhooks/webhooks-security
  */
-export function checkHandshake(params: HandshakeParams, expectedToken: string): string | null {
-  if (
-    params.mode === 'subscribe' &&
-    typeof params.verifyToken === 'string' &&
-    params.verifyToken === expectedToken &&
-    typeof params.challenge === 'string' &&
-    params.challenge.length > 0
-  ) {
-    return params.challenge;
-  }
-  return null;
-}
 
 // ---------------------------------------------------------------------------
-// Signature verification (POST authentication)
+// Constant-time comparison (private helper)
 // ---------------------------------------------------------------------------
-
-/**
- * Converts a hex string to a Uint8Array.
- * Returns null if the string contains non-hex characters.
- */
-function hexToBytes(hex: string): Uint8Array | null {
-  if (hex.length % 2 !== 0) return null;
-  const result = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < hex.length; i += 2) {
-    const byte = parseInt(hex.slice(i, i + 2), 16);
-    if (Number.isNaN(byte)) return null;
-    result[i / 2] = byte;
-  }
-  return result;
-}
 
 /**
  * Constant-time comparison of two Uint8Arrays.
@@ -75,49 +32,79 @@ function constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
   return diff === 0;
 }
 
+// ---------------------------------------------------------------------------
+// Twilio signature base string
+// ---------------------------------------------------------------------------
+
 /**
- * Verifies the `X-Hub-Signature-256` header produced by Meta.
+ * Builds the Twilio signature base string for HMAC-SHA1 computation.
+ *
+ * Algorithm (pure, no side effects):
+ *   base = url + for each param key sorted ascending: key + value
+ *
+ * No separators between key/value pairs — this matches the Twilio spec exactly.
+ *
+ * @param url    The full request URL (including query string if any).
+ * @param params The parsed form params from the request body (or query string).
+ * @returns      The base string to be signed.
+ */
+export function buildTwilioSignatureBase(url: string, params: Record<string, string>): string {
+  const sorted = Object.keys(params).sort();
+  let base = url;
+  for (const key of sorted) {
+    base += key + (params[key] ?? '');
+  }
+  return base;
+}
+
+// ---------------------------------------------------------------------------
+// Twilio signature validation
+// ---------------------------------------------------------------------------
+
+/**
+ * Validates the `X-Twilio-Signature` header produced by Twilio.
  *
  * Algorithm:
- *   expected = 'sha256=' + HMAC-SHA256(appSecret, rawBody)
+ *   expected = base64(HMAC-SHA1(authToken, buildTwilioSignatureBase(url, params)))
  *
  * Uses Web Crypto (available in both Deno and browser environments) so there
  * is no native module dependency. The comparison is constant-time to resist
- * timing attacks.
+ * timing attacks (compares raw base64 ASCII bytes via TextEncoder).
  *
- * @param rawBody   The raw request body text, read before any JSON.parse().
- * @param header    The value of the `X-Hub-Signature-256` request header
+ * @param url       The full request URL Twilio posted to.
+ * @param params    The parsed form-encoded body params.
+ * @param header    The value of the `X-Twilio-Signature` request header
  *                  (null/undefined if missing).
- * @param appSecret The `WHATSAPP_APP_SECRET` environment variable value.
+ * @param authToken The `TWILIO_AUTH_TOKEN` environment variable value.
  * @returns         true if the signature is valid, false otherwise.
  */
-export async function verifySignature(
-  rawBody: string,
+export async function validateTwilioSignature(
+  url: string,
+  params: Record<string, string>,
   header: string | null | undefined,
-  appSecret: string,
+  authToken: string,
 ): Promise<boolean> {
-  // Missing or malformed header → reject immediately
+  // Missing or non-string header → reject immediately
   if (typeof header !== 'string') return false;
-  if (!header.startsWith('sha256=')) return false;
 
-  const providedHex = header.slice('sha256='.length);
-  const providedBytes = hexToBytes(providedHex);
-  if (providedBytes === null) return false;
+  const base = buildTwilioSignatureBase(url, params);
 
-  // Derive the HMAC key from the app secret
+  // Derive HMAC-SHA1 key from the auth token
   const encoder = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
-    encoder.encode(appSecret),
-    { name: 'HMAC', hash: 'SHA-256' },
+    encoder.encode(authToken),
+    { name: 'HMAC', hash: 'SHA-1' },
     false,
     ['sign'],
   );
 
-  // Compute HMAC-SHA256 over the raw body bytes
-  const signatureBuffer = await crypto.subtle.sign('HMAC', keyMaterial, encoder.encode(rawBody));
+  // Compute HMAC-SHA1 over the base string
+  const signatureBuffer = await crypto.subtle.sign('HMAC', keyMaterial, encoder.encode(base));
 
-  const expectedBytes = new Uint8Array(signatureBuffer);
+  // Base64-encode the resulting bytes
+  const expected = btoa(String.fromCharCode(...new Uint8Array(signatureBuffer)));
 
-  return constantTimeEqual(expectedBytes, providedBytes);
+  // Constant-time comparison over raw ASCII bytes of the base64 strings
+  return constantTimeEqual(encoder.encode(expected), encoder.encode(header));
 }

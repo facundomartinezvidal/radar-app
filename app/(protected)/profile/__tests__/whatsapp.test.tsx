@@ -133,6 +133,7 @@ describe('WhatsappScreen — not linked', () => {
     expect(screen.getByText('ABC123')).toBeTruthy();
     expect(screen.getByText('Vence en 10 minutos')).toBeTruthy();
     expect(screen.getByTestId('instructions')).toBeTruthy();
+    expect(screen.getByText(/join/i)).toBeTruthy();
   });
 
   it('shows error message when createLinkCode fails', () => {

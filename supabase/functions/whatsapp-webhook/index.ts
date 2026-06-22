@@ -1,65 +1,50 @@
 /**
  * whatsapp-webhook/index.ts
- * Supabase Edge Function — Meta WhatsApp Cloud API webhook entrypoint.
+ * Supabase Edge Function — Twilio WhatsApp webhook entrypoint.
  *
  * Handles:
- *   GET  — Meta verification handshake (hub.mode/hub.verify_token/hub.challenge)
- *   POST — Inbound message processing (signature verified, idempotent, async)
+ *   POST    — Inbound message processing (signature verified, idempotent)
  *   OPTIONS — CORS preflight
  *
  * Security model:
- *   - verify_jwt = false (no Supabase JWT on this function — Meta calls it)
- *   - GET: guarded by WHATSAPP_VERIFY_TOKEN
- *   - POST: guarded by HMAC-SHA256 of raw body using WHATSAPP_APP_SECRET
- *     (X-Hub-Signature-256 header). Body is read as raw text BEFORE JSON parse
- *     so the bytes match what Meta signed.
+ *   - verify_jwt = false (no Supabase JWT on this function — Twilio calls it)
+ *   - POST: guarded by HMAC-SHA1 of the full request URL + sorted form params
+ *     using TWILIO_AUTH_TOKEN (X-Twilio-Signature header). Body is read as raw
+ *     text before URLSearchParams parse so the bytes match what Twilio signed.
+ *
+ * Inbound format: application/x-www-form-urlencoded
+ *   From, Body, NumMedia, MediaUrl{i}, MediaContentType{i}, MessageSid
+ *
+ * Ack format: empty TwiML <Response/> (200 text/xml)
+ *   Twilio considers any 2xx a successful delivery acknowledgement.
+ *
+ * Processing model:
+ *   Messages are awaited inline before the TwiML ack is returned.
+ *   Twilio tolerates multi-second webhook latency, and the MessageSid
+ *   idempotency guard (provider_message_id UNIQUE) makes any Twilio
+ *   timeout-retry a no-op (isNew=false → skip), so a slow message can never
+ *   be processed or replied to twice. (The Supabase isolate tears down after
+ *   the Response resolves, so background work via waitUntil would be killed.)
  *
  * Env vars consumed:
- *   WHATSAPP_VERIFY_TOKEN    — shared secret for the GET handshake
- *   WHATSAPP_APP_SECRET      — Meta app secret for POST signature verification
- *   WHATSAPP_ACCESS_TOKEN    — Bearer token for outbound Graph API calls
- *   WHATSAPP_PHONE_NUMBER_ID — Source phone number id for outbound messages
+ *   TWILIO_ACCOUNT_SID       — Twilio account SID (AC...)
+ *   TWILIO_AUTH_TOKEN        — Twilio auth token (signature verification + API auth)
+ *   TWILIO_WHATSAPP_FROM     — Source number in whatsapp:+1... format
  *   SUPABASE_URL             — injected by runtime
  *   SUPABASE_SERVICE_ROLE_KEY— injected by runtime
  *
  * Module layout:
- *   verify.ts   — pure GET-handshake + HMAC helpers (unit-testable)
- *   graph.ts    — Meta Graph API v21.0 client (sendText, fetchMediaBytes)
+ *   verify.ts   — pure Twilio HMAC-SHA1 signature helpers (unit-testable)
+ *   twilio.ts   — Twilio Messages API client (sendText, fetchMediaBytes)
+ *   parse.ts    — pure Twilio form-payload parser (unit-testable)
  *   db.ts       — service-role Supabase helpers (recordInbound, resolveUser …)
  *   dispatch.ts — handleMessage: idempotency → identity → reply routing
  */
 
 import { corsHeaders } from '../_shared/cors.ts';
-import { checkHandshake, verifySignature } from './verify.ts';
-import { handleMessage, type WaContact, type WaMessage } from './dispatch.ts';
-
-// ---------------------------------------------------------------------------
-// Types — Meta Cloud API payload shapes
-// ---------------------------------------------------------------------------
-
-interface WaValue {
-  messaging_product?: string;
-  metadata?: { display_phone_number?: string; phone_number_id?: string };
-  contacts?: WaContact[];
-  messages?: WaMessage[];
-  statuses?: unknown[];
-  errors?: unknown[];
-}
-
-interface WaChange {
-  value?: WaValue;
-  field?: string;
-}
-
-interface WaEntry {
-  id?: string;
-  changes?: WaChange[];
-}
-
-interface WaPayload {
-  object?: string;
-  entry?: WaEntry[];
-}
+import { validateTwilioSignature } from './verify.ts';
+import { parseTwilioForm } from './parse.ts';
+import { handleMessage } from './dispatch.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -72,6 +57,9 @@ function jsonError(status: number, message: string): Response {
   });
 }
 
+/** Empty TwiML ack — Twilio requires a 2xx with valid XML (or empty body). */
+const TWIML_ACK = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
+
 // ---------------------------------------------------------------------------
 // Main router
 // ---------------------------------------------------------------------------
@@ -82,35 +70,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
-  // ── GET — Meta verification handshake ──────────────────────────────────
-  if (req.method === 'GET') {
-    const url = new URL(req.url);
-    const verifyToken = Deno.env.get('WHATSAPP_VERIFY_TOKEN') ?? '';
-
-    const challenge = checkHandshake(
-      {
-        mode: url.searchParams.get('hub.mode'),
-        verifyToken: url.searchParams.get('hub.verify_token'),
-        challenge: url.searchParams.get('hub.challenge'),
-      },
-      verifyToken,
-    );
-
-    if (challenge === null) {
-      console.warn('[webhook] GET handshake rejected — token mismatch or missing params');
-      return new Response('Forbidden', { status: 403 });
-    }
-
-    // Echo the challenge verbatim as plain text (Meta requirement)
-    return new Response(challenge, {
-      status: 200,
-      headers: { 'Content-Type': 'text/plain' },
-    });
-  }
-
-  // ── POST — Inbound event from Meta ─────────────────────────────────────
+  // ── POST — Inbound event from Twilio ───────────────────────────────────
   if (req.method === 'POST') {
-    // Read the raw body text BEFORE JSON.parse so the bytes match what Meta signed
+    // Read the raw body text so the bytes match what Twilio signed
     let rawBody: string;
     try {
       rawBody = await req.text();
@@ -119,73 +81,39 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return jsonError(400, 'Bad request body');
     }
 
-    // Verify X-Hub-Signature-256 HMAC before any further processing (D risk in design.md)
-    const appSecret = Deno.env.get('WHATSAPP_APP_SECRET') ?? '';
-    const signatureHeader = req.headers.get('x-hub-signature-256');
+    // Parse form params for signature verification and message extraction
+    const params = Object.fromEntries(new URLSearchParams(rawBody));
 
-    let signatureValid: boolean;
+    // Verify X-Twilio-Signature HMAC-SHA1 before any further processing
+    const authToken = Deno.env.get('TWILIO_AUTH_TOKEN') ?? '';
+    const header = req.headers.get('x-twilio-signature');
+
+    let valid: boolean;
     try {
-      signatureValid = await verifySignature(rawBody, signatureHeader, appSecret);
+      valid = await validateTwilioSignature(req.url, params, header, authToken);
     } catch (err) {
       console.error('[webhook] Signature verification threw:', err);
       return jsonError(500, 'Signature verification error');
     }
 
-    if (!signatureValid) {
-      console.warn('[webhook] POST rejected — invalid or missing X-Hub-Signature-256');
+    if (!valid) {
+      console.warn('[webhook] POST rejected — invalid or missing X-Twilio-Signature');
       return new Response('Forbidden', { status: 403 });
     }
 
-    // Parse the verified payload
-    let payload: WaPayload;
-    try {
-      payload = JSON.parse(rawBody) as WaPayload;
-    } catch (err) {
-      console.error('[webhook] JSON parse error after signature OK:', err);
-      return jsonError(400, 'Invalid JSON payload');
+    // Parse the verified Twilio form payload into provider-agnostic shapes
+    const parsed = parseTwilioForm(params);
+
+    // Await inline — see processing model note in the file header above.
+    if (parsed !== null) {
+      await handleMessage(parsed.message, parsed.contact);
     }
 
-    // Extract messages from all entries/changes; ack immediately if none found
-    // (e.g. delivery/read status events — per D5 / spec "Status callback is ignored")
-    const messages: Array<{ message: WaMessage; contact: WaContact }> = [];
-
-    for (const entry of payload.entry ?? []) {
-      for (const change of entry.changes ?? []) {
-        const value = change.value;
-        if (!value?.messages?.length) {
-          // Status/delivery event or other non-message change — ignore
-          continue;
-        }
-
-        // Build a contact map for O(1) lookup by wa_id
-        const contactMap = new Map<string, WaContact>();
-        for (const c of value.contacts ?? []) {
-          if (c.wa_id) contactMap.set(c.wa_id, c);
-        }
-
-        for (const msg of value.messages) {
-          const contact = contactMap.get(msg.from) ?? { wa_id: msg.from };
-          messages.push({ message: msg, contact });
-        }
-      }
-    }
-
-    // Process inline and AWAIT before acking Meta.
-    //
-    // We previously used EdgeRuntime.waitUntil to ack immediately and process
-    // in the background, but Supabase tears down the isolate after the Response
-    // resolves, so background work (resolveUser → Graph reply → markProcessed)
-    // was killed mid-flight (rows stuck at status='processing', no reply sent).
-    //
-    // Awaiting is safe: Meta tolerates multi-second webhook latency, and the
-    // recordInbound idempotency guard (provider_message_id UNIQUE) makes any
-    // Meta retry a no-op (isNew=false → skip), so a slow message can never be
-    // processed or replied to twice.
-    if (messages.length > 0) {
-      await Promise.all(messages.map(({ message, contact }) => handleMessage(message, contact)));
-    }
-
-    return new Response('OK', { status: 200 });
+    // Always ack with empty TwiML — Twilio requires a 2xx response
+    return new Response(TWIML_ACK, {
+      status: 200,
+      headers: { 'Content-Type': 'text/xml' },
+    });
   }
 
   // ── Any other method ────────────────────────────────────────────────────

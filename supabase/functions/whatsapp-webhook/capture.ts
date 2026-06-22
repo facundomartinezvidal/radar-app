@@ -14,8 +14,7 @@
  *   isNonPositive      — predicate: amount present but ≤ 0
  */
 
-import { sendText } from './graph.ts';
-import { fetchMediaBytes } from './graph.ts';
+import { fetchMediaBytes, sendText } from './twilio.ts';
 import type { Classification, ClassificationEntities } from './classify.ts';
 import {
   clearPending,

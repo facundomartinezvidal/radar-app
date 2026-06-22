@@ -20,7 +20,7 @@ import { Linking, Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Body, Button, H1, Icon } from '@/components/ui';
-import { WHATSAPP_BOT_NUMBER } from '@/lib/repositories/whatsapp';
+import { WHATSAPP_BOT_NUMBER, WHATSAPP_SANDBOX_JOIN } from '@/lib/repositories/whatsapp';
 import { colors, spacing, typography } from '@/lib/theme';
 import { useCreateLinkCode, useUnlinkWhatsapp, useWhatsappLink } from '@/hooks/use-whatsapp-link';
 
@@ -253,8 +253,13 @@ export default function WhatsappScreen(): React.JSX.Element {
                   <Body style={{ color: colors.fg[2] }}>{'1. Abrí WhatsApp'}</Body>
                   <Body
                     style={{ color: colors.fg[2] }}
-                  >{`2. Escribí al ${WHATSAPP_BOT_NUMBER}`}</Body>
-                  <Body style={{ color: colors.fg[2] }}>{'3. Mandá este código'}</Body>
+                  >{`2. Enviá "${WHATSAPP_SANDBOX_JOIN}" al ${WHATSAPP_BOT_NUMBER}`}</Body>
+                  <Body style={{ color: colors.fg[2] }}>
+                    {'3. Esto activa el sandbox de Twilio (una sola vez)'}
+                  </Body>
+                  <Body style={{ color: colors.fg[2] }}>
+                    {'4. Mandá este código al mismo chat'}
+                  </Body>
                 </View>
 
                 {/* Deep link button */}

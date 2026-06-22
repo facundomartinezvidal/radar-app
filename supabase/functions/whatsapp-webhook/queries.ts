@@ -19,7 +19,7 @@
  *   This mirrors the Argentine locale convention for financial figures.
  */
 
-import { sendText } from './graph.ts';
+import { sendText } from './twilio.ts';
 import { serviceClient } from './db.ts';
 import type { Classification, QueryPeriod } from './classify.ts';
 

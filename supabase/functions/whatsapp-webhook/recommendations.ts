@@ -28,7 +28,7 @@
  *   WHATSAPP_INTERNAL_SECRET
  */
 
-import { sendText } from './graph.ts';
+import { sendText } from './twilio.ts';
 import { serviceClient } from './db.ts';
 import { resolvePeriod, type ResolvedPeriod } from './queries.ts';
 import type { Classification, QueryPeriod } from './classify.ts';
