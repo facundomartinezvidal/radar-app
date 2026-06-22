@@ -433,22 +433,31 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    // -- Auth: require Bearer JWT
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return jsonResponse({ error: { code: 'UNAUTHENTICATED', message: 'No autorizado.' } }, 401);
-    }
+    // -- Auth: internal service-to-service bypass OR standard Bearer JWT
+    const internalSecret = Deno.env.get('WHATSAPP_INTERNAL_SECRET');
+    const internalHeader = req.headers.get('x-whatsapp-internal-secret');
+    const isInternalRequest =
+      typeof internalSecret === 'string' &&
+      internalSecret.length > 0 &&
+      internalHeader === internalSecret;
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    if (!isInternalRequest) {
+      const authHeader = req.headers.get('Authorization');
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return jsonResponse({ error: { code: 'UNAUTHENTICATED', message: 'No autorizado.' } }, 401);
+      }
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
+      const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+      const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 
-    const { data: userData, error: authError } = await supabase.auth.getUser();
-    if (authError || !userData?.user) {
-      return jsonResponse({ error: { code: 'UNAUTHENTICATED', message: 'No autorizado.' } }, 401);
+      const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+
+      const { data: userData, error: authError } = await supabase.auth.getUser();
+      if (authError || !userData?.user) {
+        return jsonResponse({ error: { code: 'UNAUTHENTICATED', message: 'No autorizado.' } }, 401);
+      }
     }
 
     // -- Parse request body
