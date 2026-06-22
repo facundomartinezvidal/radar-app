@@ -12,12 +12,12 @@ to deterministic templates.
 
 ## Modules
 
-| File | Role |
-|------|------|
-| `supabase/functions/whatsapp-webhook/finance_context.ts` | `assembleFinancialContext` (parallel RPC fetch → typed `FinancialContext`; net + MoM computed here) and pure `buildFinancialContextBlock`. Helpers: `computeMoMPercent`, `formatSignedAmount`, `formatPercent`. |
-| `supabase/functions/whatsapp-webhook/render.ts` | `renderFinancialAnswer({contextBlock, userQuestion, deterministicFallback})` — Groq call (8s), verbatim-figures system prompt, number guard, length guard. Never throws. Pure helpers: `extractMoneyTokens`, `outputUsesOnlyKnownFigures`, `withinLengthLimit`. |
-| `queries.ts` | `handleQuery` routes totals + category paths through assemble → render with deterministic fallback. Pure fallback builders `buildTotalsReply`, `buildCategoryReply`. `listMode` stays deterministic. |
-| `chat.ts` | `handleChat` is period-aware and routes through assemble → render; fallback is a complete balance summary. |
+| File                                                     | Role                                                                                                                                                                                                                                                            |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `supabase/functions/whatsapp-webhook/finance_context.ts` | `assembleFinancialContext` (parallel RPC fetch → typed `FinancialContext`; net + MoM computed here) and pure `buildFinancialContextBlock`. Helpers: `computeMoMPercent`, `formatSignedAmount`, `formatPercent`.                                                 |
+| `supabase/functions/whatsapp-webhook/render.ts`          | `renderFinancialAnswer({contextBlock, userQuestion, deterministicFallback})` — Groq call (8s), verbatim-figures system prompt, number guard, length guard. Never throws. Pure helpers: `extractMoneyTokens`, `outputUsesOnlyKnownFigures`, `withinLengthLimit`. |
+| `queries.ts`                                             | `handleQuery` routes totals + category paths through assemble → render with deterministic fallback. Pure fallback builders `buildTotalsReply`, `buildCategoryReply`. `listMode` stays deterministic.                                                            |
+| `chat.ts`                                                | `handleChat` is period-aware and routes through assemble → render; fallback is a complete balance summary.                                                                                                                                                      |
 
 ## Coverage
 
