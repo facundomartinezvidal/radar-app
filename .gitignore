@@ -53,3 +53,9 @@ app-example
 # OpenSpec-generated Claude assets (sk8 wraps OpenSpec; these are unused)
 .claude/commands/opsx/
 .claude/skills/openspec-*/
+
+# sk8 working notes (session records; permanent docs are graduated to docs/)
+.claude-sk8/
+
+# Deno lockfile (edge functions; CI bundles via Supabase CLI, no Deno)
+deno.lock
