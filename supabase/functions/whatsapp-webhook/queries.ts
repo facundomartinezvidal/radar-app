@@ -22,6 +22,13 @@
 import { sendText } from './twilio.ts';
 import { serviceClient } from './db.ts';
 import type { Classification, QueryPeriod } from './classify.ts';
+import {
+  assembleFinancialContext,
+  buildFinancialContextBlock,
+  formatSignedAmount,
+} from './finance_context.ts';
+import type { FinancialContext } from './finance_context.ts';
+import { renderFinancialAnswer } from './render.ts';
 
 // ---------------------------------------------------------------------------
 // Period resolver
@@ -158,12 +165,6 @@ export function formatAmount(amount: number, currency: string): string {
 // RPC row types
 // ---------------------------------------------------------------------------
 
-interface TotalsRow {
-  currency: string;
-  total: number;
-  count: number;
-}
-
 interface CategoryRow {
   category_id: string;
   category_name: string;
@@ -212,6 +213,50 @@ export function formatMovementLine(row: MovementRow): string {
   }
 
   return line;
+}
+
+// ---------------------------------------------------------------------------
+// Pure exported reply builders (fallbacks + unit-testable)
+// ---------------------------------------------------------------------------
+
+/**
+ * Deterministic per-currency balance reply (fallback for the totals path). PURE.
+ */
+export function buildTotalsReply(ctx: FinancialContext): string {
+  if (ctx.byCurrency.length === 0) return 'No tenés movimientos en ese período.';
+  const lines: string[] = [`*Balance — ${ctx.periodLabel}*`];
+  for (const row of ctx.byCurrency) {
+    lines.push(
+      `${row.currency}: gastos ${formatAmount(row.expenses, row.currency)} · ` +
+        `ingresos ${formatAmount(row.incomes, row.currency)} · ` +
+        `neto ${formatSignedAmount(row.net, row.currency)}`,
+    );
+  }
+  return lines.join('\n');
+}
+
+/**
+ * Deterministic category-breakdown reply (fallback for the category path). PURE.
+ * rows = FULL CategoryRow[] (all rows, for grand total + "Otros"); kind drives the noun.
+ */
+export function buildCategoryReply(
+  rows: CategoryRow[],
+  currency: string,
+  periodLabel: string,
+  kind: 'gasto' | 'ingreso',
+): string {
+  if (rows.length === 0) return 'No tenés movimientos en ese período.';
+  const TOP = 5;
+  const noun = kind === 'gasto' ? 'Gastos' : 'Ingresos';
+  const top = rows.slice(0, TOP);
+  const grandTotal = rows.reduce((acc, r) => acc + Number(r.total), 0);
+  const shownTotal = top.reduce((acc, r) => acc + Number(r.total), 0);
+  const lines: string[] = [`*${noun} por categoría (${currency}) — ${periodLabel}*`];
+  for (const row of top)
+    lines.push(`• ${row.category_name}: ${formatAmount(Number(row.total), currency)}`);
+  if (rows.length > TOP) lines.push(`• Otros: ${formatAmount(grandTotal - shownTotal, currency)}`);
+  lines.push(`*Total: ${formatAmount(grandTotal, currency)}*`);
+  return lines.join('\n');
 }
 
 // ---------------------------------------------------------------------------
@@ -279,18 +324,20 @@ async function handleRecentList(
  * Decision logic:
  *   1. If `listMode` is true in entities → call handleRecentList (individual rows;
  *      period is NOT resolved — "recent" is always last-N regardless of date).
- *   2. If `queryCategory` is present → call get_expense_by_category_for.
- *   3. Otherwise → call get_personal_totals_for for a concise total-per-currency reply.
+ *   2. If `queryCategory` is present → call handleCategoryQuery (LLM-rendered with fallback).
+ *   3. Otherwise → call handleTotalsQuery (LLM-rendered with fallback).
  *
  * Both paths are read-only; no confirmation is required.
  *
  * @param userId         RADAR user UUID (caller already verified linked).
  * @param waNumber       Sender E.164 number (for replies).
+ * @param text           The user's raw message text (passed to the LLM as the question).
  * @param classification Pre-classified intent + entities (queryPeriod, queryCategory, currency).
  */
 export async function handleQuery(
   userId: string,
   waNumber: string,
+  text: string,
   classification: Classification,
 ): Promise<void> {
   const { queryPeriod, queryCategory, currency, listMode } = classification.entities;
@@ -306,15 +353,16 @@ export async function handleQuery(
     return;
   }
 
-  const { from, to, label } = resolvePeriod(queryPeriod, new Date());
+  const period = resolvePeriod(queryPeriod, new Date());
+  const direction = classification.entities.direction;
 
   try {
     if (queryCategory !== undefined) {
       // Category breakdown path
-      await handleCategoryQuery(userId, waNumber, from, to, label, currency);
+      await handleCategoryQuery(userId, waNumber, text, period, currency, direction);
     } else {
       // Total-per-currency path
-      await handleTotalsQuery(userId, waNumber, from, to, label);
+      await handleTotalsQuery(userId, waNumber, text, period, currency);
     }
   } catch (err) {
     console.error('[queries] handleQuery RPC error:', err);
@@ -327,94 +375,101 @@ export async function handleQuery(
 // ---------------------------------------------------------------------------
 
 /**
- * Calls get_personal_totals_for and builds a per-currency totals reply.
- * Shows ARS and USD rows when both exist; shows a single line otherwise.
+ * Fetches expense + income totals for the period, assembles a FinancialContext,
+ * and renders an LLM answer (with deterministic fallback).
+ *
+ * Throws on RPC error (caught by handleQuery's outer try/catch).
  */
 async function handleTotalsQuery(
   userId: string,
   waNumber: string,
-  from: string,
-  to: string,
-  label: string,
+  text: string,
+  period: ResolvedPeriod,
+  currency: string | undefined,
 ): Promise<void> {
-  const db = serviceClient();
-
-  const { data, error } = await db.rpc('get_personal_totals_for', {
-    p_user_id: userId,
-    p_from: from,
-    p_to: to,
-  });
-
-  if (error) {
-    throw new Error(`get_personal_totals_for failed: ${error.message}`);
-  }
-
-  const rows = (data ?? []) as TotalsRow[];
-
-  if (rows.length === 0) {
-    await sendText(waNumber, 'No tenés movimientos en ese período.');
+  const ctx = await assembleFinancialContext(userId, period, { currency, includeMovements: false });
+  const fallback = buildTotalsReply(ctx);
+  if (ctx.byCurrency.length === 0) {
+    await sendText(waNumber, fallback);
     return;
   }
-
-  const lines: string[] = [`*Gastos — ${label}*`];
-  for (const row of rows) {
-    lines.push(
-      `${row.currency}: ${formatAmount(Number(row.total), row.currency)} (${row.count} mov.)`,
-    );
-  }
-
-  await sendText(waNumber, lines.join('\n'));
+  const contextBlock = buildFinancialContextBlock(ctx);
+  const reply = await renderFinancialAnswer({
+    contextBlock,
+    userQuestion: text,
+    deterministicFallback: fallback,
+  });
+  await sendText(waNumber, reply);
 }
 
 /**
- * Calls get_expense_by_category_for and builds a top-categories reply.
- * Currency defaults to ARS when not specified.
+ * Fetches category breakdown rows, builds a compact context block, and
+ * renders an LLM answer (with deterministic fallback).
+ *
+ * Keeps its own direct RPC fetch so all rows are available for the grand total
+ * and "Otros" line in buildCategoryReply.
+ *
+ * direction === 'income' → uses get_income_by_category_for and kind 'ingreso';
+ * otherwise → get_expense_by_category_for and kind 'gasto'.
+ * Currency defaults to ARS.
+ *
+ * Throws on RPC error (caught by handleQuery's outer try/catch).
  */
 async function handleCategoryQuery(
   userId: string,
   waNumber: string,
-  from: string,
-  to: string,
-  label: string,
+  text: string,
+  period: ResolvedPeriod,
   currency: string | undefined,
+  direction: string | undefined,
 ): Promise<void> {
   const effectiveCurrency = currency ?? 'ARS';
   const db = serviceClient();
 
-  const { data, error } = await db.rpc('get_expense_by_category_for', {
+  const isIncome = direction === 'income';
+  const rpcName = isIncome ? 'get_income_by_category_for' : 'get_expense_by_category_for';
+  const kind: 'gasto' | 'ingreso' = isIncome ? 'ingreso' : 'gasto';
+
+  const { data, error } = await db.rpc(rpcName, {
     p_user_id: userId,
     p_currency: effectiveCurrency,
-    p_from: from,
-    p_to: to,
+    p_from: period.from,
+    p_to: period.to,
   });
 
   if (error) {
-    throw new Error(`get_expense_by_category_for failed: ${error.message}`);
+    throw new Error(`${rpcName} failed: ${error.message}`);
   }
 
   const rows = (data ?? []) as CategoryRow[];
+  const fallback = buildCategoryReply(rows, effectiveCurrency, period.label, kind);
 
   if (rows.length === 0) {
-    await sendText(waNumber, 'No tenés movimientos en ese período.');
+    await sendText(waNumber, fallback);
     return;
   }
 
-  const TOP = 5;
-  const top = rows.slice(0, TOP);
-  const grandTotal = rows.reduce((acc, r) => acc + Number(r.total), 0);
-  const shownTotal = top.reduce((acc, r) => acc + Number(r.total), 0);
-
-  const lines: string[] = [`*Gastos por categoría (${effectiveCurrency}) — ${label}*`];
-  for (const row of top) {
-    lines.push(`• ${row.category_name}: ${formatAmount(Number(row.total), effectiveCurrency)}`);
+  // Build a compact context block for the LLM
+  const top = rows.slice(0, 5);
+  const grandTotal = rows.reduce((a, r) => a + Number(r.total), 0);
+  const ctxLines = [
+    `Período: ${period.label.replace(/:$/, '')}`,
+    `${kind === 'gasto' ? 'Gastos' : 'Ingresos'} por categoría (${effectiveCurrency}):`,
+  ];
+  for (const r of top)
+    ctxLines.push(`• ${r.category_name} ${formatAmount(Number(r.total), effectiveCurrency)}`);
+  if (rows.length > 5) {
+    ctxLines.push(
+      `• Otros ${formatAmount(grandTotal - top.reduce((a, r) => a + Number(r.total), 0), effectiveCurrency)}`,
+    );
   }
+  ctxLines.push(`Total: ${formatAmount(grandTotal, effectiveCurrency)}`);
+  const contextBlock = ctxLines.join('\n');
 
-  if (rows.length > TOP) {
-    const otherTotal = grandTotal - shownTotal;
-    lines.push(`• Otros: ${formatAmount(otherTotal, effectiveCurrency)}`);
-  }
-
-  lines.push(`*Total: ${formatAmount(grandTotal, effectiveCurrency)}*`);
-
-  await sendText(waNumber, lines.join('\n'));
+  const reply = await renderFinancialAnswer({
+    contextBlock,
+    userQuestion: text,
+    deterministicFallback: fallback,
+  });
+  await sendText(waNumber, reply);
 }
